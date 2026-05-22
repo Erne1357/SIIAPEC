@@ -60,6 +60,13 @@ def init_celery(app):
                 'task': 'app.tasks.events.dispatch_reminders_2h',
                 'schedule': crontab(minute='*/15'),
             },
+            # Barrido de la cola de correos — cada 10 minutos.
+            # Red de seguridad: reenvía 'pending' que send_email_async no pudo
+            # (reintentos agotados o sesión Microsoft caída al encolarse).
+            'process-email-queue': {
+                'task': 'app.tasks.notifications.process_email_queue',
+                'schedule': crontab(minute='*/10'),
+            },
         },
     )
 

@@ -246,6 +246,7 @@ def send_email_async(self, email_queue_id: int):
     from app import db
     from app.models.email_queue import EmailQueue
     from app.services.email_service import EmailService
+    from app.utils.ms_graph import is_connected
 
     try:
         email_item = EmailQueue.query.get(email_queue_id)
@@ -257,18 +258,76 @@ def send_email_async(self, email_queue_id: int):
         if email_item.status in ('sent', 'failed'):
             return
 
+        # Sin sesión Microsoft activa NO tiene sentido quemar los 5 reintentos
+        # con backoff exponencial: ninguno va a funcionar. El correo queda
+        # 'pending' y el barrido periódico (process_email_queue) lo reintenta
+        # cuando la sesión vuelva.
+        if not is_connected():
+            logger.warning(
+                f"[send_email_async] Sin sesión Microsoft; email {email_queue_id} "
+                f"queda pendiente para el barrido periódico"
+            )
+            return {'skipped': True, 'reason': 'no_session'}
+
         logger.info(f"[send_email_async] Intentando enviar email {email_queue_id}...")
-        
+
         # Intentar enviar
         sent = EmailService._try_send_email(email_item)
-        
+
+        # Persistir el resultado. _try_send_email sólo hace flush(); sin este
+        # commit el cambio (status='sent' o attempts++/error_message) se pierde
+        # al cerrar el contexto de la task → el correo se reenvía (duplicados)
+        # o se queda en 0 intentos sin rastro del error.
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+
         if not sent:
-            # Si falló (ej. no hay token, error de red), reintentar
-            # _try_send_email ya incrementa attempts y actualiza el estado si falla
-            # pero aquí forzamos el reintento de Celery
+            # _try_send_email ya incrementó attempts y, si llegó al tope,
+            # marcó 'failed'. Forzamos el reintento de Celery con backoff.
             raise Exception(f"Fallo al enviar email {email_queue_id}")
-            
+
     except Exception as exc:
         logger.error(f"[send_email_async] Error enviando email {email_queue_id}: {exc}")
         # Reintentar con backoff exponencial
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. BARRIDO PERIÓDICO DE LA COLA DE CORREOS (red de seguridad)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@celery.task(
+    name='app.tasks.notifications.process_email_queue',
+    bind=True,
+)
+def process_email_queue(self, limit: int = 100):
+    """
+    Reintenta los correos 'pending' de la cola.
+
+    Red de seguridad: si send_email_async agotó sus reintentos, o la sesión
+    Microsoft estuvo caída cuando se encolaron los correos, esos quedan
+    'pending' sin nadie que los reenvíe hasta que un admin presione el botón.
+    Esta task (Celery Beat) los barre periódicamente.
+
+    EmailService.process_queue ya hace su propio commit.
+    """
+    from app.models.email_queue import EmailQueue
+    from app.services.email_service import EmailService
+    from app.utils.ms_graph import is_connected
+
+    # Salida barata en vacío: 1 COUNT indexado, sin tocar MSAL ni red.
+    # Es el caso normal la mayoría de las corridas /10min.
+    pending = EmailQueue.query.filter_by(status='pending').count()
+    if pending == 0:
+        return {'processed': 0, 'sent': 0, 'failed': 0, 'idle': True}
+
+    if not is_connected():
+        logger.info("[process_email_queue] Sin sesión Microsoft; barrido omitido")
+        return {'processed': 0, 'sent': 0, 'failed': 0, 'skipped': 'no_session'}
+
+    result = EmailService.process_queue(limit=limit)
+    logger.info(f"[process_email_queue] {result}")
+    return result

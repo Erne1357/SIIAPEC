@@ -71,6 +71,15 @@ def process_email_queue():
     """Procesa la cola de correos manualmente"""
     try:
         result = EmailService.process_queue()
+        # process_queue devuelve {'error': ...} (p. ej. 'No hay sesión activa
+        # de Microsoft') sin lanzar excepción. Hay que propagarlo arriba o el
+        # front muestra "Procesados: 0" sin explicar el motivo real.
+        if result.get('error'):
+            return jsonify({
+                'ok': False,
+                'error': result['error'],
+                'result': result
+            }), 400
         return jsonify({
             'ok': True,
             'result': result

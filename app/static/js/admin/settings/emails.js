@@ -135,7 +135,35 @@ class EmailConfigManager {
     }
 
     async sendTest() {
-        this.showFlash('info', 'Funcionalidad de correo de prueba próximamente disponible');
+        const btn = document.getElementById('btnSendTest');
+        const originalText = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
+        }
+
+        try {
+            const res = await fetch('/api/v1/emails/test', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': this.getCsrf() }
+            });
+            const json = await res.json();
+            // El backend devuelve { data, flash:[{level,message}] }.
+            const f = (json.flash || [])[0];
+            if (res.ok && json.data && json.data.sent) {
+                this.showFlash('success', f ? f.message : 'Correo de prueba enviado');
+            } else {
+                this.showFlash('error', f ? f.message : 'Error al enviar correo de prueba');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            this.showFlash('error', 'Error de conexión al enviar correo de prueba');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
     }
 
     // ── Lista de correos pendientes ───────────────────────────────────────────
