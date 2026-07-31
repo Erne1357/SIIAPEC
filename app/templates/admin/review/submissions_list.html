@@ -1,5 +1,6 @@
 {# templates/admin/review/submissions_list.html #}
 {% extends 'base.html' %}
+{% from '_macros.html' import data_table_open, data_table_close, status_badge, empty_state, field, modal_shell %}
 {% block title %}Revisión{% endblock %}
 
 {% block styles %}
@@ -13,16 +14,18 @@
   <!-- Pestañas -->
   <ul class="nav nav-tabs mb-4" id="reviewTabs" role="tablist">
     <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="documents-tab" data-bs-toggle="tab" 
-              data-bs-target="#documents-pane" type="button" role="tab">
-        <i class="bi bi-file-earmark-text me-2"></i>Documentos
+      <button class="nav-link active" id="documents-tab" data-bs-toggle="tab"
+              data-bs-target="#documents-pane" type="button" role="tab"
+              aria-controls="documents-pane" aria-selected="true">
+        <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>Documentos
         <span class="badge bg-warning ms-2" id="pendingDocsCount">{{ submissions|length }}</span>
       </button>
     </li>
     <li class="nav-item" role="presentation">
-      <button class="nav-link" id="extensions-tab" data-bs-toggle="tab" 
-              data-bs-target="#extensions-pane" type="button" role="tab">
-        <i class="bi bi-clock me-2"></i>Solicitudes de Prórroga
+      <button class="nav-link" id="extensions-tab" data-bs-toggle="tab"
+              data-bs-target="#extensions-pane" type="button" role="tab"
+              aria-controls="extensions-pane" aria-selected="false">
+        <i class="bi bi-clock me-2" aria-hidden="true"></i>Solicitudes de Prórroga
         <span class="badge bg-info ms-2" id="pendingExtensionsCount">0</span>
       </button>
     </li>
@@ -30,7 +33,8 @@
 
   <div class="tab-content">
     <!-- PESTAÑA: DOCUMENTOS -->
-    <div class="tab-pane fade show active" id="documents-pane" role="tabpanel">
+    <div class="tab-pane fade show active" id="documents-pane" role="tabpanel"
+         aria-labelledby="documents-tab" tabindex="0">
       {# Tabs por fase #}
       {% set current_phase = filters.phase or 'admission' %}
       <ul class="nav nav-pills mb-3" role="tablist">
@@ -50,8 +54,9 @@
         {% set ph_count = phase_counts[ph_key] if phase_counts else 0 %}
         <li class="nav-item me-2">
           <a class="nav-link {% if current_phase == ph_key %}active{% endif %}"
-             href="?{{ qs|urlencode }}">
-            <i class="bi {{ ph_icon }} me-1"></i>{{ ph_label }}
+             href="?{{ qs|urlencode }}"
+             {% if current_phase == ph_key %}aria-current="page"{% endif %}>
+            <i class="bi {{ ph_icon }} me-1" aria-hidden="true"></i>{{ ph_label }}
             <span class="badge ms-1 {% if ph_count > 0 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
               {{ ph_count }}
             </span>
@@ -64,8 +69,8 @@
       <form method="get" class="row g-3 mb-4 filter-form">
         <input type="hidden" name="phase" value="{{ current_phase }}">
         <div class="col-md-3">
-          <label class="form-label">{{ 'Aspirante' if current_phase == 'admission' else 'Estudiante' }}</label>
-          <select name="applicant_id" class="form-select">
+          <label class="form-label" for="filterApplicantId">{{ 'Aspirante' if current_phase == 'admission' else 'Estudiante' }}</label>
+          <select name="applicant_id" id="filterApplicantId" class="form-select">
             <option value="">Todos</option>
             {% for user in applicants %}
             <option value="{{ user.id }}" {% if filters.applicant_id==user.id %}selected{% endif %}>
@@ -75,8 +80,8 @@
           </select>
         </div>
         <div class="col-md-3">
-          <label class="form-label">Programa</label>
-          <select name="program_id" class="form-select">
+          <label class="form-label" for="filterProgramId">Programa</label>
+          <select name="program_id" id="filterProgramId" class="form-select">
             <option value="">Todos</option>
             {% for program in programs %}
             <option value="{{ program.id }}" {% if filters.program_id==program.id %}selected{% endif %}>
@@ -86,8 +91,8 @@
           </select>
         </div>
         <div class="col-md-2">
-          <label class="form-label">Estado</label>
-          <select name="status" class="form-select">
+          <label class="form-label" for="filterStatus">Estado</label>
+          <select name="status" id="filterStatus" class="form-select">
             {% for option in ['pending','review','approved','rejected'] %}
             <option value="{{ option }}" {% if filters.status==option %}selected{% endif %}>
               {% if option=='pending' %}Pendiente
@@ -100,23 +105,24 @@
           </select>
         </div>
         <div class="col-md-2">
-          <label class="form-label">Orden</label>
-          <select name="sort" class="form-select">
+          <label class="form-label" for="filterSort">Orden</label>
+          <select name="sort" id="filterSort" class="form-select">
             <option value="asc" {% if filters.sort=='asc' %}selected{% endif %}>Más antiguos (FIFO)</option>
             <option value="desc" {% if filters.sort=='desc' %}selected{% endif %}>Más recientes</option>
           </select>
         </div>
         <div class="col-md-2 align-self-end">
-          <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-funnel me-1" aria-hidden="true"></i>Filtrar
+          </button>
         </div>
         {% if is_program_admin %}
         <div class="col-12">
           <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" name="show_all" value="true" 
-                   id="showAllPrograms" {% if filters.show_all %}checked{% endif %}
-                   onchange="this.form.submit()">
+            <input class="form-check-input" type="checkbox" name="show_all" value="true"
+                   id="showAllPrograms" {% if filters.show_all %}checked{% endif %}>
             <label class="form-check-label" for="showAllPrograms">
-              <i class="bi bi-eye me-1"></i>Ver documentos de otros programas (solo consulta)
+              <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver documentos de otros programas (solo consulta)
             </label>
           </div>
         </div>
@@ -124,82 +130,77 @@
       </form>
 
       <!-- Tabla de submissions -->
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead class="table-light">
-            <tr>
-              <th>ID</th>
-              <th>Aspirante</th>
-              <th>Programa</th>
-              <th>Documento</th>
-              <th>Fecha subida</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for sub in submissions %}
-            {% set is_own_program = not is_program_admin or sub.program_step.program.id in managed_program_ids %}
-            <tr class="{% if not is_own_program %}table-secondary{% endif %}">
-              <td>{{ sub.id }}</td>
-              <td>{{ sub.user.first_name }} {{ sub.user.last_name }}</td>
-              <td>
-                {{ sub.program_step.program.name }}
-                {% if not is_own_program %}
-                <i class="bi bi-eye text-muted ms-1" title="Solo consulta"></i>
-                {% endif %}
-              </td>
-              <td>{{ sub.archive.name }}</td>
-              <td>{{ sub.upload_date.strftime('%d/%m/%Y %H:%M') }}</td>
-              <td>
-                <span class="badge bg-{{ 
-                  'success' if sub.status=='approved' else
-                  'danger' if sub.status=='rejected' else
-                  'warning' if sub.status=='review' else
-                  'secondary' 
-                }}">
-                  {% if sub.status=='pending' %}Pendiente
-                  {% elif sub.status=='review' %}En revisión
-                  {% elif sub.status=='approved' %}Aprobado
-                  {% elif sub.status=='rejected' %}Rechazado
-                  {% endif %}
-                </span>
-              </td>
-              <td>
-                <a href="{{ url_for('pages_admin.pages_review.submission_detail', sub_id=sub.id) }}"
-                  class="btn btn-sm btn-outline-primary">
-                  <i class="bi bi-eye me-1"></i>{% if is_own_program %}Revisar{% else %}Ver{% endif %}
-                </a>
-              </td>
-            </tr>
-            {% else %}
-            <tr>
-              <td colspan="7" class="text-center text-muted py-4">No hay documentos para revisar.</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+      {{ data_table_open('Documentos entregados que coinciden con los filtros aplicados',
+                         table_class='table-hover align-middle') }}
+        <thead class="table-light">
+          <tr>
+            <th scope="col">ID</th>
+            <th scope="col">{{ 'Aspirante' if current_phase == 'admission' else 'Estudiante' }}</th>
+            <th scope="col">Programa</th>
+            <th scope="col">Documento</th>
+            <th scope="col">Fecha subida</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sub in submissions %}
+          {% set is_own_program = not is_program_admin or sub.program_step.program.id in managed_program_ids %}
+          <tr class="{% if not is_own_program %}table-secondary{% endif %}">
+            <th scope="row" class="fw-normal">{{ sub.id }}</th>
+            <td>{{ sub.user.first_name }} {{ sub.user.last_name }}</td>
+            <td>
+              {{ sub.program_step.program.name }}
+              {% if not is_own_program %}
+              <i class="bi bi-eye text-muted ms-1" aria-hidden="true"></i>
+              <span class="visually-hidden">Solo consulta</span>
+              {% endif %}
+            </td>
+            <td>{{ sub.archive.name }}</td>
+            <td>{% if sub.upload_date %}{{ sub.upload_date|fechahora_es('numeric') }}{% else %}—{% endif %}</td>
+            <td>{{ status_badge(sub.status, size='sm') }}</td>
+            <td>
+              <a href="{{ url_for('pages_admin.pages_review.submission_detail', sub_id=sub.id) }}"
+                class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-eye me-1" aria-hidden="true"></i>{% if is_own_program %}Revisar{% else %}Ver{% endif %}
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7">
+              {{ empty_state(icon='inbox',
+                             title='No hay documentos pendientes',
+                             description='Prueba con otro estado o quita los filtros de programa y aspirante.',
+                             action_label='Quitar filtros',
+                             action_url='?phase=' ~ current_phase,
+                             variant='inline') }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      {{ data_table_close() }}
     </div>
 
     <!-- PESTAÑA: PRÓRROGAS -->
-    <div class="tab-pane fade" id="extensions-pane" role="tabpanel">
+    <div class="tab-pane fade" id="extensions-pane" role="tabpanel"
+         aria-labelledby="extensions-tab" tabindex="0">
       <!-- Filtros para prórrogas -->
       <div class="row g-3 mb-4">
         <div class="col-md-3">
-          <label class="form-label">Estudiante</label>
+          <label class="form-label" for="extensionStudentFilter">Estudiante</label>
           <select class="form-select" id="extensionStudentFilter">
             <option value="">Todos</option>
           </select>
         </div>
         <div class="col-md-3">
-          <label class="form-label">Programa</label>
+          <label class="form-label" for="extensionProgramFilter">Programa</label>
           <select class="form-select" id="extensionProgramFilter">
             <option value="">Todos</option>
           </select>
         </div>
         <div class="col-md-3">
-          <label class="form-label">Estado</label>
+          <label class="form-label" for="extensionStatusFilter">Estado</label>
           <select class="form-select" id="extensionStatusFilter">
             <option value="">Todos</option>
             <option value="pending">Pendientes</option>
@@ -208,108 +209,90 @@
           </select>
         </div>
         <div class="col-md-3 align-self-end">
-          <button class="btn btn-primary w-100" id="filterExtensionsBtn">
-            <i class="bi bi-funnel me-1"></i>Filtrar
+          <button class="btn btn-primary w-100" id="filterExtensionsBtn" type="button">
+            <i class="bi bi-funnel me-1" aria-hidden="true"></i>Filtrar
           </button>
         </div>
       </div>
 
       <!-- Tabla de solicitudes de prórroga -->
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead class="table-light">
-            <tr>
-              <th style="width: 50px;">ID</th>
-              <th>Estudiante</th>
-              <th>Documento</th>
-              <th>Solicitado hasta</th>
-              <th>Fecha solicitud</th>
-              <th>Estado</th>
-              <th style="width: 120px;">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="extensionsTableBody">
-            <tr>
-              <td colspan="7" class="text-center text-muted py-4">Cargando solicitudes...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {{ data_table_open('Solicitudes de prórroga de los estudiantes con su estado y fechas',
+                         table_class='table-hover align-middle') }}
+        <thead class="table-light">
+          <tr>
+            <th scope="col" class="w-px-50">ID</th>
+            <th scope="col">Estudiante</th>
+            <th scope="col">Documento</th>
+            <th scope="col">Solicitado hasta</th>
+            <th scope="col">Fecha solicitud</th>
+            <th scope="col">Estado</th>
+            <th scope="col" class="w-px-120">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="extensionsTableBody" aria-live="polite" aria-busy="true">
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">Cargando solicitudes…</td>
+          </tr>
+        </tbody>
+      {{ data_table_close() }}
     </div>
   </div>
 </div>
-
-
 {% endblock %}
 
 {% block modals %}
-<!-- Modal para revisar prórroga -->
-<div class="modal fade" id="extensionReviewModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Revisar Solicitud de Prórroga</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="reviewExtensionId">
-        
-        <div class="row g-3">
-          <div class="col-12">
-            <div class="alert alert-info">
-              <h6 class="mb-2"><i class="bi bi-person me-2"></i>Estudiante</h6>
-              <p class="mb-1" id="extensionStudentName"></p>
-              <p class="mb-0 small text-muted" id="extensionStudentEmail"></p>
-            </div>
-          </div>
-          
-          <div class="col-md-6">
-            <strong>Documento:</strong>
-            <p id="extensionArchiveName" class="mb-0"></p>
-          </div>
-          
-          <div class="col-md-6">
-            <strong>Fecha solicitada:</strong>
-            <p id="extensionRequestedUntil" class="mb-0"></p>
-          </div>
-          
-          <div class="col-12">
-            <strong>Motivo de la solicitud:</strong>
-            <div class="bg-light p-3 rounded mt-2">
-              <p id="extensionReason" class="mb-0"></p>
-            </div>
-          </div>
-          
-          <div class="col-12">
-            <hr>
-            <h6>Decisión</h6>
-          </div>
-          
-          <div class="col-12">
-            <label class="form-label">Fecha concedida (si apruebas)</label>
-            <input type="date" class="form-control" id="extensionGrantedUntil">
-            <div class="form-text">Puede ser diferente a la fecha solicitada</div>
-          </div>
-          
-          <div class="col-12">
-            <label class="form-label">Comentarios / Condiciones (opcional)</label>
-            <textarea class="form-control" id="extensionConditions" rows="3"
-                      placeholder="Ej: Aprobado hasta el 15 de octubre. Deberás..."></textarea>
-          </div>
+{% call(section) modal_shell('extensionReviewModal', 'Revisar solicitud de prórroga', size='lg', icon='clock-history') %}
+  {% if section == 'body' %}
+    <input type="hidden" id="reviewExtensionId">
+
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="alert alert-info mb-0">
+          <h3 class="h6 mb-2"><i class="bi bi-person me-2" aria-hidden="true"></i>Estudiante</h3>
+          <p class="mb-1" id="extensionStudentName"></p>
+          <p class="mb-0 small" id="extensionStudentEmail"></p>
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-danger" id="rejectExtensionBtn">
-          <i class="bi bi-x-lg me-1"></i>Rechazar
-        </button>
-        <button type="button" class="btn btn-success" id="approveExtensionBtn">
-          <i class="bi bi-check-lg me-1"></i>Aprobar
-        </button>
+
+      <div class="col-md-6">
+        <p class="mb-1 text-muted small">Documento</p>
+        <p id="extensionArchiveName" class="mb-0 fw-semibold"></p>
       </div>
+
+      <div class="col-md-6">
+        <p class="mb-1 text-muted small">Fecha solicitada</p>
+        <p id="extensionRequestedUntil" class="mb-0 fw-semibold"></p>
+      </div>
+
+      <div class="col-12">
+        <p class="mb-2 text-muted small">Motivo de la solicitud</p>
+        <div class="review-quote">
+          <p id="extensionReason" class="mb-0"></p>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <hr>
+        <h3 class="h6 mb-0">Decisión</h3>
+      </div>
+
+      {{ field('extensionGrantedUntil', 'Fecha concedida (si apruebas)', type='date',
+               help='Puede ser diferente a la fecha solicitada.', wrapper_class='col-12') }}
+
+      {{ field('extensionConditions', 'Comentarios o condiciones (opcional)', type='textarea', rows=3,
+               placeholder='Ej: Aprobado hasta el 15 de octubre. Deberás…',
+               help='El estudiante verá este texto en su notificación.', wrapper_class='col-12') }}
     </div>
-  </div>
-</div>
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-danger" id="rejectExtensionBtn">
+      <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Rechazar solicitud
+    </button>
+    <button type="button" class="btn btn-success" id="approveExtensionBtn">
+      <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Conceder prórroga
+    </button>
+  {% endif %}
+{% endcall %}
 {% endblock %}
 
 {% block scripts %}

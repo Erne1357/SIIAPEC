@@ -1,7 +1,8 @@
 {# app/templates/admin/settings/program_config.html #}
 {% extends "base.html" %}
+{% from '_macros.html' import field %}
 
-{% block title %}Configurar {{ program.name }}{% endblock %}
+{% block title %}{{ super() }} - Configurar {{ program.name }}{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/admin/settings/program_config.css') }}?v={{ static_version }}" rel="stylesheet">
@@ -9,470 +10,441 @@
 
 {% block content %}
 <div class="container-fluid py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
+  <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div>
-      <h2 class="mb-1">Configurar Programa</h2>
+      <h1 class="h3 mb-1">
+        <i class="bi bi-sliders me-2" aria-hidden="true"></i>Configurar programa
+      </h1>
       <p class="text-muted mb-0">{{ program.name }}</p>
     </div>
     <a href="{{ url_for('program.view_program', slug=program.slug) }}" class="btn btn-outline-secondary">
-      <i class="bi bi-eye me-2"></i>Ver Programa
+      <i class="bi bi-eye me-2" aria-hidden="true"></i>Ver programa
     </a>
-  </div>
+  </header>
 
   <form id="programConfigForm" data-program-slug="{{ program.slug }}">
-    <!-- Tabs de navegación -->
+    <!-- Pestañas de navegación -->
     <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
       <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button">
-          <i class="bi bi-info-circle-fill me-2"></i>General
+        <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general"
+                type="button" role="tab" aria-controls="general" aria-selected="true">
+          <i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>General
         </button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="academic-tab" data-bs-toggle="tab" data-bs-target="#academic" type="button">
-          <i class="bi bi-mortarboard-fill me-2"></i>Académico
+        <button class="nav-link" id="academic-tab" data-bs-toggle="tab" data-bs-target="#academic"
+                type="button" role="tab" aria-controls="academic" aria-selected="false">
+          <i class="bi bi-mortarboard-fill me-2" aria-hidden="true"></i>Académico
         </button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="objectives-tab" data-bs-toggle="tab" data-bs-target="#objectives" type="button">
-          <i class="bi bi-bullseye me-2"></i>Objetivos
+        <button class="nav-link" id="objectives-tab" data-bs-toggle="tab" data-bs-target="#objectives"
+                type="button" role="tab" aria-controls="objectives" aria-selected="false">
+          <i class="bi bi-bullseye me-2" aria-hidden="true"></i>Objetivos
         </button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" type="button">
-          <i class="bi bi-mortarboard me-2"></i>Perfil del Egresado
+        <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile"
+                type="button" role="tab" aria-controls="profile" aria-selected="false">
+          <i class="bi bi-mortarboard me-2" aria-hidden="true"></i>Perfil del egresado
         </button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="curriculum-tab" data-bs-toggle="tab" data-bs-target="#curriculum" type="button">
-          <i class="bi bi-book-fill me-2"></i>Plan de Estudios
+        <button class="nav-link" id="curriculum-tab" data-bs-toggle="tab" data-bs-target="#curriculum"
+                type="button" role="tab" aria-controls="curriculum" aria-selected="false">
+          <i class="bi bi-book-fill me-2" aria-hidden="true"></i>Plan de estudios
         </button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="research-tab" data-bs-toggle="tab" data-bs-target="#research" type="button">
-          <i class="bi bi-eyedropper me-2"></i>Investigación
+        <button class="nav-link" id="research-tab" data-bs-toggle="tab" data-bs-target="#research"
+                type="button" role="tab" aria-controls="research" aria-selected="false">
+          <i class="bi bi-eyedropper me-2" aria-hidden="true"></i>Investigación
         </button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="contact-tab" data-bs-toggle="tab" data-bs-target="#contact" type="button">
-          <i class="bi bi-envelope-fill me-2"></i>Contacto
+        <button class="nav-link" id="contact-tab" data-bs-toggle="tab" data-bs-target="#contact"
+                type="button" role="tab" aria-controls="contact" aria-selected="false">
+          <i class="bi bi-envelope-fill me-2" aria-hidden="true"></i>Contacto
         </button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="visibility-tab" data-bs-toggle="tab" data-bs-target="#visibility" type="button">
-          <i class="bi bi-eye me-2"></i>Visibilidad
+        <button class="nav-link" id="visibility-tab" data-bs-toggle="tab" data-bs-target="#visibility"
+                type="button" role="tab" aria-controls="visibility" aria-selected="false">
+          <i class="bi bi-eye me-2" aria-hidden="true"></i>Visibilidad
         </button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="seo-tab" data-bs-toggle="tab" data-bs-target="#seo" type="button">
-          <i class="bi bi-search me-2"></i>SEO
+        <button class="nav-link" id="seo-tab" data-bs-toggle="tab" data-bs-target="#seo"
+                type="button" role="tab" aria-controls="seo" aria-selected="false">
+          <i class="bi bi-search me-2" aria-hidden="true"></i>SEO
         </button>
       </li>
     </ul>
 
-    <!-- Contenido de los tabs -->
     <div class="tab-content" id="configTabsContent">
 
-      <!-- TAB: GENERAL -->
-      <div class="tab-pane fade show active" id="general" role="tabpanel">
-        <div class="form-section">
-          <h5><i class="bi bi-info-circle-fill me-2"></i>Información General</h5>
+      <!-- PESTAÑA: GENERAL -->
+      <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
+        <section class="form-section">
+          <h2 class="h5"><i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>Información general</h2>
 
           <div class="row">
-            <div class="col-md-6 mb-3">
-              <label class="form-label">Nivel del Programa</label>
-              <select class="form-select" name="program_level">
-                <option value="">Seleccionar...</option>
-                <option value="Maestría" {{ 'selected' if program.program_level == 'Maestría' }}>Maestría</option>
-                <option value="Doctorado" {{ 'selected' if program.program_level == 'Doctorado' }}>Doctorado</option>
-                <option value="Especialidad" {{ 'selected' if program.program_level == 'Especialidad' }}>Especialidad</option>
-              </select>
+            <div class="col-md-6">
+              {{ field('programLevel', 'Nivel del programa', type='select', name='program_level',
+                       value=program.program_level, placeholder='Seleccionar…',
+                       options=[('Maestría', 'Maestría'), ('Doctorado', 'Doctorado'), ('Especialidad', 'Especialidad')]) }}
             </div>
-
-            <div class="col-md-6 mb-3">
-              <label class="form-label">Área Académica</label>
-              <select class="form-select" name="academic_area">
-                <option value="">Seleccionar...</option>
-                <option value="Ingeniería" {{ 'selected' if program.academic_area == 'Ingeniería' }}>Ingeniería</option>
-                <option value="Administración" {{ 'selected' if program.academic_area == 'Administración' }}>Administración</option>
-                <option value="Ciencias Sociales" {{ 'selected' if program.academic_area == 'Ciencias Sociales' }}>Ciencias Sociales</option>
-                <option value="Ciencias Exactas" {{ 'selected' if program.academic_area == 'Ciencias Exactas' }}>Ciencias Exactas</option>
-              </select>
+            <div class="col-md-6">
+              {{ field('academicArea', 'Área académica', type='select', name='academic_area',
+                       value=program.academic_area, placeholder='Seleccionar…',
+                       options=[('Ingeniería', 'Ingeniería'), ('Administración', 'Administración'),
+                                ('Ciencias Sociales', 'Ciencias Sociales'), ('Ciencias Exactas', 'Ciencias Exactas')]) }}
             </div>
           </div>
 
           <div class="row">
-            <div class="col-md-6 mb-3">
-              <label class="form-label">Nombre de archivo de imagen</label>
-              <input type="text" class="form-control" name="image_filename"
-                     value="{{ program.image_filename or '' }}"
-                     placeholder="programa.webp">
-              <small class="text-muted">Ubicación: /static/assets/images/programs/</small>
+            <div class="col-md-6">
+              {{ field('imageFilename', 'Nombre de archivo de imagen', name='image_filename',
+                       value=program.image_filename or '', placeholder='programa.webp',
+                       help='Ubicación en el servidor: /static/assets/images/programs/') }}
             </div>
 
             <div class="col-md-6 mb-3">
-              <label class="form-label">Estado</label>
+              <span class="form-label d-block">Estado</span>
               <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" name="is_active"
+                <input class="form-check-input" type="checkbox" role="switch" id="isActive" name="is_active"
                        {{ 'checked' if program.is_active }}>
-                <label class="form-check-label">Programa activo</label>
+                <label class="form-check-label" for="isActive">Programa activo</label>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div class="form-section">
-          <h5><i class="bi bi-clock me-2"></i>Duración y Modalidad</h5>
+        <section class="form-section">
+          <h2 class="h5"><i class="bi bi-clock me-2" aria-hidden="true"></i>Duración y modalidad</h2>
 
           <div class="row">
             <div class="col-md-4 mb-3">
-              <label class="form-label">Duración (Semestres)</label>
-              <input type="number" class="form-control" name="duration_semesters"
+              <label class="form-label" for="durationSemesters">Duración en semestres</label>
+              <input type="number" class="form-control" id="durationSemesters" name="duration_semesters"
                      value="{{ program.duration_semesters or '' }}" min="1" max="12">
             </div>
 
             <div class="col-md-4 mb-3">
-              <label class="form-label">Duración (Años)</label>
-              <input type="number" class="form-control" name="duration_years"
+              <label class="form-label" for="durationYears">Duración en años</label>
+              <input type="number" class="form-control" id="durationYears" name="duration_years"
                      value="{{ program.duration_years or '' }}" step="0.5" min="0.5" max="6">
             </div>
 
-            <div class="col-md-4 mb-3">
-              <label class="form-label">Modalidad</label>
-              <select class="form-select" name="modality">
-                <option value="">Seleccionar...</option>
-                <option value="Presencial" {{ 'selected' if program.modality == 'Presencial' }}>Presencial</option>
-                <option value="Virtual" {{ 'selected' if program.modality == 'Virtual' }}>Virtual</option>
-                <option value="Híbrido" {{ 'selected' if program.modality == 'Híbrido' }}>Híbrido</option>
-                <option value="Presencial con recursos digitales" {{ 'selected' if program.modality == 'Presencial con recursos digitales' }}>Presencial con recursos digitales</option>
-              </select>
+            <div class="col-md-4">
+              {{ field('modality', 'Modalidad', type='select', name='modality',
+                       value=program.modality, placeholder='Seleccionar…',
+                       options=[('Presencial', 'Presencial'), ('Virtual', 'Virtual'), ('Híbrido', 'Híbrido'),
+                                ('Presencial con recursos digitales', 'Presencial con recursos digitales')]) }}
             </div>
           </div>
 
-          <div class="mb-3">
-            <label class="form-label">Información de Horarios</label>
-            <textarea class="form-control" name="schedule_info" rows="2"
-                      placeholder="Clases de lunes a viernes de 18:00 a 21:00 hrs">{{ program.schedule_info or '' }}</textarea>
-          </div>
-        </div>
+          {{ field('scheduleInfo', 'Información de horarios', type='textarea', name='schedule_info', rows=2,
+                   value=program.schedule_info or '',
+                   placeholder='Clases de lunes a viernes de 18:00 a 21:00 h') }}
+        </section>
       </div>
 
-      <!-- TAB: ACADÉMICO -->
-      <div class="tab-pane fade" id="academic" role="tabpanel">
-        <div class="form-section">
-          <h5><i class="bi bi-mortarboard-fill me-2"></i>Información Académica</h5>
+      <!-- PESTAÑA: ACADÉMICO -->
+      <div class="tab-pane fade" id="academic" role="tabpanel" aria-labelledby="academic-tab">
+        <section class="form-section">
+          <h2 class="h5"><i class="bi bi-mortarboard-fill me-2" aria-hidden="true"></i>Información académica</h2>
 
-          <div class="mb-3">
-            <label class="form-label">Texto de Introducción</label>
-            <textarea class="form-control" name="introduction_text" rows="4"
-                      placeholder="Descripción general del programa...">{{ program.introduction_text or '' }}</textarea>
-            <small class="text-muted">Este texto aparecerá en la sección "Acerca del Programa"</small>
-          </div>
+          {{ field('introductionText', 'Texto de introducción', type='textarea', name='introduction_text', rows=4,
+                   value=program.introduction_text or '',
+                   placeholder='Descripción general del programa…',
+                   help='Este texto aparece en la sección «Acerca del programa».') }}
 
-          <div class="mb-3">
-            <label class="form-label">Reconocimientos</label>
-            <textarea class="form-control" name="recognition_text" rows="2"
-                      placeholder="Programa reconocido por SECIHTI...">{{ program.recognition_text or '' }}</textarea>
-          </div>
+          {{ field('recognitionText', 'Reconocimientos', type='textarea', name='recognition_text', rows=2,
+                   value=program.recognition_text or '',
+                   placeholder='Programa reconocido por SECIHTI…') }}
 
-          <div class="mb-3">
-            <label class="form-label">Información de Becas</label>
-            <textarea class="form-control" name="scholarship_info" rows="2"
-                      placeholder="Posibilidad de becas SECIHTI...">{{ program.scholarship_info or '' }}</textarea>
-          </div>
+          {{ field('scholarshipInfo', 'Información de becas', type='textarea', name='scholarship_info', rows=2,
+                   value=program.scholarship_info or '',
+                   placeholder='Posibilidad de becas SECIHTI…') }}
 
-          <div class="mb-3">
-            <label class="form-label">Requisitos de Admisión</label>
-            <textarea class="form-control" name="admission_requirements" rows="3"
-                      placeholder="Título de licenciatura, TOEFL 550 puntos...">{{ program.admission_requirements or '' }}</textarea>
-          </div>
-        </div>
+          {{ field('admissionRequirements', 'Requisitos de admisión', type='textarea',
+                   name='admission_requirements', rows=3,
+                   value=program.admission_requirements or '',
+                   placeholder='Título de licenciatura, TOEFL 550 puntos…') }}
+        </section>
       </div>
 
-      <!-- TAB: OBJETIVOS -->
-      <div class="tab-pane fade" id="objectives" role="tabpanel">
-        <div class="form-section">
-          <h5><i class="bi bi-bullseye me-2"></i>Objetivos del Programa</h5>
+      <!-- PESTAÑA: OBJETIVOS -->
+      <div class="tab-pane fade" id="objectives" role="tabpanel" aria-labelledby="objectives-tab">
+        <section class="form-section">
+          <h2 class="h5"><i class="bi bi-bullseye me-2" aria-hidden="true"></i>Objetivos del programa</h2>
 
           <div class="mb-3">
-            <label class="form-label">Lista de Objetivos</label>
-            <small class="text-muted d-block mb-2">Un objetivo por línea</small>
+            <span class="form-label d-block">Lista de objetivos</span>
+            <p class="text-muted small mb-2">Un objetivo por campo.</p>
             <div id="objectivesList">
               {% if program.objectives %}
                 {% for objective in program.objectives %}
                 <div class="list-item">
-                  <input type="text" class="form-control" value="{{ objective }}" placeholder="Objetivo {{ loop.index }}">
-                  <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-                    <i class="bi bi-trash"></i>
+                  <input type="text" class="form-control" value="{{ objective }}"
+                         placeholder="Objetivo {{ loop.index }}" aria-label="Objetivo {{ loop.index }}">
+                  <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+                          data-action="remove-list-item"
+                          aria-label="Eliminar el objetivo {{ loop.index }}" title="Eliminar objetivo">
+                    <i class="bi bi-trash" aria-hidden="true"></i>
                   </button>
                 </div>
                 {% endfor %}
               {% else %}
                 <div class="list-item">
-                  <input type="text" class="form-control" placeholder="Objetivo 1">
-                  <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-                    <i class="bi bi-trash"></i>
+                  <input type="text" class="form-control" placeholder="Objetivo 1" aria-label="Objetivo 1">
+                  <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+                          data-action="remove-list-item"
+                          aria-label="Eliminar el objetivo 1" title="Eliminar objetivo">
+                    <i class="bi bi-trash" aria-hidden="true"></i>
                   </button>
                 </div>
               {% endif %}
             </div>
-            <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addObjective()">
-              <i class="bi bi-plus-lg me-1"></i>Agregar Objetivo
+            <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-action="add-objective">
+              <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar objetivo
             </button>
           </div>
 
           <div class="config-preview">
-            <h6>Vista Previa:</h6>
+            <h3 class="h6">Vista previa</h3>
             <ul id="objectivesPreview" class="mb-0"></ul>
           </div>
-        </div>
+        </section>
       </div>
 
-      <!-- TAB: PERFIL DEL EGRESADO -->
-      <div class="tab-pane fade" id="profile" role="tabpanel">
-        <div class="form-section">
-          <h5><i class="bi bi-mortarboard me-2"></i>Perfil del Egresado</h5>
+      <!-- PESTAÑA: PERFIL DEL EGRESADO -->
+      <div class="tab-pane fade" id="profile" role="tabpanel" aria-labelledby="profile-tab">
+        <section class="form-section">
+          <h2 class="h5"><i class="bi bi-mortarboard me-2" aria-hidden="true"></i>Perfil del egresado</h2>
+
+          {{ field('graduateProfileIntro', 'Introducción del perfil', name='graduate_profile_intro',
+                   value=program.graduate_profile_intro or '',
+                   placeholder='El egresado de este programa será capaz de:') }}
 
           <div class="mb-3">
-            <label class="form-label">Introducción del Perfil</label>
-            <input type="text" class="form-control" name="graduate_profile_intro"
-                   value="{{ program.graduate_profile_intro or '' }}"
-                   placeholder="El egresado de este programa será capaz de:">
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Competencias del Egresado</label>
-            <small class="text-muted d-block mb-2">Una competencia por línea</small>
+            <span class="form-label d-block">Competencias del egresado</span>
+            <p class="text-muted small mb-2">Una competencia por campo.</p>
             <div id="competenciesList">
               {% if program.graduate_competencies %}
                 {% for competency in program.graduate_competencies %}
                 <div class="list-item">
-                  <input type="text" class="form-control" value="{{ competency }}" placeholder="Competencia {{ loop.index }}">
-                  <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-                    <i class="bi bi-trash"></i>
+                  <input type="text" class="form-control" value="{{ competency }}"
+                         placeholder="Competencia {{ loop.index }}" aria-label="Competencia {{ loop.index }}">
+                  <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+                          data-action="remove-list-item"
+                          aria-label="Eliminar la competencia {{ loop.index }}" title="Eliminar competencia">
+                    <i class="bi bi-trash" aria-hidden="true"></i>
                   </button>
                 </div>
                 {% endfor %}
               {% else %}
                 <div class="list-item">
-                  <input type="text" class="form-control" placeholder="Competencia 1">
-                  <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-                    <i class="bi bi-trash"></i>
+                  <input type="text" class="form-control" placeholder="Competencia 1" aria-label="Competencia 1">
+                  <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+                          data-action="remove-list-item"
+                          aria-label="Eliminar la competencia 1" title="Eliminar competencia">
+                    <i class="bi bi-trash" aria-hidden="true"></i>
                   </button>
                 </div>
               {% endif %}
             </div>
-            <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addCompetency()">
-              <i class="bi bi-plus-lg me-1"></i>Agregar Competencia
+            <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-action="add-competency">
+              <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar competencia
             </button>
           </div>
 
           <div class="config-preview">
-            <h6>Vista Previa:</h6>
+            <h3 class="h6">Vista previa</h3>
             <p id="profileIntroPreview" class="mb-2"></p>
             <ul id="competenciesPreview" class="mb-0"></ul>
           </div>
-        </div>
+        </section>
       </div>
 
-      <!-- TAB: PLAN DE ESTUDIOS -->
-      <div class="tab-pane fade" id="curriculum" role="tabpanel">
-        <div class="form-section">
-          <h5><i class="bi bi-book-fill me-2"></i>Mapa Curricular</h5>
+      <!-- PESTAÑA: PLAN DE ESTUDIOS -->
+      <div class="tab-pane fade" id="curriculum" role="tabpanel" aria-labelledby="curriculum-tab">
+        <section class="form-section">
+          <h2 class="h5"><i class="bi bi-book-fill me-2" aria-hidden="true"></i>Mapa curricular</h2>
 
-          <div class="alert alert-info">
-            <i class="bi bi-info-circle-fill me-2"></i>
-            <strong>Editor Visual:</strong> Organiza tu plan de estudios por semestres y materias.
-            Los cambios se guardarán automáticamente en el formato correcto.
+          <div class="alert alert-info" role="note">
+            <i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>
+            <strong>Editor visual.</strong> Organiza el plan de estudios por semestres y materias;
+            los cambios se guardan en el formato correcto al enviar el formulario.
           </div>
 
-          <div id="curriculumEditorContainer" class="mb-3">
-            <!-- El editor se renderiza aquí dinámicamente -->
-          </div>
+          <div id="curriculumEditorContainer" class="mb-3"></div>
 
-          <div class="mb-3">
-            <label class="form-label">Mostrar Mapa Curricular</label>
+          <div class="mb-0">
+            <span class="form-label d-block">Mostrar mapa curricular</span>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" name="show_curriculum"
+              <input class="form-check-input" type="checkbox" role="switch" id="showCurriculum" name="show_curriculum"
                      {{ 'checked' if program.show_curriculum }}>
-              <label class="form-check-label">Visible en la página del programa</label>
+              <label class="form-check-label" for="showCurriculum">Visible en la página del programa</label>
             </div>
           </div>
-        </div>
+        </section>
       </div>
 
-      <!-- TAB: INVESTIGACIÓN -->
-      <div class="tab-pane fade" id="research" role="tabpanel">
-        <div class="form-section">
-          <h5><i class="bi bi-eyedropper me-2"></i>Líneas de Investigación</h5>
+      <!-- PESTAÑA: INVESTIGACIÓN -->
+      <div class="tab-pane fade" id="research" role="tabpanel" aria-labelledby="research-tab">
+        <section class="form-section">
+          <h2 class="h5"><i class="bi bi-eyedropper me-2" aria-hidden="true"></i>Líneas de investigación</h2>
 
-          <div class="alert alert-info">
-            <i class="bi bi-info-circle-fill me-2"></i>
-            <strong>Editor Visual:</strong> Agrega y edita las líneas de investigación de forma intuitiva.
-            Cada línea incluye nombre y descripción.
+          <div class="alert alert-info" role="note">
+            <i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>
+            <strong>Editor visual.</strong> Cada línea incluye nombre y descripción.
           </div>
 
-          <div id="researchEditorContainer" class="mb-3">
-            <!-- El editor se renderiza aquí dinámicamente -->
-          </div>
-        </div>
+          <div id="researchEditorContainer" class="mb-3"></div>
+        </section>
       </div>
 
-      <!-- TAB: CONTACTO -->
-      <div class="tab-pane fade" id="contact" role="tabpanel">
-        <div class="form-section">
-          <h5><i class="bi bi-envelope-fill me-2"></i>Información de Contacto</h5>
+      <!-- PESTAÑA: CONTACTO -->
+      <div class="tab-pane fade" id="contact" role="tabpanel" aria-labelledby="contact-tab">
+        <section class="form-section">
+          <h2 class="h5"><i class="bi bi-envelope-fill me-2" aria-hidden="true"></i>Información de contacto</h2>
 
           <div class="row">
-            <div class="col-md-6 mb-3">
-              <label class="form-label">Correo Electrónico Principal</label>
-              <input type="email" class="form-control" name="contact_email"
-                     value="{{ program.contact_email or '' }}" placeholder="programa@universidad.edu">
+            <div class="col-md-6">
+              {{ field('contactEmail', 'Correo electrónico principal', type='email', name='contact_email',
+                       value=program.contact_email or '', placeholder='programa@universidad.edu') }}
             </div>
-
-            <div class="col-md-6 mb-3">
-              <label class="form-label">Correo Electrónico Secundario</label>
-              <input type="email" class="form-control" name="contact_email_secondary"
-                     value="{{ program.contact_email_secondary or '' }}" placeholder="admisiones@universidad.edu">
+            <div class="col-md-6">
+              {{ field('contactEmailSecondary', 'Correo electrónico secundario', type='email',
+                       name='contact_email_secondary', value=program.contact_email_secondary or '',
+                       placeholder='admisiones@universidad.edu') }}
             </div>
           </div>
 
           <div class="row">
-            <div class="col-md-6 mb-3">
-              <label class="form-label">Teléfono Principal</label>
-              <input type="tel" class="form-control" name="contact_phone"
-                     value="{{ program.contact_phone or '' }}" placeholder="+52 (656) 123-4567">
+            <div class="col-md-6">
+              {{ field('contactPhone', 'Teléfono principal', type='tel', name='contact_phone',
+                       value=program.contact_phone or '', placeholder='+52 (656) 123-4567') }}
             </div>
-
-            <div class="col-md-6 mb-3">
-              <label class="form-label">Teléfono Secundario</label>
-              <input type="tel" class="form-control" name="contact_phone_secondary"
-                     value="{{ program.contact_phone_secondary or '' }}" placeholder="+52 (656) 123-4568">
+            <div class="col-md-6">
+              {{ field('contactPhoneSecondary', 'Teléfono secundario', type='tel', name='contact_phone_secondary',
+                       value=program.contact_phone_secondary or '', placeholder='+52 (656) 123-4568') }}
             </div>
           </div>
 
-          <div class="mb-3">
-            <label class="form-label">Dirección</label>
-            <textarea class="form-control" name="contact_address" rows="2"
-                      placeholder="Av. Tecnológico 1340, Ciudad Juárez...">{{ program.contact_address or '' }}</textarea>
-          </div>
+          {{ field('contactAddress', 'Dirección', type='textarea', name='contact_address', rows=2,
+                   value=program.contact_address or '',
+                   placeholder='Av. Tecnológico 1340, Ciudad Juárez…') }}
 
           <div class="row">
-            <div class="col-md-6 mb-3">
-              <label class="form-label">Oficina</label>
-              <input type="text" class="form-control" name="contact_office"
-                     value="{{ program.contact_office or '' }}" placeholder="Edificio K, Planta Baja, Oficina 105">
+            <div class="col-md-6">
+              {{ field('contactOffice', 'Oficina', name='contact_office',
+                       value=program.contact_office or '',
+                       placeholder='Edificio K, planta baja, oficina 105') }}
             </div>
-
-            <div class="col-md-6 mb-3">
-              <label class="form-label">Horario de Atención</label>
-              <input type="text" class="form-control" name="contact_hours"
-                     value="{{ program.contact_hours or '' }}" placeholder="Lunes a Viernes de 9:00 a 17:00 hrs">
+            <div class="col-md-6">
+              {{ field('contactHours', 'Horario de atención', name='contact_hours',
+                       value=program.contact_hours or '',
+                       placeholder='Lunes a viernes de 9:00 a 17:00 h') }}
             </div>
           </div>
-        </div>
+        </section>
       </div>
 
-      <!-- TAB: VISIBILIDAD -->
-      <div class="tab-pane fade" id="visibility" role="tabpanel">
-        <div class="form-section">
-          <h5><i class="bi bi-eye me-2"></i>Configuración de Visibilidad</h5>
-          <p class="text-muted">Controla qué secciones se muestran en la página del programa</p>
+      <!-- PESTAÑA: VISIBILIDAD -->
+      <div class="tab-pane fade" id="visibility" role="tabpanel" aria-labelledby="visibility-tab">
+        <section class="form-section">
+          <h2 class="h5"><i class="bi bi-eye me-2" aria-hidden="true"></i>Configuración de visibilidad</h2>
+          <p class="text-muted">Controla qué secciones se muestran en la página del programa.</p>
 
-          <div class="row">
-            <div class="col-md-6 mb-3">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" name="show_hero_cards"
-                       {{ 'checked' if program.show_hero_cards }}>
-                <label class="form-check-label">Mostrar tarjetas del hero (Admisión, Permanencia, Conclusión)</label>
+          <fieldset>
+            <legend class="visually-hidden">Secciones visibles</legend>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch" id="showHeroCards" name="show_hero_cards"
+                         {{ 'checked' if program.show_hero_cards }}>
+                  <label class="form-check-label" for="showHeroCards">
+                    Mostrar tarjetas del encabezado (admisión, permanencia, conclusión)
+                  </label>
+                </div>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch" id="showObjectives" name="show_objectives"
+                         {{ 'checked' if program.show_objectives }}>
+                  <label class="form-check-label" for="showObjectives">Mostrar la sección de objetivos</label>
+                </div>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch" id="showGraduateProfile"
+                         name="show_graduate_profile" {{ 'checked' if program.show_graduate_profile }}>
+                  <label class="form-check-label" for="showGraduateProfile">Mostrar el perfil del egresado</label>
+                </div>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch" id="showResearchLines"
+                         name="show_research_lines" {{ 'checked' if program.show_research_lines }}>
+                  <label class="form-check-label" for="showResearchLines">Mostrar las líneas de investigación</label>
+                </div>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch" id="showContactSection"
+                         name="show_contact_section" {{ 'checked' if program.show_contact_section }}>
+                  <label class="form-check-label" for="showContactSection">Mostrar la sección de contacto</label>
+                </div>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch" id="showContactForm"
+                         name="show_contact_form" {{ 'checked' if program.show_contact_form }}>
+                  <label class="form-check-label" for="showContactForm">Mostrar el formulario de contacto</label>
+                </div>
               </div>
             </div>
-
-            <div class="col-md-6 mb-3">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" name="show_objectives"
-                       {{ 'checked' if program.show_objectives }}>
-                <label class="form-check-label">Mostrar sección de objetivos</label>
-              </div>
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="col-md-6 mb-3">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" name="show_graduate_profile"
-                       {{ 'checked' if program.show_graduate_profile }}>
-                <label class="form-check-label">Mostrar perfil del egresado</label>
-              </div>
-            </div>
-
-            <div class="col-md-6 mb-3">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" name="show_research_lines"
-                       {{ 'checked' if program.show_research_lines }}>
-                <label class="form-check-label">Mostrar líneas de investigación</label>
-              </div>
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="col-md-6 mb-3">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" name="show_contact_section"
-                       {{ 'checked' if program.show_contact_section }}>
-                <label class="form-check-label">Mostrar sección de contacto</label>
-              </div>
-            </div>
-
-            <div class="col-md-6 mb-3">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" name="show_contact_form"
-                       {{ 'checked' if program.show_contact_form }}>
-                <label class="form-check-label">Mostrar formulario de contacto</label>
-              </div>
-            </div>
-          </div>
-        </div>
+          </fieldset>
+        </section>
       </div>
 
-      <!-- TAB: SEO -->
-      <div class="tab-pane fade" id="seo" role="tabpanel">
-        <div class="form-section">
-          <h5><i class="bi bi-search me-2"></i>SEO y Metadatos</h5>
+      <!-- PESTAÑA: SEO -->
+      <div class="tab-pane fade" id="seo" role="tabpanel" aria-labelledby="seo-tab">
+        <section class="form-section">
+          <h2 class="h5"><i class="bi bi-search me-2" aria-hidden="true"></i>SEO y metadatos</h2>
 
-          <div class="mb-3">
-            <label class="form-label">Título SEO</label>
-            <input type="text" class="form-control" name="meta_title"
-                   value="{{ program.meta_title or '' }}"
-                   placeholder="{{ program.name }}">
-            <small class="text-muted">Deja vacío para usar el nombre del programa</small>
-          </div>
+          {{ field('metaTitle', 'Título SEO', name='meta_title', value=program.meta_title or '',
+                   placeholder=program.name,
+                   help='Deja el campo vacío para usar el nombre del programa.') }}
 
-          <div class="mb-3">
-            <label class="form-label">Descripción SEO</label>
-            <textarea class="form-control" name="meta_description" rows="3"
-                      placeholder="Descripción para motores de búsqueda...">{{ program.meta_description or '' }}</textarea>
-            <small class="text-muted">Máximo 160 caracteres recomendado</small>
-          </div>
+          {{ field('metaDescription', 'Descripción SEO', type='textarea', name='meta_description', rows=3,
+                   value=program.meta_description or '',
+                   placeholder='Descripción para motores de búsqueda…',
+                   help='Se recomiendan 160 caracteres como máximo.') }}
 
-          <div class="mb-3">
-            <label class="form-label">Palabras Clave</label>
-            <input type="text" class="form-control" name="meta_keywords"
-                   value="{{ program.meta_keywords or '' }}"
-                   placeholder="maestría, computación, posgrado">
-            <small class="text-muted">Separadas por comas</small>
-          </div>
-        </div>
+          {{ field('metaKeywords', 'Palabras clave', name='meta_keywords', value=program.meta_keywords or '',
+                   placeholder='maestría, computación, posgrado',
+                   help='Sepáralas con comas.') }}
+        </section>
       </div>
 
     </div>
 
     <!-- Botones de acción -->
-    <div class="d-flex justify-content-between mt-4">
+    <div class="d-flex flex-wrap justify-content-between gap-2 mt-4">
       <a href="{{ url_for('program.view_program', slug=program.slug) }}" class="btn btn-outline-secondary">
-        <i class="bi bi-x-lg me-2"></i>Cancelar
+        <i class="bi bi-x-lg me-2" aria-hidden="true"></i>Cancelar
       </a>
       <button type="submit" class="btn btn-primary">
-        <i class="bi bi-save me-2"></i>Guardar Cambios
+        <i class="bi bi-save me-2" aria-hidden="true"></i>Guardar cambios
       </button>
     </div>
   </form>
@@ -488,7 +460,7 @@
       curriculum_structure: {{ program.curriculum_structure | tojson | safe if program.curriculum_structure else 'null' }},
       research_lines: {{ program.research_lines | tojson | safe if program.research_lines else 'null' }}
     };
-    
+
     if (window.initializeProgramConfigEditors) {
       window.initializeProgramConfigEditors(programData);
     }

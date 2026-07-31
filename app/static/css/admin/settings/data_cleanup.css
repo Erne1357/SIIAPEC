@@ -1,59 +1,59 @@
-/* app/static/css/admin/settings/data_cleanup.css */
+/* app/static/css/admin/settings/data_cleanup.css
+   Limpieza de datos con respaldo descargable.
+
+   Los estados de un respaldo usan components/_status-badge.css y los estados
+   vacíos usan components/_empty-state.css. Esta hoja no los redeclara. */
 
 .cleanup-table {
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
 }
+
 .cleanup-table thead th {
-  background-color: #f8f9fa;
-  border-bottom: 2px solid #dee2e6;
-  font-weight: 600;
+  background-color: var(--bg-surface-sunken);
+  border-bottom: 1px solid var(--border-strong);
+  font-weight: var(--fw-semibold);
 }
+
 .cleanup-table tbody tr:hover {
-  background-color: #f1f3f5;
+  background-color: var(--bg-surface-sunken);
 }
+
 .cleanup-table .files-badge {
   font-variant-numeric: tabular-nums;
 }
-.cleanup-empty {
-  padding: 2rem 1rem;
-  text-align: center;
-  color: var(--text-muted);
-  border: 1px dashed #ced4da;
-  border-radius: 0.5rem;
-  background-color: #fafbfc;
+
+/* ── Acciones de la tabla de respaldos ───────────────────────────────────── */
+
+.runs-table .actions-col {
+  text-align: right;
+  white-space: nowrap;
 }
 
-.runs-table .status-pill {
-  font-size: 0.75rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+.runs-table .actions-col .btn + .btn,
+.runs-table .actions-col .btn + a.btn,
+.runs-table .actions-col a.btn + .btn {
+  margin-left: var(--space-1);
 }
-.runs-table .status-pill.pending_download { background-color: #fff3cd; color: #664d03; }
-.runs-table .status-pill.downloaded       { background-color: #cfe2ff; color: #084298; }
-.runs-table .status-pill.purged           { background-color: #d1e7dd; color: #0f5132; }
-.runs-table .status-pill.cancelled        { background-color: #e2e3e5; color: #41464b; }
-.runs-table .status-pill.expired          { background-color: #f8d7da; color: #842029; }
 
-.runs-table .actions-col .btn {
-  margin-right: 0.25rem;
-}
+/* ── Pasos del asistente de purga ────────────────────────────────────────── */
 
 .cleanup-purge-step {
-  border: 1px solid #dee2e6;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  margin-bottom: 0.75rem;
-  background-color: #fff;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+  background-color: var(--bg-surface);
 }
+
 .cleanup-purge-step .step-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-weight: 600;
+  gap: var(--space-2);
+  font-weight: var(--fw-semibold);
 }
+
 .cleanup-purge-step.completed {
-  background-color: #f0fdf4;
-  border-color: #10b981;
+  background-color: var(--color-success-100);
+  border-color: var(--border-success-subtle);
+  color: var(--color-success-700);
 }

@@ -34,6 +34,49 @@
 
     function el(id) { return document.getElementById(id); }
 
+    /**
+     * Marca una región dinámica como ocupada/lista y lo anuncia por la región
+     * viva única (SIIAP.announce). `target` puede ser un <tbody> o un contenedor.
+     */
+    function setRegionBusy(target, busy, message) {
+        if (target) target.setAttribute('aria-busy', busy ? 'true' : 'false');
+        if (message) window.SIIAP?.announce?.(message);
+    }
+
+    /** Fila de estado vacío dentro de una tabla (componente .empty-state). */
+    function emptyRow(colspan, icon, title, description) {
+        return `
+            <tr>
+                <td colspan="${colspan}">
+                    <div class="empty-state empty-state--inline">
+                        <div class="empty-state__icon"><i class="bi bi-${icon}" aria-hidden="true"></i></div>
+                        <h3 class="empty-state__title">${title}</h3>
+                        <p class="empty-state__description">${description}</p>
+                    </div>
+                </td>
+            </tr>`;
+    }
+
+    /** Fila de error de carga con botón de reintento. */
+    function errorRow(colspan, title, description, retryId) {
+        return `
+            <tr>
+                <td colspan="${colspan}">
+                    <div class="empty-state empty-state--inline empty-state--error">
+                        <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+                        <h3 class="empty-state__title">${title}</h3>
+                        <p class="empty-state__description">${description}</p>
+                        <div class="empty-state__actions">
+                            <button type="button" id="${retryId}" class="btn btn-outline-primary">
+                                <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>
+                                <span class="btn-label">Reintentar</span>
+                            </button>
+                        </div>
+                    </div>
+                </td>
+            </tr>`;
+    }
+
     // =================================================================
     // HEADER
     // =================================================================
@@ -102,23 +145,23 @@
         const chips = [];
 
         if (ev.capacity_type === 'single') {
-            chips.push(`<span class="event-stat-chip"><i class="bi bi-calendar2-check"></i> Slots: <strong>${ev.slots_booked || 0}/${ev.slots_total || 0}</strong></span>`);
+            chips.push(`<span class="event-stat-chip"><i class="bi bi-calendar2-check" aria-hidden="true"></i> Horarios ocupados: <strong>${ev.slots_booked || 0}/${ev.slots_total || 0}</strong></span>`);
             if (ev.windows_count) {
-                chips.push(`<span class="event-stat-chip"><i class="bi bi-clock-history"></i> ${ev.windows_count} plazo(s)</span>`);
+                chips.push(`<span class="event-stat-chip"><i class="bi bi-clock-history" aria-hidden="true"></i> ${ev.windows_count} plazo(s)</span>`);
             }
         } else {
             const cap = ev.max_capacity ? `/${ev.max_capacity}` : '';
-            chips.push(`<span class="event-stat-chip"><i class="bi bi-people"></i> Registrados: <strong>${ev.registrations_count || 0}${cap}</strong></span>`);
+            chips.push(`<span class="event-stat-chip"><i class="bi bi-people" aria-hidden="true"></i> Registrados: <strong>${ev.registrations_count || 0}${cap}</strong></span>`);
             if (ev.invitations_pending) {
-                chips.push(`<span class="event-stat-chip text-warning"><i class="bi bi-envelope"></i> ${ev.invitations_pending} invitaciones pendientes</span>`);
+                chips.push(`<span class="event-stat-chip event-stat-chip--warning"><i class="bi bi-envelope" aria-hidden="true"></i> ${ev.invitations_pending} invitaciones pendientes</span>`);
             }
             if (ev.event_date) {
-                chips.push(`<span class="event-stat-chip"><i class="bi bi-calendar-event"></i> ${C.formatDateTime(ev.event_date)}</span>`);
+                chips.push(`<span class="event-stat-chip"><i class="bi bi-calendar-event" aria-hidden="true"></i> ${C.formatDateTime(ev.event_date)}</span>`);
             }
         }
 
         if (ev.location) {
-            chips.push(`<span class="event-stat-chip"><i class="bi bi-geo-alt"></i> ${C.escapeHtml(ev.location)}</span>`);
+            chips.push(`<span class="event-stat-chip"><i class="bi bi-geo-alt" aria-hidden="true"></i> ${C.escapeHtml(ev.location)}</span>`);
         }
 
         node.innerHTML = chips.join('');
@@ -227,6 +270,8 @@
     // WINDOWS
     // =================================================================
     async function loadWindows() {
+        const tbody = document.querySelector('#windowsTable tbody');
+        setRegionBusy(tbody, true, 'Cargando plazos de horarios…');
         try {
             const { data } = await C.apiRequest(`${C.API}/events/${eventId}/windows-list`);
             currentWindows = data.windows || [];
@@ -234,6 +279,12 @@
             loaded.windows = true;
         } catch (err) {
             C.flash(`Error cargando plazos: ${err.message}`, 'danger');
+            if (tbody) {
+                tbody.innerHTML = errorRow(8, 'No se pudieron cargar los plazos',
+                    'Revisa tu conexión y vuelve a intentarlo.', 'retryWindowsBtn');
+                document.getElementById('retryWindowsBtn')?.addEventListener('click', loadWindows);
+            }
+            setRegionBusy(tbody, false, 'No se pudieron cargar los plazos de horarios.');
         }
     }
 
@@ -241,22 +292,25 @@
         const tbody = document.querySelector('#windowsTable tbody');
         if (!tbody) return;
         if (currentWindows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No hay plazos creados</td></tr>';
+            tbody.innerHTML = emptyRow(8, 'calendar-plus', 'Todavía no hay plazos',
+                'Crea un plazo para generar los horarios de atención del evento.');
+            setRegionBusy(tbody, false, 'No hay plazos creados para este evento.');
             return;
         }
         tbody.innerHTML = currentWindows.map(w => {
             const date = C.formatDate(w.date);
             const startTime = (w.start_time || '').substring(0, 5);
             const endTime = (w.end_time || '').substring(0, 5);
+            const when = `${date}, ${startTime} a ${endTime}`;
             return `
                 <tr data-window-id="${w.id}">
-                    <td>${date}</td>
+                    <th scope="row" class="fw-normal">${date}</th>
                     <td>${startTime} - ${endTime}</td>
                     <td>${w.slot_minutes} min</td>
                     <td class="text-center">
                         ${w.slots_generated
-                            ? '<span class="badge bg-success"><i class="bi bi-check"></i> Sí</span>'
-                            : '<span class="badge bg-secondary"><i class="bi bi-x"></i> No</span>'}
+                            ? '<span class="badge bg-success"><i class="bi bi-check" aria-hidden="true"></i> Sí</span>'
+                            : '<span class="badge bg-secondary"><i class="bi bi-x" aria-hidden="true"></i> No</span>'}
                     </td>
                     <td class="text-center">${w.slots_total}</td>
                     <td class="text-center"><span class="badge bg-success">${w.slots_free}</span></td>
@@ -266,23 +320,27 @@
                     <td class="text-end">
                         <div class="btn-group btn-group-sm">
                             ${!w.slots_generated ? `
-                                <button class="btn btn-outline-success btn-generate-window-slots"
-                                    data-window-id="${w.id}" title="Generar slots">
-                                    <i class="bi bi-gear"></i>
+                                <button type="button" class="btn btn-outline-success btn-generate-window-slots tap-target"
+                                    data-window-id="${w.id}"
+                                    aria-label="Generar los horarios del plazo del ${when}"
+                                    title="Generar los horarios de este plazo">
+                                    <i class="bi bi-gear" aria-hidden="true"></i>
                                 </button>
                             ` : ''}
-                            <button class="btn btn-outline-danger btn-delete-window"
+                            <button type="button" class="btn btn-outline-danger btn-delete-window tap-target"
                                 data-window-id="${w.id}"
                                 data-date="${date}"
                                 data-time="${startTime} - ${endTime}"
                                 data-slots-booked="${w.slots_booked}"
+                                aria-label="Eliminar el plazo del ${when}"
                                 title="Eliminar plazo">
-                                <i class="bi bi-trash"></i>
+                                <i class="bi bi-trash" aria-hidden="true"></i>
                             </button>
                         </div>
                     </td>
                 </tr>`;
         }).join('');
+        setRegionBusy(tbody, false, `${currentWindows.length} plazos cargados.`);
     }
 
     async function handleAddWindow(e) {
@@ -313,13 +371,13 @@
             const { data } = await C.apiRequest(
                 `${C.API}/events/windows/${windowId}/generate-slots`, { method: 'POST' });
             C.flash(data.created > 0
-                ? `Se generaron ${data.created} nuevos slots`
-                : 'No se generaron nuevos slots. Ya existen.', data.created > 0 ? 'success' : 'info');
+                ? `Se generaron ${data.created} horarios nuevos`
+                : 'No se generaron horarios nuevos: ya existen.', data.created > 0 ? 'success' : 'info');
             await loadWindows();
             if (loaded.slots) await loadSlots();
             await refreshEventOnly();
         } catch (err) {
-            C.flash(`Error generando slots: ${err.message}`, 'danger');
+            C.flash(`Error generando horarios: ${err.message}`, 'danger');
         }
     }
 
@@ -389,6 +447,7 @@
     // SLOTS
     // =================================================================
     async function loadSlots() {
+        setRegionBusy(document.querySelector('#slotsTable tbody'), true, 'Cargando horarios…');
         try {
             const { data } = await C.apiRequest(`${C.API}/events/${eventId}/slots`);
             const items = data.items || [];
@@ -413,6 +472,13 @@
             loaded.slots = true;
         } catch (err) {
             C.flash(`Error cargando horarios: ${err.message}`, 'danger');
+            const tbody = document.querySelector('#slotsTable tbody');
+            if (tbody) {
+                tbody.innerHTML = errorRow(5, 'No se pudieron cargar los horarios',
+                    'Revisa tu conexión y vuelve a intentarlo.', 'retrySlotsBtn');
+                document.getElementById('retrySlotsBtn')?.addEventListener('click', loadSlots);
+            }
+            setRegionBusy(tbody, false, 'No se pudieron cargar los horarios.');
         }
     }
 
@@ -427,7 +493,9 @@
         if (!tbody) return;
         const list = filteredSlots();
         if (list.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No hay horarios</td></tr>';
+            tbody.innerHTML = emptyRow(5, 'calendar2-x', 'Sin horarios que mostrar',
+                'Cambia el filtro o genera los horarios desde la pestaña «Horarios».');
+            setRegionBusy(tbody, false, 'No hay horarios para el filtro seleccionado.');
             return;
         }
         tbody.innerHTML = list.map(slot => {
@@ -436,43 +504,51 @@
             const dateStr = startTime.toLocaleDateString('es-MX');
             const timeStr = `${startTime.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} - ${endTime.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
             const slotInfo = `${dateStr} ${timeStr}`;
+            const safeInfo = C.escapeHtml(slotInfo);
+            const statusChip = slot.status === 'free'
+                ? '<span class="badge bg-success"><i class="bi bi-unlock me-1" aria-hidden="true"></i>Libre</span>'
+                : slot.status === 'booked'
+                    ? '<span class="badge bg-primary"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Ocupado</span>'
+                    : `<span class="badge bg-secondary">${C.escapeHtml(slot.status)}</span>`;
             return `
                 <tr data-slot-id="${slot.id}" class="slot-${slot.status}">
-                    <td>${dateStr}</td>
+                    <th scope="row" class="fw-normal">${dateStr}</th>
                     <td>${timeStr}</td>
-                    <td class="text-center">
-                        <span class="badge bg-${slot.status === 'free' ? 'success' : slot.status === 'booked' ? 'primary' : 'secondary'}">
-                            ${slot.status === 'free' ? 'Libre' : slot.status === 'booked' ? 'Ocupado' : slot.status}
-                        </span>
-                    </td>
+                    <td class="text-center">${statusChip}</td>
                     <td>${C.escapeHtml(slot.student_name || '—')}</td>
                     <td class="text-end">
                         <div class="btn-group btn-group-sm">
                             ${slot.status === 'free' ? `
-                                <button class="btn btn-outline-primary btn-assign-slot"
-                                    data-slot-id="${slot.id}" data-slot-info="${C.escapeHtml(slotInfo)}">
-                                    <i class="bi bi-person-plus"></i>
+                                <button type="button" class="btn btn-outline-primary btn-assign-slot tap-target"
+                                    data-slot-id="${slot.id}" data-slot-info="${safeInfo}"
+                                    aria-label="Asignar un estudiante al horario del ${safeInfo}"
+                                    title="Asignar estudiante">
+                                    <i class="bi bi-person-plus" aria-hidden="true"></i>
                                 </button>
                             ` : slot.status === 'booked' && slot.appointment_id ? `
-                                <button class="btn btn-outline-danger btn-cancel-appointment"
+                                <button type="button" class="btn btn-outline-danger btn-cancel-appointment tap-target"
                                     data-appointment-id="${slot.appointment_id}"
-                                    data-slot-info="${C.escapeHtml(slotInfo)}"
-                                    data-student-name="${C.escapeHtml(slot.student_name || 'Sin asignar')}">
-                                    <i class="bi bi-x"></i>
+                                    data-slot-info="${safeInfo}"
+                                    data-student-name="${C.escapeHtml(slot.student_name || 'Sin asignar')}"
+                                    aria-label="Cancelar la cita del ${safeInfo}"
+                                    title="Cancelar cita">
+                                    <i class="bi bi-x-lg" aria-hidden="true"></i>
                                 </button>
                             ` : ''}
-                            <button class="btn btn-outline-secondary btn-delete-slot"
+                            <button type="button" class="btn btn-outline-secondary btn-delete-slot tap-target"
                                 data-slot-id="${slot.id}"
-                                data-slot-info="${C.escapeHtml(slotInfo)}"
+                                data-slot-info="${safeInfo}"
                                 data-student-name="${C.escapeHtml(slot.student_name || '')}"
                                 data-is-booked="${slot.status === 'booked'}"
-                                title="Eliminar slot">
-                                <i class="bi bi-trash"></i>
+                                aria-label="Eliminar el horario del ${safeInfo}"
+                                title="Eliminar horario">
+                                <i class="bi bi-trash" aria-hidden="true"></i>
                             </button>
                         </div>
                     </td>
                 </tr>`;
         }).join('');
+        setRegionBusy(tbody, false, `${list.length} horarios mostrados.`);
     }
 
     function updateSlotCounts() {
@@ -522,25 +598,28 @@
         }
         if (filtered.length === 0) {
             const msg = eligibleStudents.length === 0
-                ? 'No hay estudiantes elegibles registrados'
-                : 'Sin coincidencias para los filtros actuales';
-            list.innerHTML = `<div class="list-group-item text-center text-muted py-3">${msg}</div>`;
+                ? 'No hay estudiantes elegibles registrados.'
+                : 'Ningún estudiante coincide con los filtros actuales.';
+            list.innerHTML = `<p class="list-group-item text-center text-muted py-3 mb-0">${msg}</p>`;
             return;
         }
         const selectedId = el('assignStudentId').value;
-        list.innerHTML = filtered.map(s => `
-            <button type="button" class="list-group-item list-group-item-action assign-student-item ${selectedId == s.id ? 'active' : ''}"
-                data-student-id="${s.id}">
+        list.innerHTML = filtered.map(s => {
+            const isSelected = String(selectedId) === String(s.id);
+            return `
+            <button type="button" class="list-group-item list-group-item-action assign-student-item ${isSelected ? 'active' : ''}"
+                data-student-id="${s.id}" aria-pressed="${isSelected}">
                 <div class="d-flex align-items-center gap-2">
                     <img src="${s.avatar_url || '/static/assets/images/default.jpg'}"
-                        class="rounded-circle" width="32" height="32" alt="">
+                        class="rounded-circle avatar-xs" alt="">
                     <div class="flex-grow-1 text-start">
-                        <div class="fw-semibold small">${C.escapeHtml(s.full_name)}</div>
-                        <div class="text-muted small">${C.escapeHtml(s.email || '')} ${s.program_name ? '&middot; ' + C.escapeHtml(s.program_name) : ''}</div>
+                        <span class="fw-semibold small d-block">${C.escapeHtml(s.full_name)}</span>
+                        <span class="text-muted small">${C.escapeHtml(s.email || '')} ${s.program_name ? '&middot; ' + C.escapeHtml(s.program_name) : ''}</span>
                     </div>
+                    <i class="bi bi-check-circle-fill assign-student-item__check" aria-hidden="true"></i>
                 </div>
-            </button>
-        `).join('');
+            </button>`;
+        }).join('');
     }
 
     async function loadEligibleStudents(programId) {
@@ -638,20 +717,20 @@
             const { data } = await C.apiRequest(`${C.API}/events/slots/${slotId}`, { method: 'DELETE' });
             if (data.requires_force) {
                 const confirmed = await siiapConfirm({
-                    type: 'danger', title: 'Eliminar slot',
+                    type: 'danger', title: 'Eliminar horario',
                     message: data.message + '\n\n¿Eliminar de todas formas?',
                     confirmLabel: 'Sí, eliminar'
                 });
                 if (!confirmed) return;
                 await C.apiRequest(`${C.API}/events/slots/${slotId}?force=true`, { method: 'DELETE' });
             }
-            C.flash('Slot eliminado exitosamente', 'success');
+            C.flash('Horario eliminado exitosamente', 'success');
             modal('confirmDeleteSlotModal')?.hide();
             await loadWindows();
             await loadSlots();
             await refreshEventOnly();
         } catch (err) {
-            C.flash(`Error eliminando slot: ${err.message}`, 'danger');
+            C.flash(`Error eliminando horario: ${err.message}`, 'danger');
         }
     }
 
@@ -661,6 +740,7 @@
     async function loadChangeRequests() {
         const tbody = document.querySelector('#changeRequestsTable tbody');
         if (!tbody) return;
+        setRegionBusy(tbody, true, 'Cargando solicitudes de cambio…');
         tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Cargando&hellip;</td></tr>';
         try {
             const { data } = await C.apiRequest(`${C.API}/appointments/change-requests/by-event/${eventId}`);
@@ -677,7 +757,10 @@
             }
             loaded.changeRequests = true;
         } catch (err) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-3">Error cargando solicitudes</td></tr>';
+            tbody.innerHTML = errorRow(6, 'No se pudieron cargar las solicitudes',
+                'Revisa tu conexión y vuelve a intentarlo.', 'retryChangeRequestsBtn');
+            document.getElementById('retryChangeRequestsBtn')?.addEventListener('click', loadChangeRequests);
+            setRegionBusy(tbody, false, 'No se pudieron cargar las solicitudes de cambio.');
         }
     }
 
@@ -685,7 +768,9 @@
         const tbody = document.querySelector('#changeRequestsTable tbody');
         if (!tbody) return;
         if (currentChangeRequests.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No hay solicitudes pendientes</td></tr>';
+            tbody.innerHTML = emptyRow(6, 'inbox', 'Sin solicitudes pendientes',
+                'Cuando un estudiante pida cambiar su horario, aparecerá aquí.');
+            setRegionBusy(tbody, false, 'No hay solicitudes de cambio pendientes.');
             return;
         }
         tbody.innerHTML = currentChangeRequests.map(req => {
@@ -697,33 +782,37 @@
             const sugAttr = (req.suggestions || '').replace(/"/g, '&quot;');
             return `
                 <tr data-req-id="${req.id}">
-                    <td>
-                        <div class="fw-semibold small">${C.escapeHtml(req.student.full_name)}</div>
-                        <div class="text-muted small">${C.escapeHtml(req.student.email)}</div>
-                    </td>
+                    <th scope="row" class="fw-normal">
+                        <span class="fw-semibold small d-block">${C.escapeHtml(req.student.full_name)}</span>
+                        <span class="text-muted small">${C.escapeHtml(req.student.email)}</span>
+                    </th>
                     <td><small>${slotStr}</small></td>
                     <td><small>${C.escapeHtml(req.reason || '—')}</small></td>
                     <td><small>${C.escapeHtml(req.suggestions || '—')}</small></td>
                     <td><small>${createdDate}</small></td>
                     <td class="text-end">
                         <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-success btn-accept-change"
+                            <button type="button" class="btn btn-outline-success btn-accept-change tap-target"
                                 data-req-id="${req.id}"
                                 data-student-name="${C.escapeHtml(req.student.full_name)}"
                                 data-current-slot="${C.escapeHtml(slotStr)}"
                                 data-reason="${reasonAttr}"
                                 data-suggestions="${sugAttr}"
+                                aria-label="Aprobar el cambio de horario de ${C.escapeHtml(req.student.full_name)}"
                                 title="Aprobar cambio">
-                                <i class="bi bi-check"></i>
+                                <i class="bi bi-check-lg" aria-hidden="true"></i>
                             </button>
-                            <button class="btn btn-outline-danger btn-reject-change"
-                                data-req-id="${req.id}" title="Rechazar cambio">
-                                <i class="bi bi-x"></i>
+                            <button type="button" class="btn btn-outline-danger btn-reject-change tap-target"
+                                data-req-id="${req.id}"
+                                aria-label="Rechazar el cambio de horario de ${C.escapeHtml(req.student.full_name)}"
+                                title="Rechazar cambio">
+                                <i class="bi bi-x-lg" aria-hidden="true"></i>
                             </button>
                         </div>
                     </td>
                 </tr>`;
         }).join('');
+        setRegionBusy(tbody, false, `${currentChangeRequests.length} solicitudes de cambio cargadas.`);
     }
 
     async function openAcceptChangeModal(reqId, studentName, currentSlot, reason, suggestions) {
@@ -794,6 +883,8 @@
     // REGISTRATIONS / ATTENDANCE
     // =================================================================
     async function loadRegistrations() {
+        setRegionBusy(document.querySelector('#registrationsTable tbody'), true, 'Cargando registros…');
+        setRegionBusy(document.querySelector('#quickRegistrationsTable tbody'), true);
         try {
             const { data } = await C.apiRequest(`${C.API}/attendance/event/${eventId}/registrations`);
             currentRegistrations = data.registrations || [];
@@ -804,6 +895,14 @@
             loaded.attendance = true;
         } catch (err) {
             C.flash(`Error cargando registros: ${err.message}`, 'danger');
+            const tbody = document.querySelector('#registrationsTable tbody');
+            if (tbody) {
+                tbody.innerHTML = errorRow(6, 'No se pudieron cargar los registros',
+                    'Revisa tu conexión y vuelve a intentarlo.', 'retryRegistrationsBtn');
+                document.getElementById('retryRegistrationsBtn')?.addEventListener('click', loadRegistrations);
+            }
+            setRegionBusy(tbody, false, 'No se pudieron cargar los registros del evento.');
+            setRegionBusy(document.querySelector('#quickRegistrationsTable tbody'), false);
         }
     }
 
@@ -825,69 +924,79 @@
         let filtered = currentRegistrations;
         if (attendanceFilter) filtered = filtered.filter(r => r.status === attendanceFilter);
         if (filtered.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Sin registros</td></tr>';
+            tbody.innerHTML = emptyRow(6, 'people', 'Sin registros que mostrar',
+                'Cambia el filtro de asistencia o invita a más personas al evento.');
+            setRegionBusy(tbody, false, 'No hay registros para el filtro seleccionado.');
             return;
         }
         tbody.innerHTML = filtered.map(reg => {
             const registeredDate = C.formatDateTime(reg.registered_at);
             const attendedDate = reg.attended_at ? C.formatDateTime(reg.attended_at) : '—';
-            let statusBadge = '';
-            if (reg.status === 'registered') statusBadge = '<span class="badge bg-info">Pendiente</span>';
-            else if (reg.status === 'attended') statusBadge = '<span class="badge bg-success">Asistió</span>';
-            else if (reg.status === 'no_show') statusBadge = '<span class="badge bg-warning text-dark">No asistió</span>';
+            const name = C.escapeHtml(reg.full_name);
             return `
                 <tr data-registration-id="${reg.id}" data-user-id="${reg.user_id}">
-                    <td><div class="fw-semibold">${C.escapeHtml(reg.full_name)}</div></td>
+                    <th scope="row" class="fw-semibold">${name}</th>
                     <td>${C.escapeHtml(reg.email)}</td>
                     <td>${registeredDate}</td>
-                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center">${attendanceBadge(reg.status)}</td>
                     <td>${attendedDate}</td>
                     <td class="text-end">
                         ${reg.status === 'registered' ? `
                             <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-success btn-mark-attended"
-                                    data-user-id="${reg.user_id}" title="Marcar asistencia">
-                                    <i class="bi bi-check"></i>
+                                <button type="button" class="btn btn-outline-success btn-mark-attended tap-target"
+                                    data-user-id="${reg.user_id}"
+                                    aria-label="Marcar que ${name} sí asistió" title="Marcar asistencia">
+                                    <i class="bi bi-check-lg" aria-hidden="true"></i>
                                 </button>
-                                <button class="btn btn-outline-warning btn-mark-no-show"
-                                    data-user-id="${reg.user_id}" title="Marcar como ausente">
-                                    <i class="bi bi-x"></i>
+                                <button type="button" class="btn btn-outline-warning btn-mark-no-show tap-target"
+                                    data-user-id="${reg.user_id}"
+                                    aria-label="Marcar que ${name} no asistió" title="Marcar como ausente">
+                                    <i class="bi bi-x-lg" aria-hidden="true"></i>
                                 </button>
                             </div>
                         ` : `
-                            <button class="btn btn-outline-secondary btn-sm btn-undo-attendance"
-                                data-user-id="${reg.user_id}" title="Restablecer estado">
-                                <i class="bi bi-arrow-counterclockwise"></i>
+                            <button type="button" class="btn btn-outline-secondary btn-sm btn-undo-attendance tap-target"
+                                data-user-id="${reg.user_id}"
+                                aria-label="Restablecer el estado de asistencia de ${name}" title="Restablecer estado">
+                                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
                             </button>
                         `}
                     </td>
                 </tr>`;
         }).join('');
+        setRegionBusy(tbody, false, `${filtered.length} registros mostrados.`);
+    }
+
+    /* Estado de asistencia: chip del sistema (nunca solo color). */
+    function attendanceBadge(status) {
+        if (status === 'registered') return window.SIIAP.statusBadge('pending', 'Pendiente', 'sm');
+        if (status === 'attended') return window.SIIAP.statusBadge('approved', 'Asistió', 'sm');
+        if (status === 'no_show') return window.SIIAP.statusBadge('rejected', 'No asistió', 'sm');
+        return window.SIIAP.statusBadge('pending', window.SIIAP.statusLabel(status), 'sm');
     }
 
     function renderQuickRegistrations() {
         const tbody = document.querySelector('#quickRegistrationsTable tbody');
         if (!tbody) return;
         if (currentRegistrations.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Sin registros</td></tr>';
+            tbody.innerHTML = emptyRow(4, 'person-plus', 'Todavía no hay personas registradas',
+                'Usa «Invitar estudiantes» para convocar a los asistentes.');
+            setRegionBusy(tbody, false);
             return;
         }
         tbody.innerHTML = currentRegistrations.map(reg => {
             const originBadge = (reg.notes && reg.notes.includes('invitación'))
                 ? '<span class="badge bg-info">Invitación</span>'
                 : '<span class="badge bg-secondary">Auto-registro</span>';
-            let statusBadge = '';
-            if (reg.status === 'registered') statusBadge = '<span class="badge bg-info">Pendiente</span>';
-            else if (reg.status === 'attended') statusBadge = '<span class="badge bg-success">Asistió</span>';
-            else if (reg.status === 'no_show') statusBadge = '<span class="badge bg-warning text-dark">No asistió</span>';
             return `
                 <tr>
-                    <td>${C.escapeHtml(reg.full_name)}</td>
+                    <th scope="row" class="fw-normal">${C.escapeHtml(reg.full_name)}</th>
                     <td>${C.escapeHtml(reg.email)}</td>
                     <td>${originBadge}</td>
-                    <td>${statusBadge}</td>
+                    <td>${attendanceBadge(reg.status)}</td>
                 </tr>`;
         }).join('');
+        setRegionBusy(tbody, false);
     }
 
     async function markAttendance(userId, attended) {
@@ -941,6 +1050,8 @@
     // INVITATIONS
     // =================================================================
     async function loadInvitations() {
+        const tbody = document.querySelector('#invitationsTable tbody');
+        setRegionBusy(tbody, true, 'Cargando invitaciones…');
         try {
             const { data } = await C.apiRequest(`${C.API}/invitations/event/${eventId}/list`);
             currentInvitations = data.invitations || [];
@@ -949,38 +1060,53 @@
             loaded.invitations = true;
         } catch (err) {
             console.error('Error loading invitations:', err);
+            if (tbody) {
+                tbody.innerHTML = errorRow(5, 'No se pudieron cargar las invitaciones',
+                    'Revisa tu conexión y vuelve a intentarlo.', 'retryInvitationsBtn');
+                document.getElementById('retryInvitationsBtn')?.addEventListener('click', loadInvitations);
+            }
+            setRegionBusy(tbody, false, 'No se pudieron cargar las invitaciones.');
         }
+    }
+
+    /* Estado de la invitación: chip del sistema con icono, no solo color. */
+    function invitationBadge(status) {
+        if (status === 'pending') return window.SIIAP.statusBadge('pending', 'Pendiente', 'sm');
+        if (status === 'accepted') return window.SIIAP.statusBadge('approved', 'Aceptada', 'sm');
+        if (status === 'rejected') return window.SIIAP.statusBadge('rejected', 'Rechazada', 'sm');
+        return window.SIIAP.statusBadge('pending', window.SIIAP.statusLabel(status), 'sm');
     }
 
     function renderInvitationsTable() {
         const tbody = document.querySelector('#invitationsTable tbody');
         if (!tbody) return;
         if (currentInvitations.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Sin invitaciones</td></tr>';
+            tbody.innerHTML = emptyRow(5, 'envelope', 'Sin invitaciones enviadas',
+                'Invita estudiantes desde la pestaña «Asistentes».');
+            setRegionBusy(tbody, false, 'No hay invitaciones enviadas para este evento.');
             return;
         }
         tbody.innerHTML = currentInvitations.map(inv => {
             const invitedDate = C.formatDateTime(inv.invited_at);
-            let statusBadge = '';
-            if (inv.status === 'pending') statusBadge = '<span class="badge bg-warning text-dark">Pendiente</span>';
-            else if (inv.status === 'accepted') statusBadge = '<span class="badge bg-success">Aceptada</span>';
-            else if (inv.status === 'rejected') statusBadge = '<span class="badge bg-danger">Rechazada</span>';
+            const name = C.escapeHtml(inv.full_name);
             return `
                 <tr data-invitation-id="${inv.id}">
-                    <td>${C.escapeHtml(inv.full_name)}</td>
+                    <th scope="row" class="fw-normal">${name}</th>
                     <td>${C.escapeHtml(inv.inviter_name || '')}</td>
                     <td>${invitedDate}</td>
-                    <td>${statusBadge}</td>
+                    <td>${invitationBadge(inv.status)}</td>
                     <td class="text-end">
                         ${inv.status === 'pending' ? `
-                            <button class="btn btn-sm btn-outline-danger btn-cancel-invitation"
-                                data-invitation-id="${inv.id}" title="Cancelar invitación">
-                                <i class="bi bi-x"></i>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-cancel-invitation tap-target"
+                                data-invitation-id="${inv.id}"
+                                aria-label="Cancelar la invitación de ${name}" title="Cancelar invitación">
+                                <i class="bi bi-x-lg" aria-hidden="true"></i>
                             </button>
                         ` : ''}
                     </td>
                 </tr>`;
         }).join('');
+        setRegionBusy(tbody, false, `${currentInvitations.length} invitaciones cargadas.`);
     }
 
     let invitePool = [];
@@ -988,7 +1114,10 @@
 
     async function loadInvitePool(scope) {
         const grid = el('inviteUsersGrid');
-        if (grid) grid.innerHTML = '<div class="text-center text-muted py-4 w-100">Cargando usuarios...</div>';
+        if (grid) {
+            setRegionBusy(grid, true, 'Cargando usuarios que puedes invitar…');
+            grid.innerHTML = '<p class="text-center text-muted py-4 w-100 mb-0">Cargando usuarios…</p>';
+        }
 
         const registeredIds = currentRegistrations.map(r => r.user_id);
         const invitedIds = currentInvitations.filter(i => i.status === 'pending').map(i => i.user_id);
@@ -1060,13 +1189,25 @@
         el('inviteVisibleCount').textContent = list.length;
 
         if (invitePool.length === 0) {
-            grid.innerHTML = '<div class="text-center text-muted py-4 w-100">No hay usuarios disponibles para invitar</div>';
+            grid.innerHTML = `
+                <div class="empty-state empty-state--compact w-100">
+                    <div class="empty-state__icon"><i class="bi bi-person-x" aria-hidden="true"></i></div>
+                    <h3 class="empty-state__title">No hay usuarios disponibles</h3>
+                    <p class="empty-state__description">Todas las personas de este alcance ya están registradas o invitadas.</p>
+                </div>`;
             updateInviteSelectedUI();
+            setRegionBusy(grid, false, 'No hay usuarios disponibles para invitar.');
             return;
         }
         if (list.length === 0) {
-            grid.innerHTML = '<div class="text-center text-muted py-4 w-100">Sin coincidencias</div>';
+            grid.innerHTML = `
+                <div class="empty-state empty-state--compact w-100">
+                    <div class="empty-state__icon"><i class="bi bi-search" aria-hidden="true"></i></div>
+                    <h3 class="empty-state__title">Sin coincidencias</h3>
+                    <p class="empty-state__description">Ajusta la búsqueda o el filtro de programa.</p>
+                </div>`;
             updateInviteSelectedUI();
+            setRegionBusy(grid, false, 'Ningún usuario coincide con la búsqueda.');
             return;
         }
 
@@ -1075,7 +1216,7 @@
             const avatar = u.avatar_url || '/static/assets/images/default.jpg';
             return `
                 <label class="invite-user-card ${isSelected ? 'selected' : ''}" data-user-id="${u.id}">
-                    <input type="checkbox" class="invite-check" data-user-id="${u.id}" ${isSelected ? 'checked' : ''}>
+                    <input type="checkbox" class="form-check-input invite-check" data-user-id="${u.id}" ${isSelected ? 'checked' : ''}>
                     <img src="${avatar}" class="invite-avatar" alt="" loading="lazy">
                     <div class="invite-info">
                         <div class="invite-name">${C.escapeHtml(u.full_name || 'Sin nombre')}</div>
@@ -1088,6 +1229,7 @@
                 </label>`;
         }).join('');
         updateInviteSelectedUI();
+        setRegionBusy(grid, false, `${list.length} usuarios disponibles para invitar.`);
     }
 
     function updateInviteSelectedUI() {
@@ -1122,7 +1264,7 @@
 
         const allowRow = el('inviteAllowExternalRow');
         if (allowRow) {
-            allowRow.style.display = currentEvent.program_id ? '' : 'none';
+            allowRow.classList.toggle('d-none', !currentEvent.program_id);
             el('inviteAllowExternal').checked = false;
         }
 
@@ -1354,7 +1496,7 @@
             preview.classList.add('empty');
             preview.innerHTML = `
                 <div class="text-center">
-                    <i class="bi bi-image fs-1 d-block mb-2"></i>
+                    <i class="bi bi-image icon-3xl d-block mb-2" aria-hidden="true"></i>
                     <span class="text-muted small">Sin portada</span>
                 </div>`;
             delBtn?.classList.add('d-none');
@@ -1375,7 +1517,7 @@
             preview.classList.add('empty');
             preview.innerHTML = `
                 <div class="text-center">
-                    <i class="bi bi-image fs-1 d-block mb-2"></i>
+                    <i class="bi bi-image icon-3xl d-block mb-2" aria-hidden="true"></i>
                     <span class="text-muted small">Sin portada</span>
                 </div>`;
         }
@@ -1397,9 +1539,11 @@
             return `
                 <div class="event-gallery-item">
                     <img src="${url}" alt="${C.escapeHtml(img.caption || '')}">
-                    <button type="button" class="btn btn-danger btn-sm btn-remove btn-delete-gallery-image"
-                        data-image-id="${img.id}" title="Eliminar imagen">
-                        <i class="bi bi-x-lg"></i>
+                    <button type="button" class="btn btn-danger btn-sm btn-remove btn-delete-gallery-image tap-target"
+                        data-image-id="${img.id}"
+                        aria-label="Eliminar la imagen ${C.escapeHtml(img.caption || 'de la galería')}"
+                        title="Eliminar imagen">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
                     </button>
                 </div>`;
         }).join('');
@@ -1425,29 +1569,32 @@
                 : '<span class="badge bg-secondary">Externo</span>';
             const avatarSrc = host.avatar_url || host.photo_url || '/static/assets/images/default.jpg';
             const name = host.full_name || host.name || host.external_name || 'Sin nombre';
+            const safeName = C.escapeHtml(name);
             return `
                 <div class="event-host-card" data-host-idx="${idx}">
-                    <img src="${avatarSrc}" alt="Avatar" class="avatar">
+                    <img src="${avatarSrc}" alt="" class="avatar">
                     <div class="host-info">
-                        <div class="fw-semibold">${C.escapeHtml(name)}</div>
-                        <div class="text-muted small">${C.escapeHtml(host.role_label || '')} ${typeBadge}</div>
+                        <p class="fw-semibold mb-0">${safeName}</p>
+                        <p class="text-muted small mb-0">${C.escapeHtml(host.role_label || '')} ${typeBadge}</p>
                     </div>
                     <div class="host-actions d-flex gap-1">
-                        <button type="button" class="btn btn-sm btn-outline-secondary btn-move-host-up"
-                            data-idx="${idx}" title="Subir" ${idx === 0 ? 'disabled' : ''}>
-                            <i class="bi bi-arrow-up"></i>
+                        <button type="button" class="btn btn-sm btn-outline-secondary btn-move-host-up tap-target"
+                            data-idx="${idx}" aria-label="Subir a ${safeName} en el orden de ponentes"
+                            title="Subir" ${idx === 0 ? 'disabled' : ''}>
+                            <i class="bi bi-arrow-up" aria-hidden="true"></i>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary btn-move-host-down"
-                            data-idx="${idx}" title="Bajar" ${idx === currentEventHosts.length - 1 ? 'disabled' : ''}>
-                            <i class="bi bi-arrow-down"></i>
+                        <button type="button" class="btn btn-sm btn-outline-secondary btn-move-host-down tap-target"
+                            data-idx="${idx}" aria-label="Bajar a ${safeName} en el orden de ponentes"
+                            title="Bajar" ${idx === currentEventHosts.length - 1 ? 'disabled' : ''}>
+                            <i class="bi bi-arrow-down" aria-hidden="true"></i>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-primary btn-edit-host"
-                            data-idx="${idx}" title="Editar">
-                            <i class="bi bi-pencil"></i>
+                        <button type="button" class="btn btn-sm btn-outline-primary btn-edit-host tap-target"
+                            data-idx="${idx}" aria-label="Editar al ponente ${safeName}" title="Editar">
+                            <i class="bi bi-pencil" aria-hidden="true"></i>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-host"
-                            data-idx="${idx}" title="Eliminar">
-                            <i class="bi bi-trash"></i>
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-host tap-target"
+                            data-idx="${idx}" aria-label="Quitar al ponente ${safeName}" title="Eliminar">
+                            <i class="bi bi-trash" aria-hidden="true"></i>
                         </button>
                     </div>
                 </div>`;
@@ -1459,9 +1606,10 @@
         if (!node) return;
         if (currentEventHosts.length === 0) {
             node.innerHTML = `
-                <div class="text-center text-muted py-3">
-                    <i class="bi bi-person-x fs-3 d-block mb-1"></i>
-                    Sin ponentes registrados
+                <div class="empty-state empty-state--compact">
+                    <div class="empty-state__icon"><i class="bi bi-person-x" aria-hidden="true"></i></div>
+                    <h3 class="empty-state__title">Sin ponentes registrados</h3>
+                    <p class="empty-state__description">Agrégalos desde «Contenido visual».</p>
                 </div>`;
             return;
         }
@@ -1474,10 +1622,10 @@
                 : '<span class="badge bg-secondary">Externo</span>';
             return `
                 <div class="d-flex align-items-center gap-2 mb-2">
-                    <img src="${avatarSrc}" class="rounded-circle" width="36" height="36" style="object-fit:cover" alt="">
+                    <img src="${avatarSrc}" class="rounded-circle avatar-xs" alt="">
                     <div class="flex-grow-1 min-width-0">
-                        <div class="fw-semibold small text-truncate">${C.escapeHtml(name)}</div>
-                        <div class="text-muted small text-truncate">${C.escapeHtml(host.role_label || '')} ${typeBadge}</div>
+                        <p class="fw-semibold small text-truncate mb-0">${C.escapeHtml(name)}</p>
+                        <p class="text-muted small text-truncate mb-0">${C.escapeHtml(host.role_label || '')} ${typeBadge}</p>
                     </div>
                 </div>`;
         }).join('');
@@ -1690,6 +1838,14 @@
         modal('hostEditorModal')?.show();
     }
 
+    /* Abre/cierra el desplegable de resultados manteniendo aria-expanded. */
+    function toggleHostDropdown(open) {
+        const dropdown = el('hostUserDropdown');
+        const search = el('hostUserSearch');
+        if (dropdown) dropdown.classList.toggle('d-none', !open);
+        if (search) search.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
     function showSelectedUser(user) {
         el('hostUserId').value = user.id;
         el('hostSelectedName').textContent = user.full_name || '';
@@ -1698,7 +1854,7 @@
         el('hostSelectedAvatar').src = user.avatar_url || '/static/assets/images/default.jpg';
         el('hostSelectedUserCard').classList.remove('d-none');
         el('hostUserSearch').value = '';
-        el('hostUserDropdown').style.display = 'none';
+        toggleHostDropdown(false);
     }
 
     function setupHostEditor() {
@@ -1715,7 +1871,7 @@
             clearTimeout(searchTimer);
             const q = e.target.value.trim();
             if (q.length < 2) {
-                el('hostUserDropdown').style.display = 'none';
+                toggleHostDropdown(false);
                 return;
             }
             searchTimer = setTimeout(() => searchUsers(q), 300);
@@ -1744,8 +1900,9 @@
         const dropdown = el('hostUserDropdown');
         if (!dropdown) return;
         if (users.length === 0) {
-            dropdown.innerHTML = '<div class="list-group-item text-muted small">Sin resultados</div>';
-            dropdown.style.display = 'block';
+            dropdown.innerHTML = '<p class="list-group-item text-muted small mb-0">Sin resultados para esa búsqueda</p>';
+            toggleHostDropdown(true);
+            window.SIIAP?.announce?.('Sin resultados para esa búsqueda de usuarios.');
             return;
         }
         const fullNameOf = (u) => u.full_name || u.name ||
@@ -1754,15 +1911,15 @@
             const fullName = fullNameOf(u);
             const role = u.role_name || u.role || '';
             return `
-                <button type="button" class="list-group-item list-group-item-action py-2"
+                <button type="button" class="list-group-item list-group-item-action py-2" role="option"
                     data-user-id="${u.id}"
                     data-full-name="${C.escapeHtml(fullName)}"
                     data-email="${C.escapeHtml(u.email || '')}"
                     data-role="${C.escapeHtml(role)}"
                     data-avatar="${C.escapeHtml(u.avatar_url || '')}">
                     <div class="d-flex align-items-center gap-2">
-                        <img src="${u.avatar_url || '/static/assets/images/default.jpg'}" width="28" height="28"
-                            class="rounded-circle" style="object-fit:cover">
+                        <img src="${u.avatar_url || '/static/assets/images/default.jpg'}" alt=""
+                            class="rounded-circle avatar-xs">
                         <div>
                             <div class="fw-semibold small">${C.escapeHtml(fullName)}</div>
                             <div class="text-muted small">${C.escapeHtml(u.email || '')} &bull; ${C.escapeHtml(role)}</div>
@@ -1781,7 +1938,8 @@
                 });
             });
         });
-        dropdown.style.display = 'block';
+        toggleHostDropdown(true);
+        window.SIIAP?.announce?.(`${users.length} usuarios encontrados.`);
     }
 
     async function saveHostFromModal() {
@@ -2048,7 +2206,9 @@
             el('assignStudentId').value = item.dataset.studentId;
             el('btnConfirmAssign').disabled = false;
             document.querySelectorAll('.assign-student-item').forEach(node => {
-                node.classList.toggle('active', node === item);
+                const isSelected = node === item;
+                node.classList.toggle('active', isSelected);
+                node.setAttribute('aria-pressed', String(isSelected));
             });
         });
 

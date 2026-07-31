@@ -7,6 +7,13 @@
     let currentPage = 1;
     let currentFilters = {};
     
+    // Anuncia el resultado de una carga asíncrona en la región viva compartida.
+    const announce = (message) => {
+        if (window.SIIAP && typeof window.SIIAP.announce === 'function') {
+            window.SIIAP.announce(message);
+        }
+    };
+
     // Función para obtener CSRF token
     const getCsrf = () => {
         const el = document.querySelector('meta[name="csrf-token"]');
@@ -19,9 +26,9 @@
         const tableContainer = document.getElementById('usersTableContainer');
         const noResults = document.getElementById('noResultsMessage');
         
-        loadingIndicator.style.display = 'block';
-        tableContainer.style.display = 'none';
-        noResults.style.display = 'none';
+        loadingIndicator.classList.remove('d-none');
+        tableContainer.classList.add('d-none');
+        noResults.classList.add('d-none');
         
         // Construir query params
         const params = new URLSearchParams({
@@ -41,10 +48,11 @@
 
             const { users, pagination } = json.data;
             
-            loadingIndicator.style.display = 'none';
+            loadingIndicator.classList.add('d-none');
             
             if (users.length === 0) {
-                noResults.style.display = 'block';
+                noResults.classList.remove('d-none');
+                announce('Ningún usuario coincide con los filtros aplicados.');
                 return;
             }
             
@@ -52,11 +60,16 @@
             renderPagination(pagination);
             updateTotalCount(pagination.total);
             
-            tableContainer.style.display = 'block';
+            tableContainer.classList.remove('d-none');
+            announce(
+                pagination.total === 1
+                    ? '1 usuario encontrado.'
+                    : `${pagination.total} usuarios encontrados.`
+            );
             
         } catch (error) {
             console.error('Error:', error);
-            loadingIndicator.style.display = 'none';
+            loadingIndicator.classList.add('d-none');
             showFlash('danger', 'Error al cargar usuarios: ' + error.message);
         }
     }
@@ -66,16 +79,19 @@
         const tbody = document.getElementById('usersTableBody');
         
         tbody.innerHTML = users.map(user => `
-            <tr class="user-row" onclick="window.usersManager.showUserDetail(${user.id})">
-                <td>
+            <tr class="user-row">
+                <th scope="row" class="fw-normal">
                     <div class="d-flex align-items-center">
-                        <img src="${user.avatar_url}" class="rounded-circle user-avatar-sm me-2" alt="Avatar">
+                        <img src="${user.avatar_url}" class="rounded-circle avatar-sm me-2" alt="">
                         <div>
-                            <div class="fw-semibold">${user.first_name} ${user.last_name}</div>
-                            <small class="text-muted">${user.email}</small>
+                            <button type="button" class="user-row__trigger"
+                                    onclick="window.usersManager.showUserDetail(${user.id})">
+                                ${user.first_name} ${user.last_name}
+                            </button>
+                            <small class="text-muted d-block">${user.email}</small>
                         </div>
                     </div>
-                </td>
+                </th>
                 <td>
                     <span class="badge ${getRoleBadgeClass(user.role)}">
                         ${getRoleLabel(user.role)}
@@ -99,25 +115,33 @@
                     </span>
                 </td>
                 <td class="text-end">
-                    <div class="btn-group btn-group-sm" role="group" onclick="event.stopPropagation();">
-                        <button class="btn btn-outline-primary" onclick="window.usersManager.editUser(${user.id})" 
-                                title="Editar">
-                            <i class="bi bi-pencil"></i>
+                    <div class="btn-group btn-group-sm" role="group"
+                         aria-label="Acciones de ${user.first_name} ${user.last_name}">
+                        <button type="button" class="btn btn-outline-primary tap-target"
+                                onclick="window.usersManager.editUser(${user.id})"
+                                aria-label="Editar a ${user.first_name} ${user.last_name}"
+                                title="Editar a ${user.first_name} ${user.last_name}">
+                            <i class="bi bi-pencil" aria-hidden="true"></i>
                         </button>
-                        <button class="btn btn-outline-warning" onclick="window.usersManager.resetPassword(${user.id}, '${user.first_name} ${user.last_name}')" 
-                                title="Resetear contraseña">
-                            <i class="bi bi-key"></i>
+                        <button type="button" class="btn btn-outline-danger tap-target"
+                                onclick="window.usersManager.resetPassword(${user.id}, '${user.first_name} ${user.last_name}')"
+                                aria-label="Restablecer la contraseña de ${user.first_name} ${user.last_name}"
+                                title="Restablecer la contraseña de ${user.first_name} ${user.last_name}">
+                            <i class="bi bi-key" aria-hidden="true"></i>
                         </button>
                         ${(!user.control_number && user.role === 'applicant') ? `
-                        <button class="btn btn-outline-info" onclick="window.usersManager.assignControlNumber(${user.id})"
-                                title="Asignar # control y transicionar a estudiante">
-                            <i class="bi bi-123"></i>
+                        <button type="button" class="btn btn-outline-primary tap-target"
+                                onclick="window.usersManager.assignControlNumber(${user.id})"
+                                aria-label="Asignar número de control a ${user.first_name} ${user.last_name}"
+                                title="Asignar número de control y convertir en estudiante">
+                            <i class="bi bi-123" aria-hidden="true"></i>
                         </button>
                         ` : ''}
-                        <button class="btn btn-outline-${user.is_active ? 'danger' : 'success'}"
+                        <button type="button" class="btn btn-outline-${user.is_active ? 'danger' : 'success'} tap-target"
                                 onclick="window.usersManager.toggleUserActive(${user.id})"
-                                title="${user.is_active ? 'Desactivar' : 'Activar'}">
-                            <i class="bi bi-${user.is_active ? 'x-circle' : 'check-circle'}"></i>
+                                aria-label="${user.is_active ? 'Desactivar' : 'Activar'} a ${user.first_name} ${user.last_name}"
+                                title="${user.is_active ? 'Desactivar' : 'Activar'} a ${user.first_name} ${user.last_name}">
+                            <i class="bi bi-${user.is_active ? 'x-circle' : 'check-circle'}" aria-hidden="true"></i>
                         </button>
                         ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
                     </div>
@@ -141,8 +165,9 @@
         // Anterior
         html += `
             <li class="page-item ${!has_prev ? 'disabled' : ''}">
-                <a class="page-link" href="#" onclick="window.usersManager.loadUsers(${page - 1}); return false;">
-                    <i class="bi bi-chevron-left"></i>
+                <a class="page-link" href="#" aria-label="Página anterior"
+                   onclick="window.usersManager.loadUsers(${page - 1}); return false;">
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
                 </a>
             </li>
         `;
@@ -152,7 +177,9 @@
             if (i === 1 || i === pages || (i >= page - 2 && i <= page + 2)) {
                 html += `
                     <li class="page-item ${i === page ? 'active' : ''}">
-                        <a class="page-link" href="#" onclick="window.usersManager.loadUsers(${i}); return false;">
+                        <a class="page-link" href="#" aria-label="Página ${i}"
+                           ${i === page ? 'aria-current="page"' : ''}
+                           onclick="window.usersManager.loadUsers(${i}); return false;">
                             ${i}
                         </a>
                     </li>
@@ -165,8 +192,9 @@
         // Siguiente
         html += `
             <li class="page-item ${!has_next ? 'disabled' : ''}">
-                <a class="page-link" href="#" onclick="window.usersManager.loadUsers(${page + 1}); return false;">
-                    <i class="bi bi-chevron-right"></i>
+                <a class="page-link" href="#" aria-label="Página siguiente"
+                   onclick="window.usersManager.loadUsers(${page + 1}); return false;">
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
                 </a>
             </li>
         `;
@@ -203,7 +231,7 @@
             content.innerHTML = `
                 <div class="row">
                     <div class="col-md-4 text-center">
-                        <img src="${user.avatar_url}" class="rounded-circle" style="width: 150px; height: 150px;">
+                        <img src="${user.avatar_url}" alt="" loading="lazy" class="rounded-circle avatar-xl">
                         <h5 class="mt-3">${user.first_name} ${user.last_name}</h5>
                         <span class="badge ${getRoleBadgeClass(user.role)}">${getRoleLabel(user.role)}</span>
                         <br>
@@ -212,15 +240,15 @@
                         </span>
                     </div>
                     <div class="col-md-8">
-                        <h6>Información Básica</h6>
-                        <table class="table table-sm">
-                            <tr><th>Email:</th><td>${user.email}</td></tr>
-                            <tr><th>Username:</th><td>${user.username}</td></tr>
-                            <tr><th>Teléfono:</th><td>${user.phone || 'No registrado'}</td></tr>
-                            <tr><th>CURP:</th><td>${user.curp || 'No registrado'}</td></tr>
-                            <tr><th>Fecha de registro:</th><td>${formatDate(user.registration_date)}</td></tr>
-                            <tr><th>Último acceso:</th><td>${formatDate(user.last_login)}</td></tr>
-                        </table>
+                        <h6>Información básica</h6>
+                        <dl class="row mb-0">
+                            <dt class="col-5">Correo</dt><dd class="col-7">${user.email}</dd>
+                            <dt class="col-5">Usuario</dt><dd class="col-7">${user.username}</dd>
+                            <dt class="col-5">Teléfono</dt><dd class="col-7">${user.phone || 'No registrado'}</dd>
+                            <dt class="col-5">CURP</dt><dd class="col-7">${user.curp || 'No registrado'}</dd>
+                            <dt class="col-5">Fecha de registro</dt><dd class="col-7">${formatDate(user.registration_date)}</dd>
+                            <dt class="col-5">Último acceso</dt><dd class="col-7">${formatDate(user.last_login)}</dd>
+                        </dl>
                         
                         ${program ? `
                         <h6 class="mt-3">Programa</h6>
@@ -515,17 +543,17 @@
 
         const scopeInfo = document.getElementById('ss_scope_info');
         if (ctx.canDelegateGlobal) {
-            scopeInfo.style.display = 'none';
+            scopeInfo.classList.add('d-none');
         } else {
             const progs = (ctx.coordinatedProgramNames || []).join(', ') || '(sin programas)';
-            scopeInfo.innerHTML = `<i class="bi bi-diagram-3 me-1"></i>Ámbito de delegación: <strong>${progs}</strong>. Los permisos se aplicarán a cada uno de tus programas coordinados.`;
-            scopeInfo.style.display = 'block';
+            scopeInfo.innerHTML = `<i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Ámbito de delegación: <strong>${progs}</strong>. Los permisos se aplicarán a cada uno de tus programas coordinados.`;
+            scopeInfo.classList.remove('d-none');
         }
 
         const list = document.getElementById('ss_permissions_list');
         const loading = document.getElementById('ss_permissions_loading');
-        list.style.display = 'none';
-        loading.style.display = 'block';
+        list.classList.add('d-none');
+        loading.classList.remove('d-none');
 
         const modal = new bootstrap.Modal(document.getElementById('createSocialServiceModal'));
         modal.show();
@@ -586,11 +614,11 @@
                     <button type="button" class="btn btn-link btn-sm p-0" id="ssClearAllBtn">Limpiar</button>
                 </div>
             </div>
-            <div class="border rounded p-3" style="max-height: 320px; overflow-y: auto;">${html}</div>
+            <div class="border rounded p-3 modal-body-scroll">${html}</div>
         `;
 
-        loading.style.display = 'none';
-        list.style.display = 'block';
+        loading.classList.add('d-none');
+        list.classList.remove('d-none');
 
         list.querySelectorAll('.ss-perm-check').forEach(cb => {
             cb.addEventListener('change', updateSelectedCount);
@@ -697,23 +725,26 @@
                     ? `<small class="text-muted ms-2">Vence: ${formatDate(d.expires_at)}</small>`
                     : '';
                 const revokeBtn = (active && ctx.canRevokeDelegations)
-                    ? `<button class="btn btn-sm btn-outline-danger" onclick="window.usersManager.revokeDelegation(${d.id}, ${userId})" title="Revocar">
-                           <i class="bi bi-x-circle"></i>
+                    ? `<button type="button" class="btn btn-sm btn-outline-danger tap-target"
+                               onclick="window.usersManager.revokeDelegation(${d.id}, ${userId})"
+                               aria-label="Revocar el permiso ${d.permission_codename || ''}"
+                               title="Revocar el permiso ${d.permission_codename || ''}">
+                           <i class="bi bi-x-circle" aria-hidden="true"></i>
                        </button>`
                     : '';
                 return `
                     <tr class="${active ? '' : 'text-muted'}">
-                        <td>
+                        <th scope="row" class="fw-normal">
                             <code class="small">${d.permission_codename || ''}</code>
-                            ${d.permission_display_name ? `<div class="text-muted small">${d.permission_display_name}</div>` : ''}
-                        </td>
+                            ${d.permission_display_name ? `<span class="text-muted small d-block">${d.permission_display_name}</span>` : ''}
+                        </th>
                         <td>${scope}</td>
                         <td>
                             ${active
-                                ? '<span class="badge bg-success">Activa</span>'
+                                ? '<span class="status-badge status-badge--accepted status-badge--sm"><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>Activa</span></span>'
                                 : (d.is_expired
-                                    ? '<span class="badge bg-warning text-dark">Vencida</span>'
-                                    : '<span class="badge bg-secondary">Revocada</span>')}
+                                    ? '<span class="status-badge status-badge--deliberation status-badge--sm"><i class="bi bi-hourglass-bottom" aria-hidden="true"></i><span>Vencida</span></span>'
+                                    : '<span class="status-badge status-badge--deferred status-badge--sm"><i class="bi bi-slash-circle" aria-hidden="true"></i><span>Revocada</span></span>')}
                             ${expires}
                         </td>
                         <td class="text-end">${revokeBtn}</td>
@@ -722,11 +753,17 @@
             }).join('');
 
             return `
-                <h6 class="mt-3"><i class="bi bi-shield-check me-1"></i>Permisos Delegados</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
+                <h3 class="h6 mt-3"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Permisos delegados</h3>
+                <div class="siiap-table-wrapper">
+                    <table class="table siiap-table table-sm table-hover mb-0">
+                        <caption class="visually-hidden">Permisos delegados directamente a este usuario</caption>
                         <thead class="table-light">
-                            <tr><th>Permiso</th><th>Ámbito</th><th>Estado</th><th></th></tr>
+                            <tr>
+                                <th scope="col">Permiso</th>
+                                <th scope="col">Ámbito</th>
+                                <th scope="col">Estado</th>
+                                <th scope="col" class="text-end"><span class="visually-hidden">Acciones</span></th>
+                            </tr>
                         </thead>
                         <tbody>${rows}</tbody>
                     </table>
@@ -817,7 +854,8 @@
     }
     
     function formatDate(isoString) {
-        if (!isoString) return 'N/A';
+        if (!isoString) return '—';
+        if (window.SIIAP && window.SIIAP.formatDate) return window.SIIAP.formatDate(isoString, 'short');
         const date = new Date(isoString);
         return date.toLocaleDateString('es-MX', {
             year: 'numeric',
@@ -854,6 +892,9 @@
         
         // Limpiar filtros
         document.getElementById('btnClearFilters').addEventListener('click', clearFilters);
+        // Acción de recuperación del estado vacío.
+        const btnClearFiltersEmpty = document.getElementById('btnClearFiltersEmpty');
+        if (btnClearFiltersEmpty) btnClearFiltersEmpty.addEventListener('click', clearFilters);
         
         // Formularios
         document.getElementById('editUserForm').addEventListener('submit', saveUserEdit);

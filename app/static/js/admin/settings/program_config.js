@@ -6,41 +6,62 @@
   // FUNCIONES PARA LISTAS DINÁMICAS (Objetivos y Competencias)
   // ============================================
 
-  window.addObjective = function() {
+  function addObjective() {
     const container = document.getElementById('objectivesList');
     const count = container.children.length + 1;
     const div = document.createElement('div');
     div.className = 'list-item';
     div.innerHTML = `
-      <input type="text" class="form-control" placeholder="Objetivo ${count}">
-      <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-        <i class="bi bi-trash"></i>
+      <input type="text" class="form-control" placeholder="Objetivo ${count}"
+             aria-label="Objetivo ${count}">
+      <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+              data-action="remove-list-item"
+              aria-label="Eliminar el objetivo ${count}" title="Eliminar objetivo">
+        <i class="bi bi-trash" aria-hidden="true"></i>
       </button>
     `;
     container.appendChild(div);
     updateObjectivesPreview();
-  };
+  }
 
-  window.addCompetency = function() {
+  function addCompetency() {
     const container = document.getElementById('competenciesList');
     const count = container.children.length + 1;
     const div = document.createElement('div');
     div.className = 'list-item';
     div.innerHTML = `
-      <input type="text" class="form-control" placeholder="Competencia ${count}">
-      <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-        <i class="bi bi-trash"></i>
+      <input type="text" class="form-control" placeholder="Competencia ${count}"
+             aria-label="Competencia ${count}">
+      <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+              data-action="remove-list-item"
+              aria-label="Eliminar la competencia ${count}" title="Eliminar competencia">
+        <i class="bi bi-trash" aria-hidden="true"></i>
       </button>
     `;
     container.appendChild(div);
     updateProfilePreview();
-  };
+  }
 
-  window.removeListItem = function(button) {
+  function removeListItem(button) {
     button.parentElement.remove();
     updateObjectivesPreview();
     updateProfilePreview();
+  }
+
+  // Delegación por data-action: sustituye a los onclick en línea de la
+  // plantilla y no requiere exponer nada en window (compatible con CSP).
+  const ACTIONS = {
+    'add-objective': addObjective,
+    'add-competency': addCompetency,
+    'remove-list-item': removeListItem,
   };
+
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-action]');
+    if (!trigger) return;
+    const handler = ACTIONS[trigger.dataset.action];
+    if (handler) handler(trigger);
+  });
 
   function updateObjectivesPreview() {
     const inputs = document.querySelectorAll('#objectivesList input');
@@ -135,12 +156,17 @@
 
     if (curriculumData.semesters.length === 0) {
       container.innerHTML = `
-        <div class="empty-state">
-          <i class="bi bi-book-half"></i>
-          <p>No hay semestres configurados</p>
-          <button type="button" class="btn btn-primary" onclick="addSemester()">
-            <i class="bi bi-plus-lg me-2"></i>Agregar Primer Semestre
-          </button>
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-book-half" aria-hidden="true"></i></div>
+          <p class="empty-state__title">Sin semestres configurados</p>
+          <p class="empty-state__description">
+            Agrega el primer semestre para empezar a construir el mapa curricular.
+          </p>
+          <div class="empty-state__actions">
+            <button type="button" class="btn btn-primary" onclick="addSemester()">
+              <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar el primer semestre
+            </button>
+          </div>
         </div>
       `;
       return;
@@ -165,23 +191,23 @@
       html += `
         <div class="accordion-item">
           <h2 class="accordion-header" id="heading-${semIdx}">
-            <button class="accordion-button ${isFirst ? '' : 'collapsed'}" type="button" 
+            <button class="accordion-button ${isFirst ? '' : 'collapsed'}" type="button"
                     data-bs-toggle="collapse" data-bs-target="#${collapseId}">
               Semestre ${semester.semester}
-              <span class="badge bg-secondary ms-2">${(semester.courses || []).length} materia(s)</span>
+              <span class="badge bg-secondary ms-2">${(semester.courses || []).length} ${(semester.courses || []).length === 1 ? 'materia' : 'materias'}</span>
             </button>
           </h2>
-          <div id="${collapseId}" class="accordion-collapse collapse ${isFirst ? 'show' : ''}" 
+          <div id="${collapseId}" class="accordion-collapse collapse ${isFirst ? 'show' : ''}"
                data-bs-parent="#curriculumAccordion">
             <div class="accordion-body">
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="mb-0">Materias del Semestre ${semester.semester}</h6>
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <h3 class="h6 mb-0">Materias del semestre ${semester.semester}</h3>
                 <div class="btn-group btn-group-sm">
                   <button type="button" class="btn btn-outline-primary" onclick="addCourse(${semIdx})">
-                    <i class="bi bi-plus-lg me-1"></i>Agregar Materia
+                    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar materia
                   </button>
                   <button type="button" class="btn btn-outline-danger" onclick="removeSemester(${semIdx})">
-                    <i class="bi bi-trash me-1"></i>Eliminar Semestre
+                    <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar semestre
                   </button>
                 </div>
               </div>
@@ -189,32 +215,42 @@
 
       const courses = semester.courses || [];
       if (courses.length === 0) {
-        html += `<p class="text-muted text-center py-3">No hay materias en este semestre</p>`;
+        html += `
+          <div class="empty-state empty-state--compact">
+            <div class="empty-state__icon"><i class="bi bi-journal-x" aria-hidden="true"></i></div>
+            <p class="empty-state__title">Sin materias en este semestre</p>
+          </div>`;
       } else {
         courses.forEach((course, courseIdx) => {
           html += `
             <div class="course-item">
-              <input type="text" class="form-control form-control-sm" 
-                     placeholder="Nombre de la materia" 
+              <input type="text" class="form-control form-control-sm"
+                     placeholder="Nombre de la materia"
+                     aria-label="Nombre de la materia ${courseIdx + 1} del semestre ${semester.semester}"
                      value="${course.name || ''}"
                      onchange="updateCourse(${semIdx}, ${courseIdx}, 'name', this.value)">
-              <input type="text" class="form-control form-control-sm" 
-                     placeholder="Código" 
+              <input type="text" class="form-control form-control-sm"
+                     placeholder="Código"
+                     aria-label="Código de la materia ${courseIdx + 1} del semestre ${semester.semester}"
                      value="${course.code || ''}"
                      onchange="updateCourse(${semIdx}, ${courseIdx}, 'code', this.value)">
-              <input type="number" class="form-control form-control-sm" 
-                     placeholder="Créditos" 
+              <input type="number" class="form-control form-control-sm"
+                     placeholder="Créditos"
+                     aria-label="Créditos de la materia ${courseIdx + 1} del semestre ${semester.semester}"
                      value="${course.credits || ''}"
                      onchange="updateCourse(${semIdx}, ${courseIdx}, 'credits', this.value)">
-              <select class="form-select form-select-sm" 
+              <select class="form-select form-select-sm"
+                      aria-label="Tipo de la materia ${courseIdx + 1} del semestre ${semester.semester}"
                       onchange="updateCourse(${semIdx}, ${courseIdx}, 'type', this.value)">
                 <option value="obligatoria" ${course.type === 'obligatoria' ? 'selected' : ''}>Obligatoria</option>
                 <option value="optativa" ${course.type === 'optativa' ? 'selected' : ''}>Optativa</option>
                 <option value="electiva" ${course.type === 'electiva' ? 'selected' : ''}>Electiva</option>
               </select>
-              <button type="button" class="btn btn-sm btn-outline-danger" 
-                      onclick="removeCourse(${semIdx}, ${courseIdx})">
-                <i class="bi bi-trash"></i>
+              <button type="button" class="btn btn-sm btn-outline-danger tap-target"
+                      onclick="removeCourse(${semIdx}, ${courseIdx})"
+                      aria-label="Eliminar la materia ${courseIdx + 1} del semestre ${semester.semester}"
+                      title="Eliminar materia">
+                <i class="bi bi-trash" aria-hidden="true"></i>
               </button>
             </div>
           `;
@@ -234,7 +270,7 @@
     html += `
       <div class="text-center mt-3">
         <button type="button" class="btn btn-outline-primary" onclick="addSemester()">
-          <i class="bi bi-plus-lg me-2"></i>Agregar Semestre ${curriculumData.semesters.length + 1}
+          <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar semestre ${curriculumData.semesters.length + 1}
         </button>
       </div>
     `;
@@ -282,12 +318,17 @@
 
     if (researchLinesData.length === 0) {
       container.innerHTML = `
-        <div class="empty-state">
-          <i class="bi bi-eyedropper"></i>
-          <p>No hay líneas de investigación configuradas</p>
-          <button type="button" class="btn btn-primary" onclick="addResearchLine()">
-            <i class="bi bi-plus-lg me-2"></i>Agregar Primera Línea
-          </button>
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-eyedropper" aria-hidden="true"></i></div>
+          <p class="empty-state__title">Sin líneas de investigación</p>
+          <p class="empty-state__description">
+            Agrega la primera línea para que aparezca en la página pública del programa.
+          </p>
+          <div class="empty-state__actions">
+            <button type="button" class="btn btn-primary" onclick="addResearchLine()">
+              <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar la primera línea
+            </button>
+          </div>
         </div>
       `;
       return;
@@ -300,23 +341,25 @@
           <div class="research-line-header">
             <div class="research-line-content">
               <div class="mb-2">
-                <label class="form-label form-label-sm fw-semibold">Nombre de la Línea</label>
-                <input type="text" class="form-control" 
-                       placeholder="Ej: Inteligencia Artificial y Machine Learning"
+                <label class="form-label fw-semibold" for="researchLineName-${idx}">Nombre de la línea</label>
+                <input type="text" class="form-control" id="researchLineName-${idx}"
+                       placeholder="Ej: Inteligencia artificial y aprendizaje automático"
                        value="${line.name || ''}"
                        onchange="updateResearchLine(${idx}, 'name', this.value)">
               </div>
               <div>
-                <label class="form-label form-label-sm fw-semibold">Descripción</label>
-                <textarea class="form-control" rows="3" 
-                          placeholder="Descripción de la línea de investigación..."
+                <label class="form-label fw-semibold" for="researchLineDesc-${idx}">Descripción</label>
+                <textarea class="form-control" id="researchLineDesc-${idx}" rows="3"
+                          placeholder="Descripción de la línea de investigación…"
                           onchange="updateResearchLine(${idx}, 'description', this.value)">${line.description || ''}</textarea>
               </div>
             </div>
             <div class="research-line-actions">
-              <button type="button" class="btn btn-outline-danger btn-sm" 
-                      onclick="removeResearchLine(${idx})">
-                <i class="bi bi-trash"></i>
+              <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+                      onclick="removeResearchLine(${idx})"
+                      aria-label="Eliminar la línea de investigación ${idx + 1}"
+                      title="Eliminar línea de investigación">
+                <i class="bi bi-trash" aria-hidden="true"></i>
               </button>
             </div>
           </div>
@@ -327,7 +370,7 @@
     html += `
       <div class="text-center mt-3">
         <button type="button" class="btn btn-outline-primary" onclick="addResearchLine()">
-          <i class="bi bi-plus-lg me-2"></i>Agregar Línea de Investigación
+          <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar línea de investigación
         </button>
       </div>
     `;
@@ -343,10 +386,10 @@
     // Inicializar curriculum
     if (programData.curriculum_structure) {
       try {
-        curriculumData = typeof programData.curriculum_structure === 'string' 
-          ? JSON.parse(programData.curriculum_structure) 
+        curriculumData = typeof programData.curriculum_structure === 'string'
+          ? JSON.parse(programData.curriculum_structure)
           : programData.curriculum_structure;
-        
+
         // Validar estructura
         if (!curriculumData || typeof curriculumData !== 'object') {
           curriculumData = { type: 'semestral', semesters: [] };

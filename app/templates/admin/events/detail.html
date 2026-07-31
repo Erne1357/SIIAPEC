@@ -1,15 +1,16 @@
 {% extends "base.html" %}
+{% from '_macros.html' import data_table_open, data_table_close, modal_shell, required_mark, icon_button %}
 {% block title %}Detalle de Evento{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4 event-detail-page">
 
     <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-3">
+    <nav aria-label="Ruta de navegación" class="mb-3">
         <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item">
                 <a href="{{ url_for('pages_admin.pages_events.index') }}">
-                    <i class="bi bi-calendar-event me-1"></i>Eventos
+                    <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Eventos
                 </a>
             </li>
             <li class="breadcrumb-item active" aria-current="page" id="breadcrumbEventTitle">
@@ -23,59 +24,60 @@
         <div class="card-body">
             <div class="d-flex flex-wrap align-items-start gap-3">
                 <div class="event-detail-icon" id="eventDetailIcon">
-                    <i class="bi bi-calendar-event"></i>
+                    <i class="bi bi-calendar-event" aria-hidden="true"></i>
                 </div>
                 <div class="flex-grow-1 min-width-0">
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-                        <h1 class="h4 mb-0 text-truncate" id="eventDetailTitle">Cargando&hellip;</h1>
+                        <h1 class="h4 mb-0 event-detail-title" id="eventDetailTitle">Cargando&hellip;</h1>
                         <span class="badge" id="eventDetailTypeBadge"></span>
                         <span class="badge bg-secondary d-none" id="eventDetailStatusBadge"></span>
                         <span class="badge bg-dark d-none" id="eventDetailVisibilityBadge">
-                            <i class="bi bi-lock-fill me-1"></i>Privado
+                            <i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Privado
                         </span>
                     </div>
-                    <div class="text-muted small" id="eventDetailSubtitle"></div>
+                    <p class="text-muted small mb-0" id="eventDetailSubtitle"></p>
                 </div>
 
-                <!-- Actions -->
+                <!-- Acciones -->
                 <div class="d-flex flex-wrap gap-2 align-items-start">
                     <button class="btn btn-outline-primary btn-sm" id="btnEditInfo" type="button">
-                        <i class="bi bi-pencil-square me-1"></i>Editar info
+                        <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Editar info
                     </button>
                     <button class="btn btn-outline-secondary btn-sm" id="btnEditContent" type="button">
-                        <i class="bi bi-images me-1"></i>Contenido visual
+                        <i class="bi bi-images me-1" aria-hidden="true"></i>Contenido visual
                     </button>
                     <div class="dropdown">
-                        <button class="btn btn-outline-dark btn-sm dropdown-toggle" type="button"
-                            data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-three-dots"></i>
+                        <button class="btn btn-outline-dark btn-sm dropdown-toggle tap-target" type="button"
+                            data-bs-toggle="dropdown" aria-expanded="false"
+                            aria-label="Más acciones del evento" title="Más acciones del evento">
+                            <i class="bi bi-three-dots" aria-hidden="true"></i>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li>
                                 <button class="dropdown-item" id="btnTogglePrivacy" type="button">
-                                    <i class="bi bi-arrow-left-right me-2"></i>
+                                    <i class="bi bi-arrow-left-right me-2" aria-hidden="true"></i>
                                     <span id="togglePrivacyLabel">Hacer privado</span>
                                 </button>
                             </li>
                             <li>
                                 <button class="dropdown-item" id="btnConcludeEvent" type="button">
-                                    <i class="bi bi-check2-circle me-2"></i>Concluir evento
+                                    <i class="bi bi-check2-circle me-2" aria-hidden="true"></i>Concluir evento
                                 </button>
                             </li>
                             <li>
                                 <button class="dropdown-item" id="btnArchiveEvent" type="button">
-                                    <i class="bi bi-archive me-2"></i>Archivar
+                                    <i class="bi bi-archive me-2" aria-hidden="true"></i>Archivar
                                 </button>
                             </li>
                             <li>
                                 <button class="dropdown-item d-none" id="btnUnarchiveEvent" type="button">
-                                    <i class="bi bi-arrow-counterclockwise me-2"></i>Desarchivar
+                                    <i class="bi bi-arrow-counterclockwise me-2" aria-hidden="true"></i>Desarchivar
                                 </button>
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <button class="dropdown-item text-danger" id="btnDeleteEvent" type="button">
-                                    <i class="bi bi-trash me-2"></i>Eliminar evento
+                                    <i class="bi bi-trash me-2" aria-hidden="true"></i>Eliminar evento
                                 </button>
                             </li>
                         </ul>
@@ -83,71 +85,81 @@
                 </div>
             </div>
 
-            <!-- Stat chips -->
+            <!-- Chips de resumen -->
             <div class="event-stat-chips mt-3" id="eventStatChips"></div>
         </div>
     </div>
 
-    <!-- Tabs (dinámicos según capacity_type) -->
+    <!-- Pestañas (dinámicas según capacity_type) -->
     <ul class="nav nav-tabs mb-3" role="tablist" id="eventDetailTabs">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="tab-summary" data-bs-toggle="tab"
-                data-bs-target="#pane-summary" type="button" role="tab">
-                <i class="bi bi-info-circle me-1"></i>Resumen
+                data-bs-target="#pane-summary" type="button" role="tab"
+                aria-controls="pane-summary" aria-selected="true">
+                <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Resumen
             </button>
         </li>
-        <!-- Tabs single-only -->
+        <!-- Pestañas solo para eventos 1:1 -->
         <li class="nav-item single-only d-none" role="presentation">
             <button class="nav-link" id="tab-windows" data-bs-toggle="tab"
-                data-bs-target="#pane-windows" type="button" role="tab">
-                <i class="bi bi-clock-history me-1"></i>Horarios
+                data-bs-target="#pane-windows" type="button" role="tab"
+                aria-controls="pane-windows" aria-selected="false">
+                <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Horarios
             </button>
         </li>
         <li class="nav-item single-only d-none" role="presentation">
             <button class="nav-link" id="tab-slots" data-bs-toggle="tab"
-                data-bs-target="#pane-slots" type="button" role="tab">
-                <i class="bi bi-calendar2-check me-1"></i>Asignaciones
+                data-bs-target="#pane-slots" type="button" role="tab"
+                aria-controls="pane-slots" aria-selected="false">
+                <i class="bi bi-calendar2-check me-1" aria-hidden="true"></i>Asignaciones
             </button>
         </li>
         <li class="nav-item single-only d-none" role="presentation">
             <button class="nav-link" id="tab-change-requests" data-bs-toggle="tab"
-                data-bs-target="#pane-change-requests" type="button" role="tab">
-                <i class="bi bi-arrow-left-right me-1"></i>Solicitudes
+                data-bs-target="#pane-change-requests" type="button" role="tab"
+                aria-controls="pane-change-requests" aria-selected="false">
+                <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Solicitudes
                 <span class="badge bg-danger ms-1 d-none" id="changeRequestsBadge">0</span>
             </button>
         </li>
-        <!-- Tabs multi-only -->
+        <!-- Pestañas solo para eventos grupales -->
         <li class="nav-item multi-only d-none" role="presentation">
             <button class="nav-link" id="tab-attendees" data-bs-toggle="tab"
-                data-bs-target="#pane-attendees" type="button" role="tab">
-                <i class="bi bi-people me-1"></i>Asistentes
+                data-bs-target="#pane-attendees" type="button" role="tab"
+                aria-controls="pane-attendees" aria-selected="false">
+                <i class="bi bi-people me-1" aria-hidden="true"></i>Asistentes
                 <span class="badge bg-secondary ms-1" id="attendeesBadge">0</span>
             </button>
         </li>
         <li class="nav-item multi-only d-none" role="presentation">
             <button class="nav-link" id="tab-invitations" data-bs-toggle="tab"
-                data-bs-target="#pane-invitations" type="button" role="tab">
-                <i class="bi bi-envelope me-1"></i>Invitaciones
+                data-bs-target="#pane-invitations" type="button" role="tab"
+                aria-controls="pane-invitations" aria-selected="false">
+                <i class="bi bi-envelope me-1" aria-hidden="true"></i>Invitaciones
                 <span class="badge bg-secondary ms-1" id="invitationsBadge">0</span>
             </button>
         </li>
         <li class="nav-item multi-only d-none" role="presentation">
             <button class="nav-link" id="tab-attendance" data-bs-toggle="tab"
-                data-bs-target="#pane-attendance" type="button" role="tab">
-                <i class="bi bi-clipboard-check me-1"></i>Asistencia
+                data-bs-target="#pane-attendance" type="button" role="tab"
+                aria-controls="pane-attendance" aria-selected="false">
+                <i class="bi bi-clipboard-check me-1" aria-hidden="true"></i>Asistencia
             </button>
         </li>
     </ul>
 
-    <!-- Panes -->
+    <!-- Paneles -->
     <div class="tab-content" id="eventDetailTabsContent">
         <!-- Resumen -->
-        <div class="tab-pane fade show active" id="pane-summary" role="tabpanel">
+        <div class="tab-pane fade show active" id="pane-summary" role="tabpanel"
+             aria-labelledby="tab-summary" tabindex="0">
             <div class="row g-3">
                 <div class="col-lg-7">
-                    <div class="card h-100">
+                    <section class="card h-100" aria-labelledby="summaryInfoTitle">
                         <div class="card-header">
-                            <strong><i class="bi bi-card-text me-1"></i>Información general</strong>
+                            <h2 class="h6 mb-0" id="summaryInfoTitle">
+                                <i class="bi bi-card-text me-1" aria-hidden="true"></i>Información general
+                            </h2>
                         </div>
                         <div class="card-body">
                             <dl class="row mb-0 small">
@@ -170,82 +182,88 @@
                                 <dd class="col-sm-8" id="summaryFlags">&mdash;</dd>
                             </dl>
                             <hr>
-                            <div class="text-muted small mb-1">Descripción</div>
+                            <p class="text-muted small mb-1">Descripción</p>
                             <p class="mb-0" id="summaryDescription">
                                 <span class="text-muted fst-italic">Sin descripción</span>
                             </p>
                         </div>
-                    </div>
+                    </section>
                 </div>
                 <div class="col-lg-5">
-                    <div class="card h-100">
+                    <section class="card h-100" aria-labelledby="summaryHostsTitle">
                         <div class="card-header">
-                            <strong><i class="bi bi-mic me-1"></i>Ponentes</strong>
+                            <h2 class="h6 mb-0" id="summaryHostsTitle">
+                                <i class="bi bi-mic me-1" aria-hidden="true"></i>Ponentes
+                            </h2>
                         </div>
                         <div class="card-body" id="summaryHosts">
-                            <div class="text-center text-muted py-3">
-                                <i class="bi bi-person-x fs-3 d-block mb-1"></i>
-                                Sin ponentes registrados
+                            <div class="empty-state empty-state--compact">
+                                <div class="empty-state__icon"><i class="bi bi-person-x" aria-hidden="true"></i></div>
+                                <h3 class="empty-state__title">Sin ponentes registrados</h3>
+                                <p class="empty-state__description">Agrégalos desde «Contenido visual».</p>
                             </div>
                         </div>
-                    </div>
+                    </section>
                 </div>
                 <div class="col-12">
-                    <div class="card">
+                    <section class="card" aria-labelledby="summaryCoverTitle">
                         <div class="card-header">
-                            <strong><i class="bi bi-image me-1"></i>Portada</strong>
+                            <h2 class="h6 mb-0" id="summaryCoverTitle">
+                                <i class="bi bi-image me-1" aria-hidden="true"></i>Portada
+                            </h2>
                         </div>
                         <div class="card-body">
                             <div class="event-cover-preview empty" id="summaryCoverPreview">
                                 <div class="text-center">
-                                    <i class="bi bi-image fs-1 d-block mb-2"></i>
+                                    <i class="bi bi-image icon-3xl d-block mb-2" aria-hidden="true"></i>
                                     <span class="text-muted small">Sin portada</span>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </section>
                 </div>
             </div>
         </div>
 
         <!-- Horarios -->
-        <div class="tab-pane fade" id="pane-windows" role="tabpanel">
-            <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="tab-pane fade" id="pane-windows" role="tabpanel"
+             aria-labelledby="tab-windows" tabindex="0">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <button class="btn btn-success btn-sm" data-bs-toggle="modal"
                     data-bs-target="#addWindowModal" type="button">
-                    <i class="bi bi-plus-lg me-1"></i>Agregar plazo
+                    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar plazo
                 </button>
                 <button class="btn btn-info btn-sm" id="btnGenerateSlotsFromWindows" type="button">
-                    <i class="bi bi-gear me-1"></i>Generar todos los horarios
+                    <i class="bi bi-gear me-1" aria-hidden="true"></i>Generar todos los horarios
                 </button>
             </div>
-            <div class="table-responsive">
-                <table class="table table-sm" id="windowsTable">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Horario</th>
-                            <th>Duración</th>
-                            <th class="text-center">Generado</th>
-                            <th class="text-center">Cupos</th>
-                            <th class="text-center">Libres</th>
-                            <th class="text-center">Ocupados</th>
-                            <th class="text-end">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="8" class="text-center text-muted py-3">Cargando&hellip;</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            {{ data_table_open('Plazos de atención del evento, con sus cupos generados, libres y ocupados',
+                               id='windowsTable', table_class='table-sm align-middle') }}
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Fecha</th>
+                        <th scope="col">Horario</th>
+                        <th scope="col">Duración</th>
+                        <th scope="col" class="text-center">Generado</th>
+                        <th scope="col" class="text-center">Cupos</th>
+                        <th scope="col" class="text-center">Libres</th>
+                        <th scope="col" class="text-center">Ocupados</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody aria-live="polite" aria-busy="true">
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-3">Cargando&hellip;</td>
+                    </tr>
+                </tbody>
+            {{ data_table_close() }}
         </div>
 
         <!-- Asignaciones -->
-        <div class="tab-pane fade" id="pane-slots" role="tabpanel">
+        <div class="tab-pane fade" id="pane-slots" role="tabpanel"
+             aria-labelledby="tab-slots" tabindex="0">
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de slots">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de horarios">
                     <input type="radio" class="btn-check" name="slotFilter" id="slotFilterAll" value="all" checked>
                     <label class="btn btn-outline-secondary" for="slotFilterAll">Todos</label>
                     <input type="radio" class="btn-check" name="slotFilter" id="slotFilterFree" value="free">
@@ -253,148 +271,144 @@
                     <input type="radio" class="btn-check" name="slotFilter" id="slotFilterBooked" value="booked">
                     <label class="btn btn-outline-primary" for="slotFilterBooked">Ocupados</label>
                 </div>
-                <div class="d-flex gap-2 align-items-center">
+                <div class="d-flex gap-2 align-items-center flex-wrap">
                     <span class="badge bg-success"><span id="freeSlots">0</span> Libres</span>
                     <span class="badge bg-primary"><span id="bookedSlots">0</span> Ocupados</span>
                     <span class="badge bg-secondary"><span id="totalSlots">0</span> Total</span>
                     <button class="btn btn-info btn-sm" id="btnGenerateSlots" type="button">
-                        <i class="bi bi-gear me-1"></i>Regenerar faltantes
+                        <i class="bi bi-gear me-1" aria-hidden="true"></i>Generar horarios faltantes
                     </button>
-                    <button class="btn btn-outline-secondary btn-sm" id="btnRefreshSlots" type="button">
-                        <i class="bi bi-arrow-clockwise"></i>
-                    </button>
+                    {{ icon_button('arrow-clockwise', 'Actualizar la lista de horarios',
+                                   cls='btn btn-outline-secondary btn-sm', id='btnRefreshSlots') }}
                 </div>
             </div>
-            <div class="table-responsive">
-                <table class="table table-sm" id="slotsTable">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Hora</th>
-                            <th class="text-center">Estado</th>
-                            <th>Estudiante</th>
-                            <th class="text-end">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="5" class="text-center text-muted py-3">Cargando&hellip;</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            {{ data_table_open('Horarios del evento con su estado y el estudiante asignado',
+                               id='slotsTable', table_class='table-sm align-middle') }}
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Fecha</th>
+                        <th scope="col">Hora</th>
+                        <th scope="col" class="text-center">Estado</th>
+                        <th scope="col">Estudiante</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody aria-live="polite" aria-busy="true">
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-3">Cargando&hellip;</td>
+                    </tr>
+                </tbody>
+            {{ data_table_close() }}
         </div>
 
         <!-- Solicitudes de cambio -->
-        <div class="tab-pane fade" id="pane-change-requests" role="tabpanel">
-            <div class="table-responsive">
-                <table class="table table-sm" id="changeRequestsTable">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Estudiante</th>
-                            <th>Horario actual</th>
-                            <th>Motivo</th>
-                            <th>Sugerencias</th>
-                            <th>Fecha</th>
-                            <th class="text-end">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="6" class="text-center text-muted py-3">Cargando&hellip;</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+        <div class="tab-pane fade" id="pane-change-requests" role="tabpanel"
+             aria-labelledby="tab-change-requests" tabindex="0">
+            {{ data_table_open('Solicitudes de cambio de horario enviadas por los estudiantes',
+                               id='changeRequestsTable', table_class='table-sm align-middle') }}
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Estudiante</th>
+                        <th scope="col">Horario actual</th>
+                        <th scope="col">Motivo</th>
+                        <th scope="col">Sugerencias</th>
+                        <th scope="col">Fecha</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody aria-live="polite" aria-busy="true">
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-3">Cargando&hellip;</td>
+                    </tr>
+                </tbody>
+            {{ data_table_close() }}
         </div>
 
-        <!-- Asistentes (multi) -->
-        <div class="tab-pane fade" id="pane-attendees" role="tabpanel">
+        <!-- Asistentes (grupal) -->
+        <div class="tab-pane fade" id="pane-attendees" role="tabpanel"
+             aria-labelledby="tab-attendees" tabindex="0">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <button class="btn btn-success btn-sm" data-bs-toggle="modal"
                     data-bs-target="#inviteStudentsModal" type="button">
-                    <i class="bi bi-person-plus me-1"></i>Invitar estudiantes
+                    <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Invitar estudiantes
                 </button>
             </div>
-            <div class="table-responsive">
-                <table class="table table-sm" id="quickRegistrationsTable">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Estudiante</th>
-                            <th>Email</th>
-                            <th>Origen</th>
-                            <th>Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="4" class="text-center text-muted py-3">Cargando&hellip;</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            {{ data_table_open('Personas registradas al evento, su origen de registro y su estado',
+                               id='quickRegistrationsTable', table_class='table-sm align-middle') }}
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Estudiante</th>
+                        <th scope="col">Correo</th>
+                        <th scope="col">Origen</th>
+                        <th scope="col">Estado</th>
+                    </tr>
+                </thead>
+                <tbody aria-live="polite" aria-busy="true">
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-3">Cargando&hellip;</td>
+                    </tr>
+                </tbody>
+            {{ data_table_close() }}
         </div>
 
-        <!-- Invitaciones (multi) -->
-        <div class="tab-pane fade" id="pane-invitations" role="tabpanel">
-            <div class="table-responsive">
-                <table class="table table-sm" id="invitationsTable">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Estudiante</th>
-                            <th>Invitado por</th>
-                            <th>Fecha</th>
-                            <th>Estado</th>
-                            <th class="text-end">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="5" class="text-center text-muted py-3">Cargando&hellip;</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+        <!-- Invitaciones (grupal) -->
+        <div class="tab-pane fade" id="pane-invitations" role="tabpanel"
+             aria-labelledby="tab-invitations" tabindex="0">
+            {{ data_table_open('Invitaciones enviadas para este evento y su estado de respuesta',
+                               id='invitationsTable', table_class='table-sm align-middle') }}
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Estudiante</th>
+                        <th scope="col">Invitado por</th>
+                        <th scope="col">Fecha</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody aria-live="polite" aria-busy="true">
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-3">Cargando&hellip;</td>
+                    </tr>
+                </tbody>
+            {{ data_table_close() }}
         </div>
 
-        <!-- Asistencia (multi) -->
-        <div class="tab-pane fade" id="pane-attendance" role="tabpanel">
+        <!-- Asistencia (grupal) -->
+        <div class="tab-pane fade" id="pane-attendance" role="tabpanel"
+             aria-labelledby="tab-attendance" tabindex="0">
+            <h2 class="h6 text-uppercase text-muted mb-2">Resumen de asistencia</h2>
             <div class="row g-3 mb-3">
-                <div class="col-md-3">
-                    <div class="card bg-light">
-                        <div class="card-body text-center py-2">
-                            <h3 class="mb-0" id="statsTotal">0</h3>
-                            <small class="text-muted">Registrados</small>
-                        </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-card h-100">
+                        <i class="bi bi-people-fill stat-card__icon" aria-hidden="true"></i>
+                        <p class="stat-card__value" id="statsTotal">0</p>
+                        <p class="stat-card__label">Registrados</p>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="card bg-success text-white">
-                        <div class="card-body text-center py-2">
-                            <h3 class="mb-0" id="statsAttended">0</h3>
-                            <small>Asistieron</small>
-                        </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-card stat-card--success h-100">
+                        <i class="bi bi-check-circle-fill stat-card__icon" aria-hidden="true"></i>
+                        <p class="stat-card__value" id="statsAttended">0</p>
+                        <p class="stat-card__label">Asistieron</p>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="card bg-warning">
-                        <div class="card-body text-center py-2">
-                            <h3 class="mb-0" id="statsNoShow">0</h3>
-                            <small>No asistieron</small>
-                        </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-card stat-card--warning h-100">
+                        <i class="bi bi-person-x-fill stat-card__icon" aria-hidden="true"></i>
+                        <p class="stat-card__value" id="statsNoShow">0</p>
+                        <p class="stat-card__label">No asistieron</p>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="card bg-info text-white">
-                        <div class="card-body text-center py-2">
-                            <h3 class="mb-0" id="statsRegistered">0</h3>
-                            <small>Pendientes</small>
-                        </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-card stat-card--info h-100">
+                        <i class="bi bi-hourglass-split stat-card__icon" aria-hidden="true"></i>
+                        <p class="stat-card__value" id="statsRegistered">0</p>
+                        <p class="stat-card__label">Pendientes</p>
                     </div>
                 </div>
             </div>
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                <div class="btn-group" role="group">
+                <div class="btn-group" role="group" aria-label="Filtro de asistencia">
                     <input type="radio" class="btn-check" name="attendanceFilter" id="attFilterAll" value="" checked>
                     <label class="btn btn-outline-secondary btn-sm" for="attFilterAll">Todos</label>
                     <input type="radio" class="btn-check" name="attendanceFilter" id="attFilterRegistered" value="registered">
@@ -405,726 +419,623 @@
                     <label class="btn btn-outline-warning btn-sm" for="attFilterNoShow">No asistieron</label>
                 </div>
                 <button class="btn btn-outline-primary btn-sm" id="btnExportAttendance" type="button">
-                    <i class="bi bi-download me-1"></i>Exportar
+                    <i class="bi bi-download me-1" aria-hidden="true"></i>Exportar
                 </button>
             </div>
-            <div class="table-responsive">
-                <table class="table table-sm table-hover" id="registrationsTable">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Estudiante</th>
-                            <th>Email</th>
-                            <th>Fecha de registro</th>
-                            <th class="text-center">Estado</th>
-                            <th>Asistió</th>
-                            <th class="text-end">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="6" class="text-center text-muted py-3">Cargando&hellip;</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            {{ data_table_open('Registro de asistencia de cada persona inscrita al evento',
+                               id='registrationsTable', table_class='table-sm table-hover align-middle') }}
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Estudiante</th>
+                        <th scope="col">Correo</th>
+                        <th scope="col">Fecha de registro</th>
+                        <th scope="col" class="text-center">Estado</th>
+                        <th scope="col">Asistió</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody aria-live="polite" aria-busy="true">
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-3">Cargando&hellip;</td>
+                    </tr>
+                </tbody>
+            {{ data_table_close() }}
         </div>
     </div>
-
-    <div id="alertsEvents" class="mt-3"></div>
 </div>
 {% endblock %}
 
 {% block modals %}
-<!-- Modal: Agregar Ventana -->
-<div class="modal fade" id="addWindowModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Agregar plazo de horarios</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<!-- Modal: Agregar plazo -->
+{% call(section) modal_shell('addWindowModal', 'Agregar plazo de horarios', icon='clock-history') %}
+    {% if section == 'body' %}
+    <form id="addWindowForm">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label" for="windowDate">Fecha{{ required_mark() }}</label>
+                <input type="date" class="form-control" id="windowDate" required>
             </div>
-            <form id="addWindowForm">
-                <div class="modal-body">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Fecha</label>
-                            <input type="date" class="form-control" id="windowDate" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Duración por cita</label>
-                            <select class="form-select" id="windowSlotMinutes" required>
-                                <option value="15">15 minutos</option>
-                                <option value="20">20 minutos</option>
-                                <option value="30" selected>30 minutos</option>
-                                <option value="45">45 minutos</option>
-                                <option value="60">60 minutos</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Hora de inicio</label>
-                            <input type="time" class="form-control" id="windowStartTime" required value="09:00">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Hora de fin</label>
-                            <input type="time" class="form-control" id="windowEndTime" required value="11:00">
-                        </div>
-                    </div>
-                    <div class="mt-3 text-muted small">
-                        <i class="bi bi-info-circle me-1"></i>
-                        Se generan slots individuales según la duración indicada.
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Crear plazo</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Asignar slot (versión Fase 2 - se mejora en Fase 3) -->
-<div class="modal fade" id="assignSlotModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-person-plus me-2"></i>Asignar estudiante a slot
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="col-md-6">
+                <label class="form-label" for="windowSlotMinutes">Duración por cita{{ required_mark() }}</label>
+                <select class="form-select" id="windowSlotMinutes" required>
+                    <option value="15">15 minutos</option>
+                    <option value="20">20 minutos</option>
+                    <option value="30" selected>30 minutos</option>
+                    <option value="45">45 minutos</option>
+                    <option value="60">60 minutos</option>
+                </select>
             </div>
-            <form id="assignSlotForm">
-                <div class="modal-body">
-                    <input type="hidden" id="assignEventId">
-                    <input type="hidden" id="assignSlotId">
-                    <input type="hidden" id="assignStudentId">
-
-                    <div class="alert alert-info">
-                        <i class="bi bi-clock me-1"></i>
-                        <strong>Horario:</strong> <span id="assignSlotInfo"></span>
-                    </div>
-
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-8">
-                            <input type="search" class="form-control" id="assignStudentSearch"
-                                placeholder="Buscar nombre, email o programa...">
-                        </div>
-                        <div class="col-md-4">
-                            <select class="form-select" id="assignProgramFilter">
-                                <option value="">Todos los programas</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div id="assignStudentsList" class="list-group" style="max-height: 320px; overflow-y: auto;">
-                        <div class="list-group-item text-center text-muted py-4">
-                            Cargando estudiantes elegibles&hellip;
-                        </div>
-                    </div>
-
-                    <div class="mt-3">
-                        <label class="form-label">Notas <span class="text-muted">(opcional)</span></label>
-                        <textarea class="form-control" id="assignNotes" rows="2"
-                            placeholder="Observaciones sobre la cita..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" id="btnConfirmAssign" disabled>
-                        <i class="bi bi-check2 me-1"></i>Asignar cita
-                    </button>
-                </div>
-            </form>
+            <div class="col-md-6">
+                <label class="form-label" for="windowStartTime">Hora de inicio{{ required_mark() }}</label>
+                <input type="time" class="form-control" id="windowStartTime" required value="09:00">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="windowEndTime">Hora de fin{{ required_mark() }}</label>
+                <input type="time" class="form-control" id="windowEndTime" required value="11:00">
+            </div>
         </div>
-    </div>
-</div>
+        <p class="mt-3 text-muted small mb-0">
+            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+            Se generan horarios individuales según la duración indicada.
+        </p>
+    </form>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="submit" form="addWindowForm" class="btn btn-primary">Crear plazo</button>
+    {% endif %}
+{% endcall %}
+
+<!-- Modal: Asignar horario -->
+{% call(section) modal_shell('assignSlotModal', 'Asignar estudiante a un horario', size='lg', icon='person-plus') %}
+    {% if section == 'body' %}
+    <form id="assignSlotForm">
+        <input type="hidden" id="assignEventId">
+        <input type="hidden" id="assignSlotId">
+        <input type="hidden" id="assignStudentId">
+
+        <div class="alert alert-info">
+            <i class="bi bi-clock me-1" aria-hidden="true"></i>
+            <strong>Horario:</strong> <span id="assignSlotInfo"></span>
+        </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-md-8">
+                <label class="form-label" for="assignStudentSearch">Buscar estudiante</label>
+                <input type="search" class="form-control" id="assignStudentSearch"
+                    placeholder="Buscar nombre, correo o programa...">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="assignProgramFilter">Programa</label>
+                <select class="form-select" id="assignProgramFilter">
+                    <option value="">Todos los programas</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="assignStudentsList" class="list-group assign-students-list"
+             role="group" aria-label="Estudiantes elegibles">
+            <div class="list-group-item text-center text-muted py-4">
+                Cargando estudiantes elegibles&hellip;
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <label class="form-label" for="assignNotes">Notas <span class="text-muted">(opcional)</span></label>
+            <textarea class="form-control" id="assignNotes" rows="2"
+                placeholder="Observaciones sobre la cita..."></textarea>
+        </div>
+    </form>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="submit" form="assignSlotForm" class="btn btn-primary" id="btnConfirmAssign" disabled>
+        <i class="bi bi-check2 me-1" aria-hidden="true"></i>Asignar cita
+    </button>
+    {% endif %}
+{% endcall %}
 
 <!-- Modal: Cancelar cita -->
-<div class="modal fade" id="confirmCancelAppointmentModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-warning">
-                <h5 class="modal-title"><i class="bi bi-x-circle me-2"></i>Cancelar cita</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form id="cancelAppointmentForm">
-                <div class="modal-body">
-                    <input type="hidden" id="cancelAppointmentId">
-                    <p class="mb-3">¿Cancelar esta cita?</p>
-                    <div class="card bg-light mb-3">
-                        <div class="card-body py-2">
-                            <div><strong>Horario:</strong> <span id="cancelSlotInfo"></span></div>
-                            <div><strong>Estudiante:</strong> <span id="cancelStudentName"></span></div>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Motivo <span class="text-muted">(opcional)</span></label>
-                        <textarea class="form-control" id="cancelReason" rows="3"
-                            placeholder="Motivo visible para el estudiante..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No cancelar</button>
-                    <button type="submit" class="btn btn-warning">
-                        <i class="bi bi-x-circle me-1"></i>Confirmar cancelación
-                    </button>
-                </div>
-            </form>
+{% call(section) modal_shell('confirmCancelAppointmentModal', 'Cancelar cita', icon='x-circle') %}
+    {% if section == 'body' %}
+    <form id="cancelAppointmentForm">
+        <input type="hidden" id="cancelAppointmentId">
+        <p class="mb-3">¿Cancelar esta cita? El estudiante recibirá una notificación y su horario quedará libre.</p>
+        <div class="event-fact-block mb-3">
+            <p class="mb-1"><strong>Horario:</strong> <span id="cancelSlotInfo"></span></p>
+            <p class="mb-0"><strong>Estudiante:</strong> <span id="cancelStudentName"></span></p>
         </div>
-    </div>
-</div>
+        <div class="mb-0">
+            <label class="form-label" for="cancelReason">Motivo <span class="text-muted">(opcional)</span></label>
+            <textarea class="form-control" id="cancelReason" rows="3"
+                aria-describedby="cancelReasonHelp"
+                placeholder="Motivo visible para el estudiante..."></textarea>
+            <div class="form-text" id="cancelReasonHelp">El estudiante verá este texto en su notificación.</div>
+        </div>
+    </form>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">No cancelar</button>
+    <button type="submit" form="cancelAppointmentForm" class="btn btn-warning">
+        <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Confirmar cancelación
+    </button>
+    {% endif %}
+{% endcall %}
 
 <!-- Modal: Eliminar evento -->
-<div class="modal fade" id="confirmDeleteEventModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">
-                    <i class="bi bi-exclamation-triangle me-2"></i>Eliminar evento
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="deleteEventId">
-                <div class="alert alert-warning">
-                    <i class="bi bi-info-circle me-1"></i>
-                    <strong>Advertencia:</strong> esta acción no se puede deshacer.
-                </div>
-                <p>¿Eliminar el evento <strong id="deleteEventTitle"></strong>?</p>
-                <div id="deleteEventWarning" class="alert alert-danger d-none">
-                    <i class="bi bi-exclamation-circle me-1"></i>
-                    Tiene <strong id="deleteEventAppointmentsCount">0</strong> citas activas que se cancelarán.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteEventBtn">
-                    <i class="bi bi-trash me-1"></i>Eliminar evento
-                </button>
-            </div>
-        </div>
+{% call(section) modal_shell('confirmDeleteEventModal', 'Eliminar evento', icon='exclamation-triangle') %}
+    {% if section == 'body' %}
+    <input type="hidden" id="deleteEventId">
+    <div class="alert alert-warning">
+        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+        <strong>Advertencia:</strong> esta acción no se puede deshacer.
     </div>
-</div>
+    <p>¿Eliminar el evento <strong id="deleteEventTitle"></strong>?</p>
+    <div id="deleteEventWarning" class="alert alert-danger d-none">
+        <i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>
+        Tiene <strong id="deleteEventAppointmentsCount">0</strong> citas activas que se cancelarán.
+    </div>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-danger" id="confirmDeleteEventBtn">
+        <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar evento
+    </button>
+    {% endif %}
+{% endcall %}
 
-<!-- Modal: Eliminar ventana -->
-<div class="modal fade" id="confirmDeleteWindowModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">
-                    <i class="bi bi-exclamation-triangle me-2"></i>Eliminar plazo
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="deleteWindowId">
-                <div class="alert alert-warning">
-                    <i class="bi bi-info-circle me-1"></i>Se eliminarán todos los slots de este plazo.
-                </div>
-                <div class="card bg-light">
-                    <div class="card-body py-2">
-                        <div><strong>Fecha:</strong> <span id="deleteWindowDate"></span></div>
-                        <div><strong>Horario:</strong> <span id="deleteWindowTime"></span></div>
-                    </div>
-                </div>
-                <div id="deleteWindowWarning" class="alert alert-danger mt-3 d-none">
-                    <i class="bi bi-exclamation-circle me-1"></i>
-                    Hay <strong id="deleteWindowSlotsCount">0</strong> slots ocupados &mdash; sus citas se cancelarán.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteWindowBtn">
-                    <i class="bi bi-trash me-1"></i>Eliminar plazo
-                </button>
-            </div>
-        </div>
+<!-- Modal: Eliminar plazo -->
+{% call(section) modal_shell('confirmDeleteWindowModal', 'Eliminar plazo', icon='exclamation-triangle') %}
+    {% if section == 'body' %}
+    <input type="hidden" id="deleteWindowId">
+    <div class="alert alert-warning">
+        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Se eliminarán todos los horarios de este plazo.
     </div>
-</div>
+    <div class="event-fact-block">
+        <p class="mb-1"><strong>Fecha:</strong> <span id="deleteWindowDate"></span></p>
+        <p class="mb-0"><strong>Horario:</strong> <span id="deleteWindowTime"></span></p>
+    </div>
+    <div id="deleteWindowWarning" class="alert alert-danger mt-3 d-none">
+        <i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>
+        Hay <strong id="deleteWindowSlotsCount">0</strong> horarios ocupados &mdash; sus citas se cancelarán.
+    </div>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-danger" id="confirmDeleteWindowBtn">
+        <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar plazo
+    </button>
+    {% endif %}
+{% endcall %}
 
-<!-- Modal: Eliminar slot -->
-<div class="modal fade" id="confirmDeleteSlotModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-warning">
-                <h5 class="modal-title"><i class="bi bi-trash me-2"></i>Eliminar slot</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="deleteSlotId">
-                <p>¿Eliminar este slot?</p>
-                <div class="card bg-light mb-3">
-                    <div class="card-body py-2">
-                        <div><strong>Horario:</strong> <span id="deleteSlotInfo"></span></div>
-                        <div id="deleteSlotStudent" class="d-none">
-                            <strong>Estudiante asignado:</strong> <span id="deleteSlotStudentName"></span>
-                        </div>
-                    </div>
-                </div>
-                <div id="deleteSlotWarning" class="alert alert-danger d-none">
-                    <i class="bi bi-exclamation-circle me-1"></i>Tiene cita asignada &mdash; se cancelará.
-                </div>
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Puedes regenerar este slot con &quot;Regenerar faltantes&quot;.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-warning" id="confirmDeleteSlotBtn">
-                    <i class="bi bi-trash me-1"></i>Eliminar slot
-                </button>
-            </div>
-        </div>
+<!-- Modal: Eliminar horario -->
+{% call(section) modal_shell('confirmDeleteSlotModal', 'Eliminar horario', icon='trash') %}
+    {% if section == 'body' %}
+    <input type="hidden" id="deleteSlotId">
+    <p>¿Eliminar este horario?</p>
+    <div class="event-fact-block mb-3">
+        <p class="mb-0"><strong>Horario:</strong> <span id="deleteSlotInfo"></span></p>
+        <p id="deleteSlotStudent" class="d-none mb-0 mt-1">
+            <strong>Estudiante asignado:</strong> <span id="deleteSlotStudentName"></span>
+        </p>
     </div>
-</div>
+    <div id="deleteSlotWarning" class="alert alert-danger d-none">
+        <i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>Tiene una cita asignada &mdash; se cancelará.
+    </div>
+    <div class="alert alert-info mb-0">
+        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+        Puedes volver a crearlo con &laquo;Generar horarios faltantes&raquo;.
+    </div>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-warning" id="confirmDeleteSlotBtn">
+        <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar horario
+    </button>
+    {% endif %}
+{% endcall %}
 
 <!-- Modal: Aceptar cambio de horario -->
-<div class="modal fade" id="acceptChangeRequestModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-arrow-left-right me-2"></i>Aprobar cambio de horario
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="acceptChangeReqId">
-                <div class="mb-3">
-                    <label class="form-label small text-muted">Estudiante</label>
-                    <p class="mb-0 fw-semibold" id="acceptChangeStudentName"></p>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small text-muted">Horario actual</label>
-                    <p class="mb-0 text-muted" id="acceptChangeCurrentSlot"></p>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small text-muted">Motivo</label>
-                    <p class="mb-0" id="acceptChangeReason"></p>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small text-muted">Sugerencias del estudiante</label>
-                    <p class="mb-0 text-muted fst-italic" id="acceptChangeSuggestions"></p>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Nuevo horario *</label>
-                    <select class="form-select" id="acceptChangeNewSlot" required>
-                        <option value="">Seleccionar nuevo horario...</option>
-                    </select>
-                    <div class="form-text">Solo se muestran horarios libres del evento.</div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-success" id="confirmAcceptChangeBtn">
-                    <i class="bi bi-check2 me-1"></i>Aprobar y reasignar
-                </button>
-            </div>
-        </div>
+{% call(section) modal_shell('acceptChangeRequestModal', 'Aprobar cambio de horario', icon='arrow-left-right') %}
+    {% if section == 'body' %}
+    <input type="hidden" id="acceptChangeReqId">
+    <div class="mb-3">
+        <p class="form-label small text-muted mb-1">Estudiante</p>
+        <p class="mb-0 fw-semibold" id="acceptChangeStudentName"></p>
     </div>
-</div>
+    <div class="mb-3">
+        <p class="form-label small text-muted mb-1">Horario actual</p>
+        <p class="mb-0 text-muted" id="acceptChangeCurrentSlot"></p>
+    </div>
+    <div class="mb-3">
+        <p class="form-label small text-muted mb-1">Motivo</p>
+        <p class="mb-0" id="acceptChangeReason"></p>
+    </div>
+    <div class="mb-3">
+        <p class="form-label small text-muted mb-1">Sugerencias del estudiante</p>
+        <p class="mb-0 text-muted fst-italic" id="acceptChangeSuggestions"></p>
+    </div>
+    <div class="mb-0">
+        <label class="form-label" for="acceptChangeNewSlot">Nuevo horario{{ required_mark() }}</label>
+        <select class="form-select" id="acceptChangeNewSlot" required aria-describedby="acceptChangeNewSlotHelp">
+            <option value="">Seleccionar nuevo horario...</option>
+        </select>
+        <div class="form-text" id="acceptChangeNewSlotHelp">Solo se muestran horarios libres del evento.</div>
+    </div>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-success" id="confirmAcceptChangeBtn">
+        <i class="bi bi-check2 me-1" aria-hidden="true"></i>Aprobar y reasignar
+    </button>
+    {% endif %}
+{% endcall %}
 
 <!-- Modal: Editar información del evento -->
-<div class="modal fade" id="editEventInfoModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-pencil-square me-2"></i>Editar información del evento
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+{% call(section) modal_shell('editEventInfoModal', 'Editar información del evento', size='lg',
+                             icon='pencil-square', scrollable=true) %}
+    {% if section == 'body' %}
+    <form id="editEventForm">
+        <input type="hidden" id="editEventId">
+
+        <h3 class="text-muted text-uppercase small fw-bold mb-2">
+            <i class="bi bi-tag me-1" aria-hidden="true"></i>Identidad
+        </h3>
+        <div class="row g-3 mb-3">
+            <div class="col-md-8">
+                <label class="form-label" for="editTitle">Título{{ required_mark() }}</label>
+                <input type="text" class="form-control" id="editTitle" required>
             </div>
-            <form id="editEventForm">
-                <div class="modal-body">
-                    <input type="hidden" id="editEventId">
-
-                    <!-- Bloque: Identidad -->
-                    <h6 class="text-muted text-uppercase small fw-bold mb-2">
-                        <i class="bi bi-tag me-1"></i>Identidad
-                    </h6>
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-8">
-                            <label class="form-label">Título *</label>
-                            <input type="text" class="form-control" id="editTitle" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Tipo</label>
-                            <select class="form-select" id="editType">
-                                <option value="interview">Entrevista</option>
-                                <option value="defense">Defensa</option>
-                                <option value="workshop">Taller</option>
-                                <option value="seminar">Seminario</option>
-                                <option value="conference">Conferencia</option>
-                                <option value="info_session">Sesión Informativa</option>
-                                <option value="other">Otro</option>
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Descripción</label>
-                            <textarea class="form-control" id="editDescription" rows="3"
-                                placeholder="Descripción detallada del evento..."></textarea>
-                        </div>
-                    </div>
-
-                    <!-- Bloque: Alcance -->
-                    <h6 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
-                        <i class="bi bi-bullseye me-1"></i>Alcance
-                    </h6>
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Programa</label>
-                            <select class="form-select" id="editProgram">
-                                <option value="">Todos los programas</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Periodo académico</label>
-                            <select class="form-select" id="editAcademicPeriod">
-                                <option value="">Sin periodo (atemporal)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Visibilidad</label>
-                            <select class="form-select" id="editVisibility">
-                                <option value="public">Público</option>
-                                <option value="private">Privado (solo invitados)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Estado</label>
-                            <select class="form-select" id="editStatus">
-                                <option value="draft">Borrador</option>
-                                <option value="published">Publicado</option>
-                                <option value="ongoing">En curso</option>
-                                <option value="completed">Concluido</option>
-                                <option value="archived">Archivado</option>
-                                <option value="cancelled">Cancelado</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Bloque: Cuándo / Dónde -->
-                    <h6 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
-                        <i class="bi bi-calendar-event me-1"></i>Cuándo y dónde
-                    </h6>
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-12">
-                            <label class="form-label">Lugar</label>
-                            <input type="text" class="form-control" id="editLocation" placeholder="Ej: Salón 301">
-                        </div>
-                        <div class="col-md-6 d-none" id="editDatesRow">
-                            <label class="form-label">Fecha del evento</label>
-                            <input type="datetime-local" class="form-control" id="editEventDate">
-                        </div>
-                        <div class="col-md-6 d-none" id="editDatesRow2">
-                            <label class="form-label">Fecha de fin <span class="text-muted">(opcional)</span></label>
-                            <input type="datetime-local" class="form-control" id="editEventEndDate">
-                        </div>
-                        <div class="col-md-6 d-none" id="editMaxCapacityRow">
-                            <label class="form-label">Capacidad máxima</label>
-                            <input type="number" min="1" class="form-control" id="editMaxCapacity">
-                        </div>
-                    </div>
-
-                    <!-- Bloque: Comportamiento -->
-                    <h6 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
-                        <i class="bi bi-gear me-1"></i>Comportamiento
-                    </h6>
-                    <div class="d-flex flex-wrap gap-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="editRequiresRegistration">
-                            <label class="form-check-label" for="editRequiresRegistration">Requiere registro</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="editAllowsAttendance">
-                            <label class="form-check-label" for="editAllowsAttendance">Control de asistencia</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="editVisibleToStudents">
-                            <label class="form-check-label" for="editVisibleToStudents">Visible para estudiantes</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="editRemindersEnabled">
-                            <label class="form-check-label" for="editRemindersEnabled">Recordatorios automáticos</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" id="btnRevertEdit">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i>Descartar cambios
-                    </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-floppy me-1"></i>Guardar cambios
-                    </button>
-                </div>
-            </form>
+            <div class="col-md-4">
+                <label class="form-label" for="editType">Tipo</label>
+                <select class="form-select" id="editType">
+                    <option value="interview">Entrevista</option>
+                    <option value="defense">Defensa</option>
+                    <option value="workshop">Taller</option>
+                    <option value="seminar">Seminario</option>
+                    <option value="conference">Conferencia</option>
+                    <option value="info_session">Sesión Informativa</option>
+                    <option value="other">Otro</option>
+                </select>
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="editDescription">Descripción</label>
+                <textarea class="form-control" id="editDescription" rows="3"
+                    placeholder="Descripción detallada del evento..."></textarea>
+            </div>
         </div>
-    </div>
-</div>
+
+        <h3 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
+            <i class="bi bi-bullseye me-1" aria-hidden="true"></i>Alcance
+        </h3>
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="form-label" for="editProgram">Programa</label>
+                <select class="form-select" id="editProgram">
+                    <option value="">Todos los programas</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="editAcademicPeriod">Periodo académico</label>
+                <select class="form-select" id="editAcademicPeriod">
+                    <option value="">Sin periodo (atemporal)</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="editVisibility">Visibilidad</label>
+                <select class="form-select" id="editVisibility">
+                    <option value="public">Público</option>
+                    <option value="private">Privado (solo invitados)</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="editStatus">Estado</label>
+                <select class="form-select" id="editStatus">
+                    <option value="draft">Borrador</option>
+                    <option value="published">Publicado</option>
+                    <option value="ongoing">En curso</option>
+                    <option value="completed">Concluido</option>
+                    <option value="archived">Archivado</option>
+                    <option value="cancelled">Cancelado</option>
+                </select>
+            </div>
+        </div>
+
+        <h3 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
+            <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Cuándo y dónde
+        </h3>
+        <div class="row g-3 mb-3">
+            <div class="col-md-12">
+                <label class="form-label" for="editLocation">Lugar</label>
+                <input type="text" class="form-control" id="editLocation" placeholder="Ej: Salón 301">
+            </div>
+            <div class="col-md-6 d-none" id="editDatesRow">
+                <label class="form-label" for="editEventDate">Fecha del evento</label>
+                <input type="datetime-local" class="form-control" id="editEventDate">
+            </div>
+            <div class="col-md-6 d-none" id="editDatesRow2">
+                <label class="form-label" for="editEventEndDate">Fecha de fin <span class="text-muted">(opcional)</span></label>
+                <input type="datetime-local" class="form-control" id="editEventEndDate">
+            </div>
+            <div class="col-md-6 d-none" id="editMaxCapacityRow">
+                <label class="form-label" for="editMaxCapacity">Capacidad máxima</label>
+                <input type="number" min="1" class="form-control" id="editMaxCapacity">
+            </div>
+        </div>
+
+        <h3 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
+            <i class="bi bi-gear me-1" aria-hidden="true"></i>Comportamiento
+        </h3>
+        <div class="d-flex flex-wrap gap-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="editRequiresRegistration">
+                <label class="form-check-label" for="editRequiresRegistration">Requiere registro</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="editAllowsAttendance">
+                <label class="form-check-label" for="editAllowsAttendance">Control de asistencia</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="editVisibleToStudents">
+                <label class="form-check-label" for="editVisibleToStudents">Visible para estudiantes</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="editRemindersEnabled">
+                <label class="form-check-label" for="editRemindersEnabled">Recordatorios automáticos</label>
+            </div>
+        </div>
+    </form>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" id="btnRevertEdit">
+        <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Descartar cambios
+    </button>
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="submit" form="editEventForm" class="btn btn-primary">
+        <i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar cambios
+    </button>
+    {% endif %}
+{% endcall %}
 
 <!-- Modal: Contenido visual (portada / galería / ponentes) -->
-<div class="modal fade" id="contentVisualModal" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-images me-2"></i>Contenido visual del evento
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <ul class="nav nav-pills mb-3" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#cv-pane-cover"
-                            type="button" role="tab">
-                            <i class="bi bi-image me-1"></i>Portada
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#cv-pane-gallery"
-                            type="button" role="tab">
-                            <i class="bi bi-images me-1"></i>Galería
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#cv-pane-hosts"
-                            type="button" role="tab">
-                            <i class="bi bi-mic-fill me-1"></i>Ponentes
-                        </button>
-                    </li>
-                </ul>
+{% call(section) modal_shell('contentVisualModal', 'Contenido visual del evento', size='xl',
+                             icon='images', scrollable=true) %}
+    {% if section == 'body' %}
+    <ul class="nav nav-pills mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#cv-pane-cover"
+                type="button" role="tab" id="cv-tab-cover" aria-controls="cv-pane-cover" aria-selected="true">
+                <i class="bi bi-image me-1" aria-hidden="true"></i>Portada
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#cv-pane-gallery"
+                type="button" role="tab" id="cv-tab-gallery" aria-controls="cv-pane-gallery" aria-selected="false">
+                <i class="bi bi-images me-1" aria-hidden="true"></i>Galería
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#cv-pane-hosts"
+                type="button" role="tab" id="cv-tab-hosts" aria-controls="cv-pane-hosts" aria-selected="false">
+                <i class="bi bi-mic-fill me-1" aria-hidden="true"></i>Ponentes
+            </button>
+        </li>
+    </ul>
 
-                <div class="tab-content">
-                    <!-- Portada -->
-                    <div class="tab-pane fade show active" id="cv-pane-cover" role="tabpanel">
-                        <div class="event-cover-preview empty mb-3" id="coverPreview">
-                            <div class="text-center">
-                                <i class="bi bi-image fs-1 d-block mb-2"></i>
-                                <span class="text-muted small">Sin portada</span>
-                            </div>
-                        </div>
-                        <div class="event-dropzone" id="coverDropzone">
-                            <i class="bi bi-cloud-upload fs-4 text-muted d-block mb-2"></i>
-                            <span class="text-muted">Arrastra una imagen o </span>
-                            <button type="button" class="btn btn-sm btn-outline-primary ms-1" id="coverSelectBtn">selecciona archivo</button>
-                            <input type="file" id="coverFileInput" accept="image/jpeg,image/png,image/webp" class="d-none">
-                            <div class="text-muted small mt-1">JPG, PNG, WebP &mdash; máx. 5 MB</div>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-danger mt-2 d-none" id="coverDeleteBtn">
-                            <i class="bi bi-trash me-1"></i>Eliminar portada
-                        </button>
-                        <input type="hidden" id="coverImageId">
-                    </div>
-
-                    <!-- Galería -->
-                    <div class="tab-pane fade" id="cv-pane-gallery" role="tabpanel">
-                        <div class="event-gallery mb-3" id="galleryGrid"></div>
-                        <div id="galleryEmpty" class="text-center text-muted py-3">
-                            <i class="bi bi-images fs-3 d-block mb-1"></i>
-                            Sin imágenes en la galería
-                        </div>
-                        <div class="event-dropzone" id="galleryDropzone">
-                            <i class="bi bi-cloud-upload fs-4 text-muted d-block mb-2"></i>
-                            <span class="text-muted">Arrastra imágenes o </span>
-                            <button type="button" class="btn btn-sm btn-outline-primary ms-1" id="gallerySelectBtn">selecciona archivos</button>
-                            <input type="file" id="galleryFileInput" accept="image/jpeg,image/png,image/webp" multiple class="d-none">
-                            <div class="text-muted small mt-1">JPG, PNG, WebP &mdash; máx. 5 MB por archivo</div>
-                        </div>
-                    </div>
-
-                    <!-- Ponentes -->
-                    <div class="tab-pane fade" id="cv-pane-hosts" role="tabpanel">
-                        <div id="hostsList">
-                            <div class="text-center text-muted py-3" id="hostsEmpty">
-                                <i class="bi bi-person-x fs-3 d-block mb-1"></i>
-                                Sin ponentes registrados
-                            </div>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-success mt-2" id="addHostBtn">
-                            <i class="bi bi-person-plus me-1"></i>Agregar ponente
-                        </button>
-                    </div>
+    <div class="tab-content">
+        <!-- Portada -->
+        <div class="tab-pane fade show active" id="cv-pane-cover" role="tabpanel"
+             aria-labelledby="cv-tab-cover" tabindex="0">
+            <div class="event-cover-preview empty mb-3" id="coverPreview">
+                <div class="text-center">
+                    <i class="bi bi-image icon-3xl d-block mb-2" aria-hidden="true"></i>
+                    <span class="text-muted small">Sin portada</span>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-primary" id="saveHostsBtn">
-                    <i class="bi bi-floppy me-1"></i>Guardar ponentes
-                </button>
+            <div class="event-dropzone" id="coverDropzone">
+                <i class="bi bi-cloud-upload icon-xl text-muted d-block mb-2" aria-hidden="true"></i>
+                <span class="text-muted">Arrastra una imagen o </span>
+                <button type="button" class="btn btn-sm btn-outline-primary ms-1" id="coverSelectBtn">selecciona archivo</button>
+                <input type="file" id="coverFileInput" accept="image/jpeg,image/png,image/webp" class="d-none"
+                       aria-label="Archivo de portada del evento">
+                <p class="text-muted small mt-1 mb-0">JPG, PNG o WebP &mdash; máx. 5 MB</p>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-danger mt-2 d-none" id="coverDeleteBtn">
+                <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar portada
+            </button>
+            <input type="hidden" id="coverImageId">
+        </div>
+
+        <!-- Galería -->
+        <div class="tab-pane fade" id="cv-pane-gallery" role="tabpanel"
+             aria-labelledby="cv-tab-gallery" tabindex="0">
+            <div class="event-gallery mb-3" id="galleryGrid"></div>
+            <div id="galleryEmpty" class="empty-state empty-state--compact">
+                <div class="empty-state__icon"><i class="bi bi-images" aria-hidden="true"></i></div>
+                <h3 class="empty-state__title">Sin imágenes en la galería</h3>
+                <p class="empty-state__description">Arrastra o selecciona imágenes para ilustrar el evento.</p>
+            </div>
+            <div class="event-dropzone" id="galleryDropzone">
+                <i class="bi bi-cloud-upload icon-xl text-muted d-block mb-2" aria-hidden="true"></i>
+                <span class="text-muted">Arrastra imágenes o </span>
+                <button type="button" class="btn btn-sm btn-outline-primary ms-1" id="gallerySelectBtn">selecciona archivos</button>
+                <input type="file" id="galleryFileInput" accept="image/jpeg,image/png,image/webp" multiple class="d-none"
+                       aria-label="Imágenes de la galería del evento">
+                <p class="text-muted small mt-1 mb-0">JPG, PNG o WebP &mdash; máx. 5 MB por archivo</p>
             </div>
         </div>
-    </div>
-</div>
 
-<!-- Modal: Editor de Ponente -->
-<div class="modal fade" id="hostEditorModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="hostEditorModalTitle">Agregar ponente</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <!-- Ponentes -->
+        <div class="tab-pane fade" id="cv-pane-hosts" role="tabpanel"
+             aria-labelledby="cv-tab-hosts" tabindex="0">
+            <div id="hostsList">
+                <div class="empty-state empty-state--compact" id="hostsEmpty">
+                    <div class="empty-state__icon"><i class="bi bi-person-x" aria-hidden="true"></i></div>
+                    <h3 class="empty-state__title">Sin ponentes registrados</h3>
+                    <p class="empty-state__description">Agrega ponentes internos o externos con su rol en el evento.</p>
+                </div>
             </div>
-            <div class="modal-body">
-                <div class="d-flex gap-2 mb-4">
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="hostTypeRadio" id="hostTypeInternal" value="internal" checked>
-                        <label class="form-check-label fw-semibold" for="hostTypeInternal">
-                            <i class="bi bi-building me-1"></i>Interno
-                        </label>
-                    </div>
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="hostTypeRadio" id="hostTypeExternal" value="external">
-                        <label class="form-check-label fw-semibold" for="hostTypeExternal">
-                            <i class="bi bi-person-badge me-1"></i>Externo
-                        </label>
-                    </div>
-                </div>
-
-                <div id="hostInternalPanel">
-                    <div class="mb-3">
-                        <label class="form-label">Buscar usuario *</label>
-                        <input type="text" class="form-control" id="hostUserSearch" autocomplete="off"
-                            placeholder="Escribe nombre o correo...">
-                        <div id="hostUserDropdown" class="list-group mt-1 shadow-sm"
-                            style="display:none; max-height:220px; overflow-y:auto; position:absolute; z-index:1080; width:calc(100% - 3rem);"></div>
-                    </div>
-                    <div id="hostSelectedUserCard" class="d-none">
-                        <div class="d-flex align-items-center gap-3 p-3 border rounded bg-light">
-                            <img id="hostSelectedAvatar" src="" alt="Avatar" class="rounded-circle" width="48" height="48" style="object-fit:cover;">
-                            <div>
-                                <div class="fw-semibold" id="hostSelectedName"></div>
-                                <div class="text-muted small" id="hostSelectedEmail"></div>
-                                <div class="text-muted small" id="hostSelectedRole"></div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="hostClearUserBtn">
-                                <i class="bi bi-x"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <input type="hidden" id="hostUserId">
-                </div>
-
-                <div id="hostExternalPanel" class="d-none">
-                    <div class="mb-3">
-                        <label class="form-label">Nombre completo *</label>
-                        <input type="text" class="form-control" id="hostExternalName" placeholder="Nombre del ponente invitado">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Semblanza / Bio <span class="text-muted">(opcional)</span></label>
-                        <textarea class="form-control" id="hostExternalBio" rows="3"
-                            placeholder="Breve descripción del ponente..."></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Foto <span class="text-muted">(opcional)</span></label>
-                        <input type="file" class="form-control" id="hostExternalPhoto" accept="image/jpeg,image/png,image/webp">
-                        <div class="form-text">JPG, PNG o WebP. Se sube al guardar.</div>
-                    </div>
-                    <input type="hidden" id="hostExternalPhotoPath">
-                </div>
-
-                <hr>
-
-                <div class="mb-3">
-                    <label class="form-label">Rol o etiqueta *</label>
-                    <input type="text" class="form-control" id="hostRoleLabel" required
-                        placeholder="Ej: Coordinador del programa, Ponente invitado, Moderador...">
-                </div>
-
-                <input type="hidden" id="hostEditIndex" value="-1">
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="hostEditorSaveBtn">
-                    <i class="bi bi-check-lg me-1"></i>Guardar ponente
-                </button>
-            </div>
+            <button type="button" class="btn btn-sm btn-outline-success mt-2" id="addHostBtn">
+                <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Agregar ponente
+            </button>
         </div>
     </div>
-</div>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+    <button type="button" class="btn btn-primary" id="saveHostsBtn">
+        <i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar ponentes
+    </button>
+    {% endif %}
+{% endcall %}
+
+<!-- Modal: Editor de ponente -->
+{% call(section) modal_shell('hostEditorModal', 'Agregar ponente', size='lg', icon='mic-fill') %}
+    {% if section == 'body' %}
+    <fieldset class="mb-4">
+        <legend class="form-label">Tipo de ponente</legend>
+        <div class="d-flex gap-2">
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="hostTypeRadio" id="hostTypeInternal" value="internal" checked>
+                <label class="form-check-label fw-semibold" for="hostTypeInternal">
+                    <i class="bi bi-building me-1" aria-hidden="true"></i>Interno
+                </label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="hostTypeRadio" id="hostTypeExternal" value="external">
+                <label class="form-check-label fw-semibold" for="hostTypeExternal">
+                    <i class="bi bi-person-badge me-1" aria-hidden="true"></i>Externo
+                </label>
+            </div>
+        </div>
+    </fieldset>
+
+    <div id="hostInternalPanel">
+        <div class="mb-3 position-relative">
+            <label class="form-label" for="hostUserSearch">Buscar usuario{{ required_mark() }}</label>
+            <input type="text" class="form-control" id="hostUserSearch" autocomplete="off"
+                role="combobox" aria-expanded="false" aria-controls="hostUserDropdown"
+                aria-describedby="hostUserSearchHelp"
+                placeholder="Escribe nombre o correo...">
+            <div class="form-text" id="hostUserSearchHelp">Escribe al menos dos caracteres para ver resultados.</div>
+            <div id="hostUserDropdown" class="list-group mt-1 shadow-sm host-user-dropdown d-none"
+                 role="listbox" aria-label="Resultados de la búsqueda de usuarios"></div>
+        </div>
+        <div id="hostSelectedUserCard" class="d-none">
+            <div class="d-flex align-items-center gap-3 event-fact-block">
+                <img id="hostSelectedAvatar" alt=""
+                     src="{{ url_for('static', filename='assets/images/default.jpg') }}"
+                     class="rounded-circle avatar-md">
+                <div>
+                    <p class="fw-semibold mb-0" id="hostSelectedName"></p>
+                    <p class="text-muted small mb-0" id="hostSelectedEmail"></p>
+                    <p class="text-muted small mb-0" id="hostSelectedRole"></p>
+                </div>
+                {{ icon_button('x-lg', 'Quitar el usuario seleccionado',
+                               cls='btn btn-sm btn-outline-secondary ms-auto', id='hostClearUserBtn') }}
+            </div>
+        </div>
+        <input type="hidden" id="hostUserId">
+    </div>
+
+    <div id="hostExternalPanel" class="d-none">
+        <div class="mb-3">
+            <label class="form-label" for="hostExternalName">Nombre completo{{ required_mark() }}</label>
+            <input type="text" class="form-control" id="hostExternalName" placeholder="Nombre del ponente invitado">
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="hostExternalBio">Semblanza o biografía <span class="text-muted">(opcional)</span></label>
+            <textarea class="form-control" id="hostExternalBio" rows="3"
+                placeholder="Breve descripción del ponente..."></textarea>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="hostExternalPhoto">Foto <span class="text-muted">(opcional)</span></label>
+            <input type="file" class="form-control" id="hostExternalPhoto" accept="image/jpeg,image/png,image/webp"
+                   aria-describedby="hostExternalPhotoHelp">
+            <div class="form-text" id="hostExternalPhotoHelp">JPG, PNG o WebP. Se sube al guardar.</div>
+        </div>
+        <input type="hidden" id="hostExternalPhotoPath">
+    </div>
+
+    <hr>
+
+    <div class="mb-3">
+        <label class="form-label" for="hostRoleLabel">Rol o etiqueta{{ required_mark() }}</label>
+        <input type="text" class="form-control" id="hostRoleLabel" required
+            placeholder="Ej: Coordinador del programa, Ponente invitado, Moderador...">
+    </div>
+
+    <input type="hidden" id="hostEditIndex" value="-1">
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-primary" id="hostEditorSaveBtn">
+        <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Guardar ponente
+    </button>
+    {% endif %}
+{% endcall %}
 
 <!-- Modal: Invitar usuarios -->
-<div class="modal fade" id="inviteStudentsModal" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-envelope-plus me-2"></i>Invitar al evento
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="inviteEventId">
+{% call(section) modal_shell('inviteStudentsModal', 'Invitar al evento', size='xl',
+                             icon='envelope-plus', scrollable=true) %}
+    {% if section == 'body' %}
+    <input type="hidden" id="inviteEventId">
 
-                <!-- Toolbar de filtros -->
-                <div class="row g-2 mb-3">
-                    <div class="col-md-5">
-                        <label class="form-label small text-muted mb-1">Buscar</label>
-                        <input type="search" class="form-control form-control-sm" id="inviteSearch"
-                            placeholder="Nombre, email, programa, rol...">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label small text-muted mb-1">Filtrar por programa</label>
-                        <select class="form-select form-select-sm" id="inviteProgramFilter">
-                            <option value="">Cualquier programa</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label small text-muted mb-1">Tipo</label>
-                        <select class="form-select form-select-sm" id="inviteScopeSelect">
-                            <option value="event_program">Del evento</option>
-                            <option value="all_students">Estudiantes</option>
-                            <option value="all_users">Cualquier usuario</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="inviteSelectAllBtn">
-                            <i class="bi bi-check-all me-1"></i>Sel. visibles
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Header con contador y mensaje -->
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="text-muted small">
-                        <span id="inviteVisibleCount">0</span> visibles &middot;
-                        <strong><span id="inviteSelectedCount">0</span></strong> seleccionados
-                    </div>
-                    <button type="button" class="btn btn-sm btn-link text-decoration-none" id="inviteClearSelectionBtn">
-                        Limpiar selección
-                    </button>
-                </div>
-
-                <!-- Grid de usuarios -->
-                <div class="invite-users-grid" id="inviteUsersGrid">
-                    <div class="text-center text-muted py-4 w-100">Cargando usuarios...</div>
-                </div>
-
-                <hr class="my-3">
-
-                <div class="mb-2">
-                    <label class="form-label">Mensaje personalizado <span class="text-muted">(opcional)</span></label>
-                    <textarea class="form-control" id="inviteMessage" rows="2"
-                        placeholder="Texto adicional que verán los invitados..."></textarea>
-                </div>
-
-                <div class="form-check small text-muted" id="inviteAllowExternalRow" style="display:none;">
-                    <input class="form-check-input" type="checkbox" id="inviteAllowExternal">
-                    <label class="form-check-label" for="inviteAllowExternal">
-                        Permitir invitar a usuarios que no pertenecen al programa del evento
-                    </label>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="btnSendInvitations" disabled>
-                    <i class="bi bi-send me-1"></i>Enviar invitaciones (<span id="inviteSendCount">0</span>)
-                </button>
-            </div>
+    <!-- Filtros -->
+    <div class="row g-2 mb-3">
+        <div class="col-md-5">
+            <label class="form-label small text-muted mb-1" for="inviteSearch">Buscar</label>
+            <input type="search" class="form-control form-control-sm" id="inviteSearch"
+                placeholder="Nombre, correo, programa o rol...">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1" for="inviteProgramFilter">Filtrar por programa</label>
+            <select class="form-select form-select-sm" id="inviteProgramFilter">
+                <option value="">Cualquier programa</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small text-muted mb-1" for="inviteScopeSelect">Tipo</label>
+            <select class="form-select form-select-sm" id="inviteScopeSelect">
+                <option value="event_program">Del evento</option>
+                <option value="all_students">Estudiantes</option>
+                <option value="all_users">Cualquier usuario</option>
+            </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+            <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="inviteSelectAllBtn">
+                <i class="bi bi-check-all me-1" aria-hidden="true"></i>Sel. visibles
+            </button>
         </div>
     </div>
-</div>
+
+    <!-- Contador y limpieza -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <p class="text-muted small mb-0" role="status">
+            <span id="inviteVisibleCount">0</span> visibles &middot;
+            <strong><span id="inviteSelectedCount">0</span></strong> seleccionados
+        </p>
+        <button type="button" class="btn btn-sm btn-link text-decoration-none" id="inviteClearSelectionBtn">
+            Limpiar selección
+        </button>
+    </div>
+
+    <!-- Rejilla de usuarios -->
+    <div class="invite-users-grid" id="inviteUsersGrid" aria-live="polite" aria-busy="true">
+        <p class="text-center text-muted py-4 w-100 mb-0">Cargando usuarios…</p>
+    </div>
+
+    <hr class="my-3">
+
+    <div class="mb-2">
+        <label class="form-label" for="inviteMessage">Mensaje personalizado <span class="text-muted">(opcional)</span></label>
+        <textarea class="form-control" id="inviteMessage" rows="2"
+            placeholder="Texto adicional que verán los invitados..."></textarea>
+    </div>
+
+    <div class="form-check small text-muted d-none" id="inviteAllowExternalRow">
+        <input class="form-check-input" type="checkbox" id="inviteAllowExternal">
+        <label class="form-check-label" for="inviteAllowExternal">
+            Permitir invitar a usuarios que no pertenecen al programa del evento
+        </label>
+    </div>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-primary" id="btnSendInvitations" disabled>
+        <i class="bi bi-send me-1" aria-hidden="true"></i>Enviar invitaciones (<span id="inviteSendCount">0</span>)
+    </button>
+    {% endif %}
+{% endcall %}
 {% endblock %}
 
 {% block styles %}

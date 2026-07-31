@@ -1,90 +1,29 @@
 {% extends "base.html" %}
-{% block title %}Configuración · Retención{% endblock %}
+
+{% block title %}{{ super() }} - Retención de documentos{% endblock %}
 
 {% block content %}
 <div class="container py-4">
-  <h1 class="h4 mb-3">Retención de Documentos <span class="badge text-bg-danger">Sensible</span></h1>
-
-  <div class="alert alert-warning">
-    Cambios aquí impactan la eliminación automática de archivos. Revisa dos veces antes de guardar.
-  </div>
-
-  <div class="row g-3">
-    <div class="col-lg-7">
-      <div class="card">
-        <div class="card-header">Políticas configuradas</div>
-        <div class="card-body">
-          <div class="table-responsive">
-            <table class="table table-sm align-middle" id="tblPolicies">
-              <thead class="table-light">
-                <tr>
-                  <th>Archivo</th>
-                  <th class="text-center">Mantener siempre</th>
-                  <th class="text-center">Años</th>
-                  <th>Aplicar después de</th>
-                  <th class="text-end">Acciones</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyPolicies">
-                <tr><td colspan="5" class="text-center text-muted py-4">Cargando…</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div id="alerts" class="mt-3"></div>
-        </div>
-      </div>
+  <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">
+        <i class="bi bi-clock-history me-2" aria-hidden="true"></i>Retención de documentos
+      </h1>
+      <p class="text-muted mb-0">
+        Define cuánto tiempo se conservan los archivos de cada tipo antes de su eliminación automática.
+      </p>
     </div>
+    <span class="bg-danger-soft d-inline-flex align-items-center gap-2 px-3 py-2 rounded-pill small fw-semibold">
+      <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+      Configuración sensible
+    </span>
+  </header>
 
-    <div class="col-lg-5">
-      <div class="card">
-        <div class="card-header">Nueva/Editar política</div>
-        <div class="card-body">
-          <form id="formPolicy" autocomplete="off">
-            <input type="hidden" id="polId">
-            <div class="mb-3">
-              <label class="form-label">Archivo</label>
-              <select id="polArchive" class="form-select"></select>
-            </div>
-            <div class="form-check form-switch mb-3">
-              <input class="form-check-input" type="checkbox" id="polForever">
-              <label class="form-check-label" for="polForever">Mantener para siempre</label>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Años a conservar (si no es para siempre)</label>
-              <input type="number" min="1" step="1" id="polYears" class="form-control" placeholder="Ej. 4">
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Aplicar después de</label>
-              <select id="polAfter" class="form-select">
-                <option value="graduated">Graduación</option>
-                <option value="dropped">Baja/Desistimiento</option>
-                <option value="enrollment">Inscripción</option>
-              </select>
-            </div>
-            <div class="d-flex gap-2">
-              <button type="submit" class="btn btn-primary">Guardar</button>
-              <button type="button" id="btnReset" class="btn btn-outline-secondary">Limpiar</button>
-              <button type="button" id="btnDelete" class="btn btn-outline-danger d-none">Eliminar</button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <div class="card mt-3">
-        <div class="card-header">Herramientas</div>
-        <div class="card-body">
-          <div class="d-flex gap-2">
-            <a class="btn btn-outline-secondary" href="{{ url_for('pages_admin.pages_settings.retention') }}">Ver candidatos a eliminación</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  {% include 'admin/settings/_retention_panel.html' %}
 </div>
-
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
-    <script src="{{url_for('static',filename='js/admin/settings/retention.js')}}"></script>
+<script src="{{ url_for('static', filename='js/admin/settings/retention.js') }}?v={{ static_version }}"></script>
 {% endblock %}

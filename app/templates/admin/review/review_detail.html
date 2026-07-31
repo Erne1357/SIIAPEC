@@ -1,5 +1,6 @@
 {# templates/admin/review/review_detail.html #}
 {% extends 'base.html' %}
+{% from '_macros.html' import data_table_open, data_table_close, status_badge, icon_button, required_mark %}
 {% block title %}Revisión de Documento #{{ sub.id }}{% endblock %}
 
 {% block styles %}
@@ -13,214 +14,208 @@
 {% set dd = sub.document_deadline %}
 {% set period = sub.academic_period %}
 {% set student_semester = sub.semester or (user_program.current_semester if user_program else None) %}
+{% set phase_labels = {'admission': 'Admisión', 'permanence': 'Permanencia', 'conclusion': 'Conclusión'} %}
 
 <div class="container py-4">
   <a href="{{ url_for('pages_admin.pages_review.submissions', phase=phase) }}"
-     class="btn btn-link mb-3">&larr; Volver al listado</a>
+     class="btn btn-link ps-0 mb-3">
+    <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Volver al listado
+  </a>
 
-  <h2 class="mb-1">Documento #{{ sub.id }} – {{ sub.archive.name }}</h2>
-  <p class="text-muted small mb-3">
-    Subido por
-    <strong>{{ sub.user.first_name }} {{ sub.user.last_name }}</strong>
-    {% if sub.user.email %}<span class="ms-1">({{ sub.user.email }})</span>{% endif %}
-    {% if sub.user.control_number %}
-      <span class="badge bg-dark font-monospace ms-2">{{ sub.user.control_number }}</span>
-    {% endif %}
-    el {{ sub.upload_date.strftime('%d/%m/%Y %H:%M') if sub.upload_date else '—' }}
-  </p>
-
-  {# ── Metadata cards ──────────────────────────────────────────────── #}
-  <div class="row g-3 mb-4">
-    <div class="col-md-6 col-lg-3">
-      <div class="card h-100 border-primary">
-        <div class="card-body py-2 px-3">
-          <div class="small text-muted">Programa</div>
-          <div class="fw-semibold">
-            {{ program.name if program else '—' }}
-            {% if program and program.slug %}
-              <span class="badge bg-primary ms-1">{{ program.slug }}</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-6 col-lg-3">
-      <div class="card h-100 border-info">
-        <div class="card-body py-2 px-3">
-          <div class="small text-muted">Fase / Paso</div>
-          <div class="fw-semibold">
-            <span class="badge bg-info text-dark me-1">
-              {{ {'admission':'Admisión','permanence':'Permanencia','conclusion':'Conclusión'}.get(phase, phase|title) }}
-            </span>
-            {{ step.name if step else '—' }}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {% if phase != 'admission' %}
-    <div class="col-md-6 col-lg-3">
-      <div class="card h-100 border-warning">
-        <div class="card-body py-2 px-3">
-          <div class="small text-muted">Semestre del estudiante</div>
-          <div class="fw-semibold">
-            {% if student_semester %}
-              <span class="badge bg-warning text-dark">Semestre {{ student_semester }}</span>
-            {% else %}
-              <span class="text-muted small">—</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if period %}
-    <div class="col-md-6 col-lg-3">
-      <div class="card h-100 border-secondary">
-        <div class="card-body py-2 px-3">
-          <div class="small text-muted">Periodo académico</div>
-          <div class="fw-semibold">
-            {{ period.name }}
-            <span class="badge bg-secondary font-monospace ms-1">{{ period.code }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-  </div>
-
-  {# ── Ventana de entrega (sólo permanencia con deadline) ─────────── #}
-  {% if dd %}
-  <div class="card border-warning mb-4">
-    <div class="card-header bg-warning-soft d-flex align-items-center gap-2">
-      <i class="bi bi-calendar3-week-fill text-warning-strong"></i>
-      <strong>Ventana de entrega</strong>
-    </div>
-    <div class="card-body">
-      <div class="row g-3">
-        <div class="col-md-4">
-          <div class="small text-muted">Etiqueta</div>
-          <div class="fw-semibold">{{ dd.label }}</div>
-        </div>
-        <div class="col-md-2">
-          <div class="small text-muted">Secuencia</div>
-          <div class="fw-semibold">#{{ dd.sequence }}</div>
-        </div>
-        <div class="col-md-3">
-          <div class="small text-muted">Abrió</div>
-          <div class="fw-semibold">
-            {{ dd.opens_at.strftime('%d/%m/%Y %H:%M') if dd.opens_at else '—' }}
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="small text-muted">Cierra</div>
-          <div class="fw-semibold">
-            {% if dd.closes_at %}
-              {{ dd.closes_at.strftime('%d/%m/%Y %H:%M') }}
-            {% else %}
-              <span class="text-muted">Sin fecha límite</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
+  <header class="review-header mb-4">
+    <h1 class="h4 mb-1">Documento #{{ sub.id }} &ndash; {{ sub.archive.name }}</h1>
+    <p class="text-muted small mb-2">
+      Subido por
+      <strong>{{ sub.user.first_name }} {{ sub.user.last_name }}</strong>
+      {% if sub.user.email %}<span class="ms-1">({{ sub.user.email }})</span>{% endif %}
+      {% if sub.user.control_number %}
+        <span class="badge bg-dark font-monospace ms-2">{{ sub.user.control_number }}</span>
+      {% endif %}
+      {% if sub.upload_date %}el {{ sub.upload_date|fechahora_es('numeric') }}{% endif %}
+    </p>
+    <p class="mb-0">{{ status_badge(sub.status) }}</p>
+  </header>
 
   {# ── Visor del documento ───────────────────────────────────────── #}
-  <div class="viewer-container mb-4">
-    {% if sub.file_path %}
-    {% set filename = sub.file_path.split('/')[-1] %}
-    {% if filename.endswith('.pdf') %}
-    <iframe src="{{ url_for('api_files.user_doc',
-                    user_id=sub.user_id,
-                    phase=phase,
-                    filename=filename) }}" width="100%" height="600px" style="border: none;">
-    </iframe>
-    {% else %}
-    <div class="doc-info">
-      <p>Tipo de archivo: <strong>{{ filename.rsplit('.',1)[1]|upper }}</strong></p>
-      <a href="{{ url_for('api_files.user_doc',
-                     user_id=sub.user_id,
-                     phase=phase,
-                     filename=filename) }}" class="btn btn-primary">Descargar documento</a>
+  <section class="card mb-4" aria-labelledby="viewerTitle">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2">
+      <h2 class="h6 mb-0" id="viewerTitle">
+        <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Documento entregado
+      </h2>
+      {% if sub.file_path %}
+      {% set filename = sub.file_path.split('/')[-1] %}
+      {% set file_url = url_for('api_files.user_doc', user_id=sub.user_id, phase=phase, filename=filename) %}
+      <a class="btn btn-sm btn-outline-primary ms-auto" href="{{ file_url }}" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Abrir el documento en otra pestaña
+      </a>
+      {% endif %}
     </div>
-    {% endif %}
-    {% else %}
-    <div class="empty-state empty-state--compact">
-      <div class="empty-state__icon"><i class="bi bi-file-earmark-x"></i></div>
-      <div class="empty-state__title">Sin archivo</div>
-      <div class="empty-state__description">Esta entrada no tiene archivo adjunto (registro únicamente con nota de resolución).</div>
+    <div class="card-body">
+      {% if sub.file_path %}
+        {% set filename = sub.file_path.split('/')[-1] %}
+        {% set file_url = url_for('api_files.user_doc', user_id=sub.user_id, phase=phase, filename=filename) %}
+        {% if filename.endswith('.pdf') %}
+          <iframe class="doc-viewer" src="{{ file_url }}"
+                  title="Vista previa del documento {{ sub.archive.name }}"></iframe>
+          <p class="form-text mb-0">
+            Si la vista previa no se muestra, usa el enlace
+            <em>Abrir el documento en otra pestaña</em> para descargarlo.
+          </p>
+        {% else %}
+          <div class="doc-info">
+            <p class="mb-2">
+              Tipo de archivo:
+              <strong>{{ filename.rsplit('.', 1)[1]|upper }}</strong>
+              &mdash; este formato no se puede previsualizar en el navegador.
+            </p>
+            <a href="{{ file_url }}" class="btn btn-primary">
+              <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar documento
+            </a>
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-file-earmark-x" aria-hidden="true"></i></div>
+          <h3 class="empty-state__title">Sin archivo</h3>
+          <p class="empty-state__description">Esta entrada no tiene archivo adjunto (registro únicamente con nota de resolución).</p>
+        </div>
+      {% endif %}
     </div>
-    {% endif %}
-  </div>
+  </section>
+
+  {# ── Ficha del documento ───────────────────────────────────────── #}
+  <section class="card mb-4" aria-labelledby="factsTitle">
+    <div class="card-header">
+      <h2 class="h6 mb-0" id="factsTitle">
+        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Datos de la entrega
+      </h2>
+    </div>
+    <div class="card-body">
+      <dl class="row g-2 mb-0">
+        <dt class="col-sm-3 text-muted small">Programa</dt>
+        <dd class="col-sm-9">
+          {{ program.name if program else '—' }}
+          {% if program and program.slug %}
+            <span class="badge bg-primary ms-1">{{ program.slug }}</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-sm-3 text-muted small">Fase y paso</dt>
+        <dd class="col-sm-9">
+          {{ phase_labels.get(phase, phase|title) }}
+          {% if step %}<span class="text-muted">·</span> {{ step.name }}{% endif %}
+        </dd>
+
+        {% if phase != 'admission' %}
+        <dt class="col-sm-3 text-muted small">Semestre del estudiante</dt>
+        <dd class="col-sm-9">
+          {% if student_semester %}Semestre {{ student_semester }}{% else %}<span class="text-muted">—</span>{% endif %}
+        </dd>
+        {% endif %}
+
+        {% if period %}
+        <dt class="col-sm-3 text-muted small">Periodo académico</dt>
+        <dd class="col-sm-9">
+          {{ period.name }}
+          <span class="badge bg-secondary font-monospace ms-1">{{ period.code }}</span>
+        </dd>
+        {% endif %}
+
+        {% if dd %}
+        <dt class="col-sm-3 text-muted small">Ventana de entrega</dt>
+        <dd class="col-sm-9">
+          {{ dd.label }} <span class="text-muted">(#{{ dd.sequence }})</span>
+          <span class="d-block text-muted small">
+            Abrió: {% if dd.opens_at %}{{ dd.opens_at|fechahora_es('numeric') }}{% else %}—{% endif %}
+            &middot;
+            Cierra: {% if dd.closes_at %}{{ dd.closes_at|fechahora_es('numeric') }}{% else %}sin fecha límite{% endif %}
+          </span>
+        </dd>
+        {% endif %}
+      </dl>
+    </div>
+  </section>
+
+  {# ── Decisión ───────────────────────────────────────────────────── #}
+  <section class="card mb-4" aria-labelledby="decisionTitle">
+    <div class="card-header">
+      <h2 class="h6 mb-0" id="decisionTitle">
+        <i class="bi bi-clipboard-check me-1" aria-hidden="true"></i>Decisión de revisión
+      </h2>
+    </div>
+    <div class="card-body">
+      <form id="decisionForm" data-review-form="true" data-sub-id="{{ sub.id }}"
+            data-next-url="{{ url_for('pages_admin.pages_review.submissions', phase=phase) }}">
+        <div class="mb-3">
+          <label for="comment" class="form-label">
+            Comentario para el aspirante{{ required_mark() }}
+            <span class="text-muted fw-normal">(obligatorio si rechazas)</span>
+          </label>
+          <textarea id="comment" name="comment" class="form-control" rows="4"
+                    aria-describedby="commentHelp"
+                    placeholder="Indica qué debe corregir el aspirante para volver a subir el documento…">{{ sub.reviewer_comment or '' }}</textarea>
+          <div id="commentHelp" class="form-text">
+            El aspirante verá este texto y podrá subir una nueva versión del documento.
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-success" data-action="approve">
+            <i class="bi bi-check-lg me-1" aria-hidden="true"></i>
+            <span class="btn-label">Aprobar documento</span>
+          </button>
+          <button type="submit" class="btn btn-danger btn-reject" data-action="reject">
+            <i class="bi bi-x-lg me-1" aria-hidden="true"></i>
+            <span class="btn-label">Rechazar y notificar</span>
+          </button>
+        </div>
+        <p class="visually-hidden" role="status" id="decisionStatus"></p>
+      </form>
+    </div>
+  </section>
 
   {# ── Historial de versiones previas ─────────────────────────────── #}
   {% if history %}
-  <div class="card mb-4">
+  <section class="card mb-4" aria-labelledby="historyTitle">
     <div class="card-header d-flex align-items-center gap-2">
-      <i class="bi bi-clock-history"></i>
-      <strong>Historial de versiones de este documento</strong>
+      <h2 class="h6 mb-0" id="historyTitle">
+        <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Historial de versiones de este documento
+      </h2>
       <span class="badge bg-secondary ms-2">{{ history|length }}</span>
     </div>
-    <div class="table-responsive">
-      <table class="table table-sm mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>#</th>
-            <th>Fecha de subida</th>
-            <th>Estado</th>
-            <th>Revisor</th>
-            <th>Comentario</th>
-            <th>Archivo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for h in history %}
-          <tr>
-            <td>{{ h.id }}</td>
-            <td>{{ h.upload_date.strftime('%d/%m/%Y %H:%M') if h.upload_date else '—' }}</td>
-            <td>
-              <span class="status-badge status-badge--{{ h.status }}">
-                {{ {'pending':'Pendiente','review':'En revisión','approved':'Aprobado','rejected':'Rechazado'}.get(h.status, h.status) }}
-              </span>
-            </td>
-            <td class="small text-muted">
-              {% if h.reviewer %}{{ h.reviewer.first_name }} {{ h.reviewer.last_name }}{% else %}—{% endif %}
-            </td>
-            <td class="small">{{ h.reviewer_comment or '—' }}</td>
-            <td>
-              {% if h.file_path %}
-                <a href="/files/doc/{{ h.file_path }}" target="_blank" class="btn btn-sm btn-outline-secondary">
-                  <i class="bi bi-eye"></i>
-                </a>
-              {% else %}—{% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
+    {{ data_table_open('Versiones anteriores del documento con su estado, revisor y comentario',
+                       table_class='table-sm align-middle') }}
+      <thead class="table-light">
+        <tr>
+          <th scope="col">#</th>
+          <th scope="col">Fecha de subida</th>
+          <th scope="col">Estado</th>
+          <th scope="col">Revisor</th>
+          <th scope="col">Comentario</th>
+          <th scope="col">Archivo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in history %}
+        <tr>
+          <th scope="row" class="fw-normal">{{ h.id }}</th>
+          <td>{% if h.upload_date %}{{ h.upload_date|fechahora_es('numeric') }}{% else %}—{% endif %}</td>
+          <td>{{ status_badge(h.status, size='sm') }}</td>
+          <td class="small text-muted">
+            {% if h.reviewer %}{{ h.reviewer.first_name }} {{ h.reviewer.last_name }}{% else %}—{% endif %}
+          </td>
+          <td class="small">{{ h.reviewer_comment or '—' }}</td>
+          <td>
+            {% if h.file_path %}
+              {{ icon_button('eye', 'Ver el archivo de la versión #' ~ h.id,
+                             href='/files/doc/' ~ h.file_path, target='_blank', rel='noopener') }}
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    {{ data_table_close() }}
+  </section>
   {% endif %}
-
-  {# ── Decisión ───────────────────────────────────────────────────── #}
-  <form id="decisionForm" data-review-form="true" data-sub-id="{{ sub.id }}"
-        data-next-url="{{ url_for('pages_admin.pages_review.submissions', phase=phase) }}">
-    <div class="mb-3">
-      <label for="comment" class="form-label">Comentario del revisor</label>
-      <textarea id="comment" name="comment" class="form-control" rows="4"
-                placeholder="Agrega un comentario…">{{ sub.reviewer_comment or '' }}</textarea>
-    </div>
-    <button type="submit" class="btn btn-success me-2" data-action="approve">
-      <i class="bi bi-check-lg me-1"></i>Aprobar
-    </button>
-    <button type="submit" class="btn btn-danger btn-reject" data-action="reject">
-      <i class="bi bi-x-lg me-1"></i>Rechazar
-    </button>
-  </form>
 </div>
 {% endblock %}
 

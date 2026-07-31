@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ super() }} - Configuración de Correos{% endblock %}
+{% block title %}{{ super() }} - Configuración de correos{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/admin/settings/emails.css') }}?v={{ static_version }}" rel="stylesheet">
@@ -8,143 +8,129 @@
 
 {% block content %}
 <div class="container-fluid px-3 px-md-4 mt-3 mt-md-4">
-    <div class="row">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>
-                    <i class="bi bi-envelope me-2"></i>
-                    Configuración de Correos
-                </h2>
-                <a href="{{ url_for('pages_admin.pages_settings.index') }}" class="btn btn-outline-secondary">
-                    <i class="bi bi-arrow-left me-2"></i>Volver
-                </a>
-            </div>
-
-            <!-- Estado de Conexión -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-link-45deg me-2"></i>
-                        Conexión con Microsoft
-                    </h5>
-                </div>
-                <div class="card-body">
-                    {% if ms_account %}
-                    <div class="alert alert-success">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <i class="bi bi-check-circle me-2"></i>
-                                <strong>Conectado como:</strong> {{ ms_account.name }} ({{ ms_account.username }})
-                            </div>
-                            <button class="btn btn-sm btn-outline-danger" id="btnDisconnect">
-                                <i class="bi bi-x-circle me-1"></i>
-                                Desconectar
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-3">
-                        <button class="btn btn-primary me-2" id="btnProcessQueue">
-                            <i class="bi bi-send me-2"></i>
-                            Procesar Cola de Correos
-                        </button>
-                        <button class="btn btn-outline-primary me-2" id="btnRetryFailed">
-                            <i class="bi bi-arrow-clockwise me-2"></i>
-                            Reintentar Fallidos
-                        </button>
-                        <button class="btn btn-outline-secondary" id="btnSendTest">
-                            <i class="bi bi-envelope-check me-2"></i>
-                            Enviar Correo de Prueba
-                        </button>
-                    </div>
-                    {% else %}
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        <strong>No conectado.</strong> Debes iniciar sesión con una cuenta de Microsoft para enviar correos.
-                    </div>
-                    
-                    <a href="{{ url_for('pages_admin.pages_emails.ms_login') }}" class="btn btn-primary">
-                        <i class="bi bi-microsoft me-2"></i>
-                        Conectar con Microsoft
-                    </a>
-                    
-                    <div class="alert alert-info mt-3">
-                        <h6><i class="bi bi-info-circle me-2"></i>Instrucciones:</h6>
-                        <ol class="mb-0">
-                            <li>Haz clic en "Conectar con Microsoft"</li>
-                            <li>Inicia sesión con tu cuenta institucional (@cdjuarez.tecnm.mx)</li>
-                            <li>Otorga los permisos necesarios para enviar correos</li>
-                            <li>Serás redirigido de vuelta y los correos pendientes se enviarán automáticamente</li>
-                        </ol>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Estadísticas de Cola -->
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="card stat-card">
-                        <div class="card-body text-center">
-                            <i class="bi bi-clock-history fs-1 text-warning"></i>
-                            <h3 class="mt-2" id="statPending">{{ stats.pending }}</h3>
-                            <p class="text-muted mb-0">Pendientes</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card stat-card">
-                        <div class="card-body text-center">
-                            <i class="bi bi-check-circle fs-1 text-success"></i>
-                            <h3 class="mt-2" id="statSent">{{ stats.sent }}</h3>
-                            <p class="text-muted mb-0">Enviados</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card stat-card">
-                        <div class="card-body text-center">
-                            <i class="bi bi-x-circle fs-1 text-danger"></i>
-                            <h3 class="mt-2" id="statFailed">{{ stats.failed }}</h3>
-                            <p class="text-muted mb-0">Fallidos</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card stat-card">
-                        <div class="card-body text-center">
-                            <i class="bi bi-envelope fs-1 text-primary"></i>
-                            <h3 class="mt-2" id="statTotal">{{ stats.total }}</h3>
-                            <p class="text-muted mb-0">Total</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Correos Pendientes -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="bi bi-list-ul me-2"></i>
-                        Correos Pendientes
-                    </h5>
-                    <button class="btn btn-sm btn-outline-primary" id="btnRefreshList">
-                        <i class="bi bi-arrow-clockwise"></i>
-                        Actualizar
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div id="pendingEmailsList">
-                        <div class="text-center py-4">
-                            <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Cargando...</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">
+        <i class="bi bi-envelope me-2" aria-hidden="true"></i>Configuración de correos
+      </h1>
+      <p class="text-muted mb-0">Estado de la conexión, cola de envío y reintentos.</p>
     </div>
+    <a href="{{ url_for('pages_admin.pages_settings.index') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2" aria-hidden="true"></i>Volver a configuración
+    </a>
+  </header>
+
+  <!-- Estado de conexión -->
+  <section class="card mb-4" aria-labelledby="msConnectionTitle">
+    <div class="card-header">
+      <h2 class="h5 mb-0" id="msConnectionTitle">
+        <i class="bi bi-link-45deg me-2" aria-hidden="true"></i>Conexión con Microsoft
+      </h2>
+    </div>
+    <div class="card-body">
+      {% if ms_account %}
+      <div class="alert alert-success" role="status">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div>
+            <i class="bi bi-check-circle me-2" aria-hidden="true"></i>
+            <strong>Conectado como:</strong> {{ ms_account.name }} ({{ ms_account.username }})
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-danger" id="btnDisconnect">
+            <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Desconectar
+          </button>
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <button type="button" class="btn btn-primary" id="btnProcessQueue">
+          <i class="bi bi-send me-2" aria-hidden="true"></i>Procesar cola de correos
+        </button>
+        <button type="button" class="btn btn-outline-primary" id="btnRetryFailed">
+          <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Reintentar fallidos
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="btnSendTest">
+          <i class="bi bi-envelope-check me-2" aria-hidden="true"></i>Enviar correo de prueba
+        </button>
+      </div>
+      {% else %}
+      <div class="alert alert-warning" role="alert">
+        <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+        <strong>No conectado.</strong> Debes iniciar sesión con una cuenta de Microsoft para enviar correos.
+      </div>
+
+      <a href="{{ url_for('pages_admin.pages_emails.ms_login') }}" class="btn btn-primary">
+        <i class="bi bi-microsoft me-2" aria-hidden="true"></i>Conectar con Microsoft
+      </a>
+
+      <div class="alert alert-info mt-3">
+        <h3 class="h6"><i class="bi bi-info-circle me-2" aria-hidden="true"></i>Instrucciones</h3>
+        <ol class="mb-0">
+          <li>Haz clic en «Conectar con Microsoft».</li>
+          <li>Inicia sesión con tu cuenta institucional (@cdjuarez.tecnm.mx).</li>
+          <li>Otorga los permisos necesarios para enviar correos.</li>
+          <li>Volverás a esta pantalla y los correos pendientes se enviarán automáticamente.</li>
+        </ol>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Estadísticas de la cola -->
+  <section class="mb-4" aria-labelledby="queueStatsTitle">
+    <h2 class="h5 mb-3" id="queueStatsTitle">Estado de la cola</h2>
+    <div class="row g-3">
+      <div class="col-6 col-lg-3">
+        <div class="stat-card stat-card--warning h-100">
+          <i class="bi bi-clock-history stat-card__icon" aria-hidden="true"></i>
+          <p class="stat-card__value" id="statPending">{{ stats.pending }}</p>
+          <p class="stat-card__label">Pendientes</p>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="stat-card stat-card--success h-100">
+          <i class="bi bi-check-circle stat-card__icon" aria-hidden="true"></i>
+          <p class="stat-card__value" id="statSent">{{ stats.sent }}</p>
+          <p class="stat-card__label">Enviados</p>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="stat-card stat-card--danger h-100">
+          <i class="bi bi-x-circle stat-card__icon" aria-hidden="true"></i>
+          <p class="stat-card__value" id="statFailed">{{ stats.failed }}</p>
+          <p class="stat-card__label">Fallidos</p>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="stat-card stat-card--brand h-100">
+          <i class="bi bi-envelope stat-card__icon" aria-hidden="true"></i>
+          <p class="stat-card__value" id="statTotal">{{ stats.total }}</p>
+          <p class="stat-card__label">Total</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Correos pendientes -->
+  <section class="card" aria-labelledby="pendingEmailsTitle">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <h2 class="h5 mb-0" id="pendingEmailsTitle">
+        <i class="bi bi-list-ul me-2" aria-hidden="true"></i>Correos pendientes
+      </h2>
+      <button type="button" class="btn btn-sm btn-outline-primary" id="btnRefreshList">
+        <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Actualizar
+      </button>
+    </div>
+    <div class="card-body">
+      <div id="pendingEmailsList" class="skeleton-region" role="region" aria-live="polite"
+           aria-busy="true" aria-label="Listado de correos pendientes">
+        <div class="text-center py-4">
+          <div class="spinner-border" role="status">
+            <span class="visually-hidden">Cargando correos…</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
 {% endblock %}
 

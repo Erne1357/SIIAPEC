@@ -1,20 +1,35 @@
+/* app/static/css/admin/settings/users.css
+   Administración de usuarios.
+
+   La fila ya NO es clicable: la acción principal vive en un <button> dentro
+   de la primera celda, para que sea operable con teclado (WCAG 2.1.1). */
+
 .user-row:hover {
-    background-color: #f8f9fa;
-    cursor: pointer;
+  background-color: var(--bg-surface-sunken);
 }
 
-.user-avatar-sm {
-    width: 40px;
-    height: 40px;
-    object-fit: cover;
+/* Nombre del usuario como disparador del detalle. */
+.user-row__trigger {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-weight: var(--fw-semibold);
+  color: var(--color-brand-primary);
+}
+
+.user-row__trigger:hover,
+.user-row__trigger:focus-visible {
+  text-decoration: underline;
 }
 
 .badge-status {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
+  font-size: var(--fs-xs);
+  padding: var(--space-1) var(--space-2);
 }
 
 .control-number-badge {
-    font-family: monospace;
-    font-size: 0.85rem;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
 }

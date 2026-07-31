@@ -34,6 +34,11 @@
     }
 
     function applyKpiFilter(action) {
+        // Marca visualmente y para lector de pantalla qué KPI está filtrando.
+        document.querySelectorAll('[data-kpi-action]').forEach(btn => {
+            btn.setAttribute('aria-pressed', String(btn.dataset.kpiAction === action));
+        });
+
         // Reset filters
         el('filterAcademicPeriod').value = '';
         el('filterProgram').value = '';
@@ -103,7 +108,18 @@
     // =================================================================
     // EVENTS TABLE
     // =================================================================
+    function eventsTbody() {
+        return document.querySelector('#eventsTable tbody');
+    }
+
+    function setEventsBusy(busy, message) {
+        const tbody = eventsTbody();
+        if (tbody) tbody.setAttribute('aria-busy', busy ? 'true' : 'false');
+        if (message) window.SIIAP?.announce?.(message);
+    }
+
     async function loadEvents() {
+        setEventsBusy(true, 'Cargando eventos…');
         try {
             const qs = buildFilterQuery();
             const url = qs ? `${C.API}/events?${qs}` : `${C.API}/events`;
@@ -112,6 +128,27 @@
             renderEventsTable();
         } catch (err) {
             C.flash(`Error cargando eventos: ${err.message}`, 'danger');
+            const tbody = eventsTbody();
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-state empty-state--inline empty-state--error">
+                                <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+                                <h3 class="empty-state__title">No se pudieron cargar los eventos</h3>
+                                <p class="empty-state__description">Revisa tu conexión y vuelve a intentarlo.</p>
+                                <div class="empty-state__actions">
+                                    <button type="button" id="retryEventsBtn" class="btn btn-outline-primary">
+                                        <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>
+                                        <span class="btn-label">Reintentar</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>`;
+                document.getElementById('retryEventsBtn')?.addEventListener('click', loadEvents);
+            }
+            setEventsBusy(false, 'No se pudieron cargar los eventos.');
         }
     }
 
@@ -140,10 +177,26 @@
     }
 
     function renderEventsTable() {
-        const tbody = document.querySelector('#eventsTable tbody');
+        const tbody = eventsTbody();
         if (!tbody) return;
         if (currentEvents.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No hay eventos que coincidan con los filtros.</td></tr>';
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5">
+                        <div class="empty-state empty-state--inline">
+                            <div class="empty-state__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
+                            <h3 class="empty-state__title">Sin eventos que mostrar</h3>
+                            <p class="empty-state__description">Ningún evento coincide con los filtros actuales. Límpialos o crea un evento nuevo.</p>
+                            <div class="empty-state__actions">
+                                <button type="button" class="btn btn-outline-primary" id="emptyClearFiltersBtn">
+                                    <span class="btn-label">Limpiar filtros</span>
+                                </button>
+                            </div>
+                        </div>
+                    </td>
+                </tr>`;
+            document.getElementById('emptyClearFiltersBtn')?.addEventListener('click', clearFilters);
+            setEventsBusy(false, 'Ningún evento coincide con los filtros aplicados.');
             return;
         }
         tbody.innerHTML = currentEvents.map(ev => {
@@ -152,7 +205,7 @@
                 ? `<span class="badge ${C.STATUS_BADGE_CLASS[ev.status] || 'bg-secondary'} ms-1">${C.STATUS_LABEL[ev.status] || ev.status}</span>`
                 : '';
             const visBadge = ev.visibility === 'private'
-                ? '<span class="badge bg-dark ms-1" title="Privado"><i class="bi bi-lock-fill"></i></span>'
+                ? '<span class="badge bg-dark ms-1"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Privado</span>'
                 : '';
             const detailUrl = `${ctx.detailUrlBase}/${ev.id}`;
             return `
@@ -173,13 +226,15 @@
                     <td>${smartWhen(ev)}</td>
                     <td class="text-center">${occupancy(ev)}</td>
                     <td class="text-end" data-no-row-click>
-                        <a href="${detailUrl}" class="btn btn-sm btn-outline-primary me-1">
-                            <i class="bi bi-arrow-right"></i> Abrir
+                        <a href="${detailUrl}" class="btn btn-sm btn-outline-primary me-1"
+                           aria-label="Abrir el evento ${C.escapeHtml(ev.title)}">
+                            <i class="bi bi-arrow-right" aria-hidden="true"></i> Abrir
                         </a>
                         <div class="dropdown d-inline-block">
-                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-                                data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-three-dots"></i>
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle tap-target" type="button"
+                                data-bs-toggle="dropdown" aria-expanded="false"
+                                aria-label="Más acciones para ${C.escapeHtml(ev.title)}">
+                                <i class="bi bi-three-dots" aria-hidden="true"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 ${ev.status === 'published' || ev.status === 'ongoing' ? `
@@ -213,6 +268,17 @@
                     </td>
                 </tr>`;
         }).join('');
+        setEventsBusy(false, `${currentEvents.length} eventos cargados.`);
+    }
+
+    function clearFilters() {
+        ['filterAcademicPeriod', 'filterProgram', 'filterType', 'filterStatus', 'filterSearch'].forEach(id => {
+            if (el(id)) el(id).value = '';
+        });
+        document.querySelectorAll('[data-kpi-action]').forEach(btn => {
+            btn.setAttribute('aria-pressed', 'false');
+        });
+        loadEvents();
     }
 
     // =================================================================
@@ -314,19 +380,40 @@
     function showWizardStage(n) {
         document.getElementById('wizardStage1').classList.toggle('active', n === 1);
         document.getElementById('wizardStage2').classList.toggle('active', n === 2);
-        const indicator = document.getElementById('wizardStepIndicator');
-        if (indicator) indicator.textContent = n === 1
-            ? 'Paso 1 de 2 — Selecciona el propósito'
-            : 'Paso 2 de 2 — Configura el evento';
+
+        // Stepper: refleja el paso actual y el ya completado. El paso completado
+        // sustituye su número por la paloma, igual que hace el macro stepper()
+        // en Jinja: si no, el mismo estado se ve distinto según quién lo pinte.
+        document.querySelectorAll('#wizardStepper .stepper__step').forEach(step => {
+            const index = parseInt(step.dataset.step, 10);
+            const done = index < n;
+            step.classList.toggle('stepper__step--active', index === n);
+            step.classList.toggle('stepper__step--completed', done);
+            if (index === n) step.setAttribute('aria-current', 'step');
+            else step.removeAttribute('aria-current');
+
+            const number = step.querySelector('.stepper__number');
+            if (number) {
+                number.innerHTML = done
+                    ? '<i class="bi bi-check-lg" aria-hidden="true"></i>'
+                    : String(index);
+            }
+        });
+
         document.getElementById('wizardBtnBack').classList.toggle('d-none', n === 1);
         document.getElementById('wizardBtnSubmit').classList.toggle('d-none', n === 1);
         wizardState.stage = n;
+        window.SIIAP?.announce?.(n === 1
+            ? 'Paso 1 de 2: selecciona el propósito del evento.'
+            : 'Paso 2 de 2: configura el evento.');
     }
 
     function selectPurpose(purpose) {
         wizardState.purpose = purpose;
         document.querySelectorAll('.wizard-purpose-card').forEach(c => {
-            c.classList.toggle('selected', c.dataset.purpose === purpose);
+            const isSelected = c.dataset.purpose === purpose;
+            c.classList.toggle('selected', isSelected);
+            c.setAttribute('aria-pressed', String(isSelected));
         });
 
         const capTypeSelect = el('eventCapacityType');
@@ -399,7 +486,10 @@
     function resetWizard() {
         wizardState.purpose = null;
         wizardState.stage = 1;
-        document.querySelectorAll('.wizard-purpose-card').forEach(c => c.classList.remove('selected'));
+        document.querySelectorAll('.wizard-purpose-card').forEach(c => {
+            c.classList.remove('selected');
+            c.setAttribute('aria-pressed', 'false');
+        });
         const typeSelect = el('eventType');
         if (typeSelect) {
             Array.from(typeSelect.options).forEach(opt => { opt.hidden = false; });
@@ -495,12 +585,7 @@
             clearTimeout(searchTimer);
             searchTimer = setTimeout(loadEvents, 350);
         });
-        el('btnClearFilters')?.addEventListener('click', () => {
-            ['filterAcademicPeriod', 'filterProgram', 'filterType', 'filterStatus', 'filterSearch'].forEach(id => {
-                if (el(id)) el(id).value = '';
-            });
-            loadEvents();
-        });
+        el('btnClearFilters')?.addEventListener('click', clearFilters);
 
         // Row interactions
         document.querySelector('#eventsTable')?.addEventListener('click', (e) => {

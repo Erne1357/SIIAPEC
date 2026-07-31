@@ -15,7 +15,8 @@
   // Modal editar/crear
   const modalEdit = new bootstrap.Modal(document.getElementById("modalEdit"));
   const formEdit = document.getElementById("formEdit");
-  const editTitle = document.getElementById("editTitle");
+  // El título lo emite el macro modal_shell con el id "<modalId>Title".
+  const editTitle = document.getElementById("modalEditTitle");
   const editId = document.getElementById("editId");
   const editName = document.getElementById("editName");
   const editDesc = document.getElementById("editDesc");
@@ -130,39 +131,49 @@
       `<span class="text-muted">—</span>`;
     const stepLabel = a.step_name || stepName(a.step_id) || "";
     
+    const label = a.name || 'este archivo';
+
     return `
       <tr data-id="${a.id}" data-name="${(a.name||'').toLowerCase()}" data-step="${(stepLabel||'').toLowerCase()}">
-        <td>
-          <div class="fw-semibold">${a.name}</div>
-          <div class="text-muted small">${a.description||''}</div>
-        </td>
+        <th scope="row" class="fw-normal">
+          <span class="fw-semibold d-block">${a.name}</span>
+          <span class="text-muted small">${a.description||''}</span>
+        </th>
         <td>${stepLabel}</td>
         <td class="toggle-cell">
-          <input class="form-check-input chk-uploadable" type="checkbox" ${a.is_uploadable ? 'checked':''}>
+          <input class="form-check-input chk-uploadable" type="checkbox"
+                 aria-label="El alumno sube ${label}" ${a.is_uploadable ? 'checked':''}>
         </td>
         <td class="toggle-cell">
-          <input class="form-check-input chk-downloadable" type="checkbox" ${a.is_downloadable ? 'checked':''}>
+          <input class="form-check-input chk-downloadable" type="checkbox"
+                 aria-label="${label} es descargable" ${a.is_downloadable ? 'checked':''}>
         </td>
         <td class="toggle-cell">
-          <input class="form-check-input chk-allow-coord" type="checkbox" ${a.allow_coordinator_upload ? 'checked':''}>
+          <input class="form-check-input chk-allow-coord" type="checkbox"
+                 aria-label="El coordinador puede subir ${label}" ${a.allow_coordinator_upload ? 'checked':''}>
         </td>
         <td class="toggle-cell">
-          <input class="form-check-input chk-allow-ext" type="checkbox" ${a.allow_extension_request ? 'checked':''}>
+          <input class="form-check-input chk-allow-ext" type="checkbox"
+                 aria-label="${label} permite solicitar prórroga" ${a.allow_extension_request ? 'checked':''}>
         </td>
         <td>${tplUrl}</td>
         <td class="text-end">
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-secondary btn-edit" title="Editar">
-              <i class="bi bi-pencil-square"></i>
+          <div class="btn-group btn-group-sm" role="group" aria-label="Acciones de ${label}">
+            <button type="button" class="btn btn-outline-secondary btn-edit tap-target"
+                    aria-label="Editar ${label}" title="Editar ${label}">
+              <i class="bi bi-pencil-square" aria-hidden="true"></i>
             </button>
-            <button class="btn btn-outline-primary btn-upload-template" title="Subir plantilla">
-              <i class="bi bi-upload"></i>
+            <button type="button" class="btn btn-outline-primary btn-upload-template tap-target"
+                    aria-label="Subir plantilla de ${label}" title="Subir plantilla de ${label}">
+              <i class="bi bi-upload" aria-hidden="true"></i>
             </button>
-            <button class="btn btn-success btn-save" title="Guardar cambios">
-              <i class="bi bi-save"></i>
+            <button type="button" class="btn btn-success btn-save tap-target"
+                    aria-label="Guardar cambios de ${label}" title="Guardar cambios de ${label}">
+              <i class="bi bi-save" aria-hidden="true"></i>
             </button>
-            <button class="btn btn-outline-danger btn-delete" title="Eliminar">
-              <i class="bi bi-trash"></i>
+            <button type="button" class="btn btn-outline-danger btn-delete tap-target"
+                    aria-label="Eliminar ${label}" title="Eliminar ${label}">
+              <i class="bi bi-trash" aria-hidden="true"></i>
             </button>
           </div>
         </td>
@@ -193,7 +204,17 @@
       render();
     } catch (err) {
       console.error('Error loading archives:', err);
-      tblBody.innerHTML = `<tr><td colspan="8" class="text-danger text-center py-4">${err.message}</td></tr>`;
+      tblBody.innerHTML = `
+        <tr>
+          <td colspan="8">
+            <div class="empty-state empty-state--inline empty-state--error">
+              <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+              <p class="empty-state__title">No se pudieron cargar los archivos</p>
+              <p class="empty-state__description">Vuelve a intentarlo; si el problema persiste, avisa a soporte.</p>
+              <p class="empty-state__error-detail">${err.message}</p>
+            </div>
+          </td>
+        </tr>`;
       flash(`Error cargando archivos: ${err.message}`, 'danger');
     }
   }
@@ -206,11 +227,25 @@
     );
     
     if (!items.length) {
-      tblBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Sin resultados</td></tr>`;
+      tblBody.innerHTML = `
+        <tr>
+          <td colspan="8">
+            <div class="empty-state empty-state--inline">
+              <div class="empty-state__icon"><i class="bi bi-search" aria-hidden="true"></i></div>
+              <p class="empty-state__title">Sin archivos que coincidan</p>
+              <p class="empty-state__description">Ningún archivo cumple la búsqueda actual.</p>
+            </div>
+          </td>
+        </tr>`;
       return;
     }
-    
+
     tblBody.innerHTML = items.map(rowTemplate).join("");
+    if (window.SIIAP && typeof window.SIIAP.announce === 'function') {
+      window.SIIAP.announce(
+        items.length === 1 ? '1 archivo listado.' : `${items.length} archivos listados.`
+      );
+    }
   }
 
   // ========= Eventos globales =========

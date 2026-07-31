@@ -1,6 +1,9 @@
 (() => {
     const API = "/api/v1";
-    const alerts = document.getElementById("alerts");
+    // Sumidero propio del panel de retención: en archives.html el id "alerts"
+    // pertenece a la pestaña de archivos y los avisos salían en la pestaña
+    // equivocada.
+    const alerts = document.getElementById("alertsRetention");
     const tbody = document.getElementById("tbodyPolicies");
     const form = document.getElementById("formPolicy");
     const polId = document.getElementById("polId");
@@ -14,33 +17,71 @@
     let archives = [];
     let policies = [];
 
+    // Etiquetas en español de los momentos de aplicación de la política.
+    const APPLY_AFTER_LABEL = {
+        graduated: "Graduación",
+        dropped: "Baja o desistimiento",
+        enrollment: "Inscripción",
+    };
+
     function flash(msg, type = "success") {
+        if (!alerts) return;
         const el = document.createElement("div");
         el.className = `alert alert-${type} alert-dismissible fade show`;
-        el.innerHTML = `<div>${msg}</div><button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        el.innerHTML =
+            `<div></div>` +
+            `<button type="button" class="btn-close tap-target" data-bs-dismiss="alert" aria-label="Cerrar aviso"></button>`;
+        el.firstElementChild.textContent = msg;
         alerts.prepend(el);
+        if (window.SIIAP && typeof window.SIIAP.announce === "function") {
+            window.SIIAP.announce(msg);
+        }
         setTimeout(() => bootstrap.Alert.getOrCreateInstance(el).close(), 5000);
     }
 
     function renderArchivesOptions() {
-        polArchive.innerHTML = archives.map(a => `<option value="${a.id}">${a.name}</option>`).join("");
+        polArchive.innerHTML = archives
+            .map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`)
+            .join("");
+    }
+
+    function esc(value) {
+        return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
     }
 
     function renderPolicies() {
         if (!policies.length) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Sin políticas</td></tr>`;
+            tbody.innerHTML = `
+        <tr>
+          <td colspan="5">
+            <div class="empty-state empty-state--inline">
+              <div class="empty-state__icon"><i class="bi bi-clock-history" aria-hidden="true"></i></div>
+              <p class="empty-state__title">Sin políticas de retención</p>
+              <p class="empty-state__description">
+                Mientras no exista ninguna política, los archivos se conservan indefinidamente.
+              </p>
+            </div>
+          </td>
+        </tr>`;
             return;
         }
         tbody.innerHTML = policies.map(p => {
             const a = archives.find(x => x.id === p.archive_id);
+            const archiveName = a ? a.name : `Archivo ${p.archive_id}`;
+            const applyAfter = APPLY_AFTER_LABEL[p.apply_after] || p.apply_after || "—";
             return `
         <tr data-id="${p.id}">
-          <td>${a ? a.name : p.archive_id}</td>
+          <th scope="row" class="fw-normal">${esc(archiveName)}</th>
           <td class="text-center">${p.keep_forever ? "Sí" : "No"}</td>
           <td class="text-center">${p.keep_forever ? "—" : (p.keep_years ?? "—")}</td>
-          <td>${p.apply_after}</td>
+          <td>${esc(applyAfter)}</td>
           <td class="text-end">
-            <button class="btn btn-sm btn-outline-primary btn-edit">Editar</button>
+            <button type="button" class="btn btn-sm btn-outline-primary btn-edit"
+                    aria-label="Editar la política de ${esc(archiveName)}">Editar</button>
           </td>
         </tr>
       `;
@@ -145,7 +186,7 @@
             flash(err.message, "danger");
         }
     });
-    // al final de retention.js, agrega:
+    // Consulta de candidatos a eliminación según las políticas vigentes.
     const btnCandidates = document.getElementById("btnCandidates");
     if (btnCandidates) {
         btnCandidates.addEventListener("click", async () => {
@@ -154,8 +195,12 @@
                 const data = await res.json();
                 if (!res.ok || data.ok === false) throw new Error(data.error || "No se pudo traer candidatos");
                 const count = data.count || (data.items ? data.items.length : 0);
-                flash(`Candidatos a eliminación: ${count}`, "info");
-                // si quieres mostrar el listado en modal, puedo pasarte un modal rápido
+                flash(
+                    count === 1
+                        ? "Hay 1 archivo candidato a eliminación."
+                        : `Hay ${count} archivos candidatos a eliminación.`,
+                    "info"
+                );
             } catch (err) {
                 flash(err.message, "danger");
             }

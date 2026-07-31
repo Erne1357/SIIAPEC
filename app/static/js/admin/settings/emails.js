@@ -26,8 +26,8 @@ class EmailConfigManager {
     }
 
     updateQueueCounters(pending, failed) {
-        const elPending = document.getElementById('queuePendingCount');
-        const elFailed = document.getElementById('queueFailedCount');
+        const elPending = document.getElementById('statPending');
+        const elFailed = document.getElementById('statFailed');
         if (elPending !== null && pending !== undefined) elPending.textContent = pending;
         if (elFailed !== null && failed !== undefined) elFailed.textContent = failed;
     }
@@ -172,10 +172,14 @@ class EmailConfigManager {
         const container = document.getElementById('pendingEmailsList');
         if (!container) return;
 
+        if (window.SIIAP && window.SIIAP.setBusy) {
+            window.SIIAP.setBusy(container, true, { message: 'Cargando correos pendientes…' });
+        }
+
         container.innerHTML = `
             <div class="text-center py-4">
                 <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Cargando...</span>
+                    <span class="visually-hidden">Cargando correos…</span>
                 </div>
             </div>
         `;
@@ -190,39 +194,68 @@ class EmailConfigManager {
 
             if (emails.length === 0) {
                 container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="bi bi-inbox"></i>
-                        <p class="mt-3 mb-0">No hay correos pendientes</p>
+                    <div class="empty-state empty-state--compact">
+                        <div class="empty-state__icon"><i class="bi bi-inbox" aria-hidden="true"></i></div>
+                        <p class="empty-state__title">Sin correos pendientes</p>
+                        <p class="empty-state__description">La cola está vacía: no hay nada por enviar.</p>
                     </div>
                 `;
+                this.setListIdle(container, 'La cola de correos está vacía.');
                 return;
             }
 
             container.innerHTML = emails.map(email => this.renderEmailItem(email)).join('');
+            this.setListIdle(
+                container,
+                emails.length === 1 ? '1 correo en la cola.' : `${emails.length} correos en la cola.`
+            );
 
         } catch (error) {
             console.error('Error:', error);
             container.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
-                    Error al cargar la lista de correos
+                <div class="empty-state empty-state--compact empty-state--error">
+                    <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+                    <p class="empty-state__title">No se pudo cargar la lista de correos</p>
+                    <p class="empty-state__description">Comprueba tu conexión y vuelve a intentarlo.</p>
                 </div>
             `;
+            this.setListIdle(container, 'No se pudo cargar la lista de correos.');
+        }
+    }
+
+    // Marca la región como ya cargada y anuncia el resultado.
+    setListIdle(container, message) {
+        if (window.SIIAP && window.SIIAP.setBusy) {
+            window.SIIAP.setBusy(container, false, { message });
+        } else {
+            container.setAttribute('aria-busy', 'false');
         }
     }
 
     renderEmailItem(email) {
-        const statusText = { 'pending': 'Pendiente', 'sent': 'Enviado', 'failed': 'Fallido' }[email.status] || email.status;
+        // El chip usa el componente compartido .status-badge:
+        // pendiente -> --pending, enviado -> --accepted, fallido -> --rejected.
+        const STATUS_MAP = {
+            pending: { key: 'pending',  label: 'Pendiente' },
+            sent:    { key: 'accepted', label: 'Enviado' },
+            failed:  { key: 'rejected', label: 'Fallido' },
+        };
+        const meta = STATUS_MAP[email.status] || { key: 'pending', label: email.status };
+        const statusChip = (window.SIIAP && window.SIIAP.statusBadge)
+            ? window.SIIAP.statusBadge(meta.key, meta.label)
+            : `<span class="status-badge status-badge--${meta.key}"><span>${this.escapeHtml(meta.label)}</span></span>`;
 
-        const createdAt = new Date(email.created_at).toLocaleString('es-MX', {
-            day: '2-digit', month: 'short', year: 'numeric',
-            hour: '2-digit', minute: '2-digit'
-        });
+        const createdAt = (window.SIIAP && window.SIIAP.formatDateTime)
+            ? window.SIIAP.formatDateTime(email.created_at, 'short')
+            : new Date(email.created_at).toLocaleString('es-MX', {
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
 
         const errorHtml = email.error_message ? `
             <div class="mt-2">
                 <small class="text-danger">
-                    <i class="bi bi-exclamation-circle me-1"></i>
+                    <i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>
                     <strong>Error:</strong> ${this.escapeHtml(email.error_message)}
                 </small>
             </div>
@@ -232,18 +265,18 @@ class EmailConfigManager {
             <div class="email-item">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
-                        <div class="d-flex align-items-center gap-2 mb-2">
-                            <span class="email-status ${email.status}">${statusText}</span>
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                            ${statusChip}
                             ${email.attempts > 0 ? `
-                                <span class="badge bg-warning text-dark">
+                                <span class="badge bg-warning">
                                     ${email.attempts} ${email.attempts === 1 ? 'intento' : 'intentos'}
                                 </span>
                             ` : ''}
                         </div>
                         <strong>${this.escapeHtml(email.subject)}</strong>
                         <div class="email-meta">
-                            <span><i class="bi bi-envelope me-1"></i>${this.escapeHtml(email.recipient_email)}</span>
-                            <span><i class="bi bi-clock me-1"></i>${createdAt}</span>
+                            <span><i class="bi bi-envelope me-1" aria-hidden="true"></i>${this.escapeHtml(email.recipient_email)}</span>
+                            <span><i class="bi bi-clock me-1" aria-hidden="true"></i>${createdAt}</span>
                         </div>
                         ${errorHtml}
                     </div>

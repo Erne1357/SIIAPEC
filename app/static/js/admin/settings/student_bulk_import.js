@@ -271,8 +271,10 @@
       const d = row.data || {};
       const rowClass = row.valid ? '' : 'csv-row-invalid';
       const statusBadge = row.valid
-        ? '<span class="badge bg-success">Válida</span>'
-        : '<span class="badge bg-danger">Error</span>';
+        ? '<span class="status-badge status-badge--accepted status-badge--sm">' +
+          '<i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>Válida</span></span>'
+        : '<span class="status-badge status-badge--rejected status-badge--sm">' +
+          '<i class="bi bi-x-circle-fill" aria-hidden="true"></i><span>Con errores</span></span>';
 
       const errorsHtml = row.valid
         ? '<span class="text-muted">—</span>'
@@ -283,7 +285,7 @@
       const conacytText = d.has_conacyt ? 'Sí' : 'No';
 
       return `<tr class="${rowClass}">
-        <td class="text-center">${row.index}</td>
+        <th scope="row" class="text-center fw-normal">${row.index}</th>
         <td>${statusBadge}</td>
         <td>${escapeHtml(d.first_name || '')}</td>
         <td>${escapeHtml(d.last_name || '')}</td>

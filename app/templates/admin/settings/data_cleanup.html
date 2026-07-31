@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_macros.html' import modal_shell %}
 
 {% block title %}{{ super() }} - Limpieza de datos{% endblock %}
 
@@ -8,184 +9,180 @@
 
 {% block content %}
 <div class="container-fluid px-3 px-md-4 mt-3 mt-md-4">
-  <div class="row">
-    <div class="col-12">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>
-          <i class="bi bi-archive me-2"></i>
-          Limpieza con respaldo descargable
-        </h2>
-      </div>
+  <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">
+        <i class="bi bi-archive me-2" aria-hidden="true"></i>Limpieza con respaldo descargable
+      </h1>
+      <p class="text-muted mb-0">
+        Genera un ZIP de respaldo antes de borrar cualquier archivo del servidor.
+      </p>
+    </div>
+    <span class="bg-danger-soft d-inline-flex align-items-center gap-2 px-3 py-2 rounded-pill small fw-semibold">
+      <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+      Acción irreversible
+    </span>
+  </header>
 
-      <div class="alert alert-warning">
-        <i class="bi bi-shield-exclamation me-2"></i>
-        <strong>Política de respaldo obligatorio:</strong>
-        ningún archivo se borra del servidor sin (1) ZIP de respaldo descargado y
-        (2) confirmación explícita post-descarga. Si abandonas el flujo, el ZIP
-        expira en 7 días y no se purga nada.
-      </div>
-
-      <ul class="nav nav-tabs mb-3" id="cleanupTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active" id="tab-expired-files-btn" data-bs-toggle="tab"
-                  data-bs-target="#tab-expired-files" type="button" role="tab"
-                  aria-controls="tab-expired-files" aria-selected="true">
-            Aspirantes expirados con archivos
-            <span class="badge bg-secondary ms-1" id="badge-expired-files">0</span>
-          </button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="tab-delta3-btn" data-bs-toggle="tab"
-                  data-bs-target="#tab-delta3" type="button" role="tab"
-                  aria-controls="tab-delta3" aria-selected="false">
-            Aspirantes Δ≥3 periodos
-            <span class="badge bg-secondary ms-1" id="badge-delta3">0</span>
-          </button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="tab-retention-btn" data-bs-toggle="tab"
-                  data-bs-target="#tab-retention" type="button" role="tab"
-                  aria-controls="tab-retention" aria-selected="false">
-            Retención (egresados / rechazados)
-            <span class="badge bg-secondary ms-1" id="badge-retention">0</span>
-          </button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="tab-runs-btn" data-bs-toggle="tab"
-                  data-bs-target="#tab-runs" type="button" role="tab"
-                  aria-controls="tab-runs" aria-selected="false">
-            Respaldos generados
-          </button>
-        </li>
-      </ul>
-
-      <div class="tab-content">
-        <div class="tab-pane fade show active" id="tab-expired-files" role="tabpanel"
-             aria-labelledby="tab-expired-files-btn">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <p class="text-muted mb-0 small">
-              UserPrograms con <code>admission_status='expired'</code> y archivos físicos en disco.
-            </p>
-            <button class="btn btn-sm btn-outline-primary" data-action="reload"
-                    data-category="admission_expired_with_files">
-              <i class="bi bi-arrow-clockwise me-1"></i>Recargar
-            </button>
-          </div>
-          <div data-table-container="admission_expired_with_files"></div>
-          <div class="d-flex justify-content-end mt-3">
-            <button class="btn btn-warning"
-                    data-action="start-purge"
-                    data-category="admission_expired_with_files"
-                    data-purge-type="admission_expired_with_files"
-                    disabled>
-              <i class="bi bi-file-earmark-zip me-1"></i>Generar respaldo de seleccionados
-            </button>
-          </div>
-        </div>
-
-        <div class="tab-pane fade" id="tab-delta3" role="tabpanel" aria-labelledby="tab-delta3-btn">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <p class="text-muted mb-0 small">
-              Aspirantes con periodo de inscripción ≥2 periodos cerrados atrás
-              (equivalente al cleanup automático antiguo).
-            </p>
-            <button class="btn btn-sm btn-outline-primary" data-action="reload"
-                    data-category="admission_delta3_plus">
-              <i class="bi bi-arrow-clockwise me-1"></i>Recargar
-            </button>
-          </div>
-          <div data-table-container="admission_delta3_plus"></div>
-          <div class="d-flex justify-content-end mt-3">
-            <button class="btn btn-warning"
-                    data-action="start-purge"
-                    data-category="admission_delta3_plus"
-                    data-purge-type="admission_delta3_plus"
-                    disabled>
-              <i class="bi bi-file-earmark-zip me-1"></i>Generar respaldo de seleccionados
-            </button>
-          </div>
-        </div>
-
-        <div class="tab-pane fade" id="tab-retention" role="tabpanel" aria-labelledby="tab-retention-btn">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <p class="text-muted mb-0 small">
-              Egresados / rechazados con archivos vencidos según
-              <strong>RetentionPolicy.keep_years</strong>.
-            </p>
-            <button class="btn btn-sm btn-outline-primary" data-action="reload"
-                    data-category="retention_policy">
-              <i class="bi bi-arrow-clockwise me-1"></i>Recargar
-            </button>
-          </div>
-          <div data-table-container="retention_policy"></div>
-          <div class="d-flex justify-content-end mt-3">
-            <button class="btn btn-warning"
-                    data-action="start-purge"
-                    data-category="retention_policy"
-                    data-purge-type="retention_policy"
-                    disabled>
-              <i class="bi bi-file-earmark-zip me-1"></i>Generar respaldo de seleccionados
-            </button>
-          </div>
-        </div>
-
-        <div class="tab-pane fade" id="tab-runs" role="tabpanel" aria-labelledby="tab-runs-btn">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <p class="text-muted mb-0 small">
-              Respaldos recientes y su estado. Pendientes expiran a 7 días.
-            </p>
-            <button class="btn btn-sm btn-outline-primary" data-action="reload-runs">
-              <i class="bi bi-arrow-clockwise me-1"></i>Recargar
-            </button>
-          </div>
-          <div id="runsTableContainer"></div>
-        </div>
-      </div>
+  <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+    <i class="bi bi-shield-exclamation flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <div>
+      <strong>Política de respaldo obligatorio.</strong>
+      Ningún archivo se borra del servidor sin (1) el ZIP de respaldo descargado y
+      (2) una confirmación explícita posterior a la descarga. Si abandonas el flujo,
+      el ZIP expira en 7 días y no se purga nada.
     </div>
   </div>
-</div>
 
-{% endblock %}
+  <ul class="nav nav-tabs mb-3" id="cleanupTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="tab-expired-files-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-expired-files" type="button" role="tab"
+              aria-controls="tab-expired-files" aria-selected="true">
+        Aspirantes expirados con archivos
+        <span class="badge bg-secondary ms-1" id="badge-expired-files">0</span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-delta3-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-delta3" type="button" role="tab"
+              aria-controls="tab-delta3" aria-selected="false">
+        Aspirantes de periodos antiguos
+        <span class="badge bg-secondary ms-1" id="badge-delta3">0</span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-retention-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-retention" type="button" role="tab"
+              aria-controls="tab-retention" aria-selected="false">
+        Retención (egresados y rechazados)
+        <span class="badge bg-secondary ms-1" id="badge-retention">0</span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-runs-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-runs" type="button" role="tab"
+              aria-controls="tab-runs" aria-selected="false">
+        Respaldos generados
+      </button>
+    </li>
+  </ul>
 
-{% block modals %}
-
-<!-- Modal: confirmar purga física post-descarga -->
-<div class="modal fade" id="modalConfirmPurge" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-danger text-white">
-        <h5 class="modal-title">
-          <i class="bi bi-exclamation-triangle-fill me-2"></i>
-          Confirmar purga física
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <p>
-          Vas a borrar permanentemente los archivos de los aspirantes incluidos en el
-          respaldo <code id="confirmRunId">—</code>.
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-expired-files" role="tabpanel"
+         aria-labelledby="tab-expired-files-btn">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <p class="text-muted mb-0 small">
+          Aspirantes cuyo proceso de admisión expiró y que todavía tienen archivos en el servidor.
         </p>
-        <p class="text-danger mb-0">
-          Esta acción <strong>no es reversible</strong>. Asegúrate de que ya descargaste
-          y guardaste el ZIP en local.
-        </p>
-        <div class="form-check mt-3">
-          <input class="form-check-input" type="checkbox" id="confirmDownloadedCheck">
-          <label class="form-check-label" for="confirmDownloadedCheck">
-            Confirmo que descargué el ZIP y lo tengo respaldado.
-          </label>
-        </div>
+        <button type="button" class="btn btn-sm btn-outline-primary" data-action="reload"
+                data-category="admission_expired_with_files">
+          <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Recargar
+        </button>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-danger" id="btnDoConfirmPurge" disabled>
-          <i class="bi bi-trash me-1"></i>Borrar archivos del servidor
+      <div data-table-container="admission_expired_with_files"
+           role="region" aria-live="polite" aria-label="Aspirantes expirados con archivos"></div>
+      <div class="d-flex justify-content-end mt-3">
+        <button type="button" class="btn btn-warning"
+                data-action="start-purge"
+                data-category="admission_expired_with_files"
+                data-purge-type="admission_expired_with_files"
+                disabled>
+          <i class="bi bi-file-earmark-zip me-1" aria-hidden="true"></i>Generar respaldo de los seleccionados
         </button>
       </div>
     </div>
+
+    <div class="tab-pane fade" id="tab-delta3" role="tabpanel" aria-labelledby="tab-delta3-btn">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <p class="text-muted mb-0 small">
+          Aspirantes cuyo periodo de inscripción quedó dos o más periodos cerrados atrás.
+        </p>
+        <button type="button" class="btn btn-sm btn-outline-primary" data-action="reload"
+                data-category="admission_delta3_plus">
+          <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Recargar
+        </button>
+      </div>
+      <div data-table-container="admission_delta3_plus"
+           role="region" aria-live="polite" aria-label="Aspirantes de periodos antiguos"></div>
+      <div class="d-flex justify-content-end mt-3">
+        <button type="button" class="btn btn-warning"
+                data-action="start-purge"
+                data-category="admission_delta3_plus"
+                data-purge-type="admission_delta3_plus"
+                disabled>
+          <i class="bi bi-file-earmark-zip me-1" aria-hidden="true"></i>Generar respaldo de los seleccionados
+        </button>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-retention" role="tabpanel" aria-labelledby="tab-retention-btn">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <p class="text-muted mb-0 small">
+          Egresados y rechazados cuyos archivos superaron los años de conservación configurados.
+        </p>
+        <button type="button" class="btn btn-sm btn-outline-primary" data-action="reload"
+                data-category="retention_policy">
+          <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Recargar
+        </button>
+      </div>
+      <div data-table-container="retention_policy"
+           role="region" aria-live="polite" aria-label="Expedientes que superaron la retención"></div>
+      <div class="d-flex justify-content-end mt-3">
+        <button type="button" class="btn btn-warning"
+                data-action="start-purge"
+                data-category="retention_policy"
+                data-purge-type="retention_policy"
+                disabled>
+          <i class="bi bi-file-earmark-zip me-1" aria-hidden="true"></i>Generar respaldo de los seleccionados
+        </button>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-runs" role="tabpanel" aria-labelledby="tab-runs-btn">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <p class="text-muted mb-0 small">
+          Respaldos recientes y su estado. Los pendientes expiran a los 7 días.
+        </p>
+        <button type="button" class="btn btn-sm btn-outline-primary" data-action="reload-runs">
+          <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Recargar
+        </button>
+      </div>
+      <div id="runsTableContainer" role="region" aria-live="polite" aria-label="Respaldos generados"></div>
+    </div>
   </div>
 </div>
+{% endblock %}
 
+{% block modals %}
+{# Purga física: la compuerta de la casilla mantiene el botón deshabilitado. #}
+{% call(section) modal_shell('modalConfirmPurge', 'Confirmar purga física', icon='exclamation-triangle-fill') %}
+  {% if section == 'body' %}
+    <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
+      <i class="bi bi-exclamation-octagon-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+      <div>
+        <strong>Esta acción no es reversible.</strong>
+        Se borrarán permanentemente los archivos de los aspirantes incluidos en el respaldo
+        <code id="confirmRunId">—</code>.
+      </div>
+    </div>
+    <p class="mb-3">
+      Asegúrate de haber descargado el ZIP y de tenerlo guardado en un lugar seguro
+      antes de continuar.
+    </p>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="confirmDownloadedCheck">
+      <label class="form-check-label" for="confirmDownloadedCheck">
+        Confirmo que descargué el ZIP y lo tengo respaldado.
+      </label>
+    </div>
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-danger" id="btnDoConfirmPurge" disabled>
+      <i class="bi bi-trash me-1" aria-hidden="true"></i>Borrar archivos del servidor
+    </button>
+  {% endif %}
+{% endcall %}
 {% endblock %}
 
 {% block scripts %}

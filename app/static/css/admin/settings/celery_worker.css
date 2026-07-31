@@ -1,67 +1,90 @@
-/* ─── Worker dashboard ─────────────────────────────────────────────────── */
+/* app/static/css/admin/settings/celery_worker.css
+   Panel de monitoreo del worker Celery.
 
-/* Status badges */
-.status-badge--success { background-color: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); }
-.status-badge--failure { background-color: var(--bs-danger-bg-subtle);  color: var(--bs-danger-text-emphasis);  }
-.status-badge--started { background-color: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); }
-.status-badge--retry   { background-color: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); }
-.status-badge--pending { background-color: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); }
-.status-badge--revoked { background-color: var(--bs-dark-bg-subtle);    color: var(--bs-dark-text-emphasis);    }
+   Los chips de estado de tarea viven en components/_status-badge.css
+   (.status-badge--task-*). Esta hoja NO debe redeclararlos: la copia local
+   colisionaba por nombre con .status-badge--pending, un estado real de
+   admisión del componente compartido.
 
-/* Task icon circles in manual-run cards */
+   Las pestañas viven en components/_nav.css. Esta hoja NO debe redeclararlas. */
+
+/* ── Círculos de icono de las tarjetas de ejecución manual ──────────────── */
+
 .task-icon {
-  display:         inline-flex;
-  align-items:     center;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  width:  2.4rem;
-  height: 2.4rem;
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
   flex-shrink: 0;
-  font-size: 1.1rem;
+  font-size: var(--fs-md);
 }
 
-/* Live feed */
+/* ── Feed en vivo ────────────────────────────────────────────────────────── */
+
 .live-feed {
-  max-height:   260px;
-  overflow-y:   auto;
-  background:   var(--bs-body-bg);
-  font-family:  var(--bs-font-monospace);
-  font-size:    0.8rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  background: var(--bg-surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
 }
 
+/* El tono del evento se comunica con fondo suave + borde tenido completo
+   + icono; nunca con una franja lateral de color (WCAG 1.4.1). */
 .live-event {
-  border-left: 3px solid transparent;
-  transition:  background-color 0.3s;
-}
-.live-event--started { border-color: var(--bs-primary); }
-.live-event--success { border-color: var(--bs-success); background-color: var(--bs-success-bg-subtle); }
-.live-event--failure { border-color: var(--bs-danger);  background-color: var(--bs-danger-bg-subtle);  }
-.live-event--retry   { border-color: var(--bs-warning); background-color: var(--bs-warning-bg-subtle); }
-
-/* Summary cards */
-#summaryCards .card { transition: box-shadow 0.2s; }
-#summaryCards .card:hover { box-shadow: 0 .4rem 1rem rgba(0,0,0,.1)!important; }
-
-/* Tabs */
-.nav-tabs .nav-link {
-  color:        var(--bs-secondary-color);
-  border-color: transparent;
-}
-.nav-tabs .nav-link.active {
-  color:        var(--bs-primary);
-  font-weight:  600;
-  border-color: var(--bs-border-color) var(--bs-border-color) #fff;
+  border: 1px solid transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
-/* Schedule table */
+.live-event--started {
+  border-color: var(--border-info-subtle);
+  background-color: var(--color-info-100);
+}
+
+.live-event--success {
+  border-color: var(--border-success-subtle);
+  background-color: var(--color-success-100);
+}
+
+.live-event--failure {
+  border-color: var(--border-danger-subtle);
+  background-color: var(--color-danger-100);
+}
+
+.live-event--retry {
+  border-color: var(--border-warning-subtle);
+  background-color: var(--color-warning-100);
+}
+
+/* ── Tarjetas de resumen ─────────────────────────────────────────────────── */
+
+#summaryCards .stat-card {
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+
+#summaryCards .stat-card:hover {
+  box-shadow: var(--shadow-3);
+}
+
+/* ── Tabla de tareas programadas ─────────────────────────────────────────── */
+
 #schedulesBody code {
-  font-size: 0.8rem;
-  background: var(--bs-secondary-bg);
-  padding: 0.15rem 0.35rem;
-  border-radius: 4px;
+  font-size: var(--fs-xs);
+  background: var(--bg-surface-sunken);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-xs);
 }
 
-/* Bulk form */
-#formBulkNotif .form-label { font-weight: 500; font-size: .875rem; }
+/* ── Formulario de envío masivo ──────────────────────────────────────────── */
 
-/* Toast container — override Bootstrap default z-index in modals */
-#toastContainer { z-index: 1200 !important; }
+#formBulkNotif .form-label {
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-sm);
+}
+
+/* ── Contenedor de toasts ────────────────────────────────────────────────── */
+
+#toastContainer {
+  z-index: var(--z-toast);
+}

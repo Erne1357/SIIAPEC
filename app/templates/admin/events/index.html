@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_macros.html' import data_table_open, data_table_close, modal_shell, required_mark %}
 {% block title %}Gestión de Eventos{% endblock %}
 
 {% block content %}
@@ -6,68 +7,70 @@
 
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <h1 class="h3 mb-0">Gestión de Eventos</h1>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEventModal">
-            <i class="bi bi-plus-lg me-1"></i>Nuevo evento
+        <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createEventModal">
+            <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nuevo evento
         </button>
     </div>
 
-    <!-- KPI cards -->
+    <!-- KPI cards: filtran la tabla de abajo -->
+    <h2 class="visually-hidden">Resumen de la agenda</h2>
     <div class="row g-3 mb-4 events-kpis" id="eventsKpis">
         <div class="col-6 col-md-4 col-lg-2">
-            <button type="button" class="events-kpi-card w-100" data-kpi-action="today">
-                <div class="kpi-icon"><i class="bi bi-sun"></i></div>
-                <div class="kpi-value" id="kpiToday">&mdash;</div>
-                <div class="kpi-label">Hoy</div>
+            <button type="button" class="stat-card stat-card--interactive h-100" data-kpi-action="today" aria-pressed="false">
+                <i class="bi bi-sun stat-card__icon" aria-hidden="true"></i>
+                <p class="stat-card__value" id="kpiToday">&mdash;</p>
+                <p class="stat-card__label">Hoy</p>
             </button>
         </div>
         <div class="col-6 col-md-4 col-lg-2">
-            <button type="button" class="events-kpi-card w-100" data-kpi-action="upcoming">
-                <div class="kpi-icon"><i class="bi bi-calendar2-week"></i></div>
-                <div class="kpi-value" id="kpiUpcoming">&mdash;</div>
-                <div class="kpi-label">Próximos 7d</div>
+            <button type="button" class="stat-card stat-card--interactive h-100" data-kpi-action="upcoming" aria-pressed="false">
+                <i class="bi bi-calendar2-week stat-card__icon" aria-hidden="true"></i>
+                <p class="stat-card__value" id="kpiUpcoming">&mdash;</p>
+                <p class="stat-card__label">Próximos 7 días</p>
             </button>
         </div>
         <div class="col-6 col-md-4 col-lg-2">
-            <button type="button" class="events-kpi-card w-100" data-kpi-action="active">
-                <div class="kpi-icon"><i class="bi bi-broadcast"></i></div>
-                <div class="kpi-value" id="kpiActive">&mdash;</div>
-                <div class="kpi-label">Activos</div>
+            <button type="button" class="stat-card stat-card--interactive h-100" data-kpi-action="active" aria-pressed="false">
+                <i class="bi bi-broadcast stat-card__icon" aria-hidden="true"></i>
+                <p class="stat-card__value" id="kpiActive">&mdash;</p>
+                <p class="stat-card__label">Activos</p>
             </button>
         </div>
         <div class="col-6 col-md-4 col-lg-3">
-            <button type="button" class="events-kpi-card w-100 kpi-warning" data-kpi-action="pending-changes">
-                <div class="kpi-icon"><i class="bi bi-arrow-left-right"></i></div>
-                <div class="kpi-value" id="kpiPendingChanges">&mdash;</div>
-                <div class="kpi-label">Solicitudes pendientes</div>
+            <button type="button" class="stat-card stat-card--interactive stat-card--warning h-100" data-kpi-action="pending-changes" aria-pressed="false">
+                <i class="bi bi-arrow-left-right stat-card__icon" aria-hidden="true"></i>
+                <p class="stat-card__value" id="kpiPendingChanges">&mdash;</p>
+                <p class="stat-card__label">Solicitudes pendientes</p>
             </button>
         </div>
         <div class="col-6 col-md-4 col-lg-3">
-            <button type="button" class="events-kpi-card w-100" data-kpi-action="free-slots">
-                <div class="kpi-icon"><i class="bi bi-calendar2-check"></i></div>
-                <div class="kpi-value" id="kpiFreeSlots">&mdash;</div>
-                <div class="kpi-label">Slots libres</div>
+            <button type="button" class="stat-card stat-card--interactive h-100" data-kpi-action="free-slots" aria-pressed="false">
+                <i class="bi bi-calendar2-check stat-card__icon" aria-hidden="true"></i>
+                <p class="stat-card__value" id="kpiFreeSlots">&mdash;</p>
+                <p class="stat-card__label">Horarios libres</p>
             </button>
         </div>
     </div>
 
     <!-- Filtros -->
-    <div class="card mb-3">
+    <section class="card mb-3" aria-labelledby="eventsFiltersTitle">
         <div class="card-body py-3">
+            <h2 class="visually-hidden" id="eventsFiltersTitle">Filtros del listado</h2>
             <div class="row g-2 align-items-end" id="eventsFilters">
                 <div class="col-md-3">
-                    <label class="form-label small text-muted mb-1">Periodo</label>
+                    <label class="form-label small text-muted mb-1" for="filterAcademicPeriod">Periodo</label>
                     <select class="form-select form-select-sm" id="filterAcademicPeriod">
                         <option value="">Todos los periodos</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small text-muted mb-1">Programa</label>
+                    <label class="form-label small text-muted mb-1" for="filterProgram">Programa</label>
                     <select class="form-select form-select-sm" id="filterProgram">
                         <option value="">Todos los programas</option>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small text-muted mb-1">Tipo</label>
+                    <label class="form-label small text-muted mb-1" for="filterType">Tipo</label>
                     <select class="form-select form-select-sm" id="filterType">
                         <option value="">Todos</option>
                         <option value="interview">Entrevista</option>
@@ -80,7 +83,7 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small text-muted mb-1">Estado</label>
+                    <label class="form-label small text-muted mb-1" for="filterStatus">Estado</label>
                     <select class="form-select form-select-sm" id="filterStatus">
                         <option value="">Activos (sin archivados)</option>
                         <option value="draft">Borrador</option>
@@ -92,259 +95,243 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small text-muted mb-1">Buscar</label>
+                    <label class="form-label small text-muted mb-1" for="filterSearch">Buscar</label>
                     <input type="search" class="form-control form-control-sm" id="filterSearch"
                         placeholder="Título o descripción...">
                 </div>
                 <div class="col-12 text-end">
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="btnClearFilters">
-                        <i class="bi bi-x-circle me-1"></i>Limpiar filtros
+                        <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Limpiar filtros
                     </button>
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
     <!-- Tabla de eventos -->
     <div class="card">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0" id="eventsTable">
-                <thead class="table-light">
-                    <tr>
-                        <th style="min-width: 300px;">Evento</th>
-                        <th>Programa</th>
-                        <th>Cuándo</th>
-                        <th class="text-center">Ocupación</th>
-                        <th class="text-end">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td colspan="5" class="text-center text-muted py-4">Cargando eventos&hellip;</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+        {{ data_table_open('Eventos que coinciden con los filtros, con su programa, fecha y ocupación',
+                           id='eventsTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+                <tr>
+                    <th scope="col" class="events-col-title">Evento</th>
+                    <th scope="col">Programa</th>
+                    <th scope="col">Cuándo</th>
+                    <th scope="col" class="text-center">Ocupación</th>
+                    <th scope="col" class="text-end">Acciones</th>
+                </tr>
+            </thead>
+            <tbody aria-live="polite" aria-busy="true">
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">Cargando eventos&hellip;</td>
+                </tr>
+            </tbody>
+        {{ data_table_close() }}
     </div>
-
-    <div id="alertsEvents" class="mt-3"></div>
 </div>
 {% endblock %}
 
 {% block modals %}
 <!-- Modal: Crear evento (wizard 2 etapas) -->
-<div class="modal fade" id="createEventModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div>
-                    <h5 class="modal-title" id="wizardModalTitle">Crear evento</h5>
-                    <small class="text-muted" id="wizardStepIndicator">Paso 1 de 2 &mdash; Selecciona el propósito</small>
+{% call(section) modal_shell('createEventModal', 'Crear evento', size='xl', icon='calendar-plus') %}
+    {% if section == 'body' %}
+    <ol class="stepper mb-4" id="wizardStepper" aria-label="Progreso de la creación del evento">
+        <li class="stepper__step stepper__step--active" data-step="1" aria-current="step">
+            <span class="stepper__number" aria-hidden="true">1</span>
+            <span class="stepper__label">Propósito</span>
+        </li>
+        <li class="stepper__step" data-step="2">
+            <span class="stepper__number" aria-hidden="true">2</span>
+            <span class="stepper__label">Configuración</span>
+        </li>
+    </ol>
+
+    <form id="createEventForm">
+        <!-- Etapa 1 -->
+        <div class="wizard-stage active" id="wizardStage1">
+            <p class="text-muted mb-4" id="wizardPurposeHelp">¿Qué tipo de evento quieres crear?</p>
+            <div class="row g-3" role="group" aria-describedby="wizardPurposeHelp">
+                <div class="col-md-4">
+                    <button type="button" class="wizard-purpose-card" data-purpose="single" aria-pressed="false">
+                        <i class="bi bi-person-lines-fill wizard-purpose-card__icon" aria-hidden="true"></i>
+                        <span class="wizard-purpose-card__title d-block">Entrevista o defensa 1:1</span>
+                        <span class="wizard-purpose-card__description d-block">Citas individuales con agenda.</span>
+                    </button>
                 </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="col-md-4">
+                    <button type="button" class="wizard-purpose-card" data-purpose="multiple" aria-pressed="false">
+                        <i class="bi bi-people-fill wizard-purpose-card__icon" aria-hidden="true"></i>
+                        <span class="wizard-purpose-card__title d-block">Charla, taller o sesión</span>
+                        <span class="wizard-purpose-card__description d-block">Evento grupal con cupo definido.</span>
+                    </button>
+                </div>
+                <div class="col-md-4">
+                    <button type="button" class="wizard-purpose-card" data-purpose="other" aria-pressed="false">
+                        <i class="bi bi-gear-fill wizard-purpose-card__icon" aria-hidden="true"></i>
+                        <span class="wizard-purpose-card__title d-block">Otro</span>
+                        <span class="wizard-purpose-card__description d-block">Configuración manual de todos los parámetros.</span>
+                    </button>
+                </div>
             </div>
-            <form id="createEventForm">
-                <div class="modal-body">
-
-                    <!-- Stage 1 -->
-                    <div class="wizard-stage active" id="wizardStage1">
-                        <p class="text-muted mb-4">¿Qué tipo de evento quieres crear?</p>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <div class="wizard-purpose-card" data-purpose="single">
-                                    <i class="bi bi-person-lines-fill"></i>
-                                    <h6 class="fw-semibold mt-2 mb-1">Entrevista / Defensa 1:1</h6>
-                                    <p class="text-muted small mb-0">Citas individuales con agenda.</p>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="wizard-purpose-card" data-purpose="multiple">
-                                    <i class="bi bi-people-fill"></i>
-                                    <h6 class="fw-semibold mt-2 mb-1">Charla / Taller / Sesión</h6>
-                                    <p class="text-muted small mb-0">Evento grupal con cupo definido.</p>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="wizard-purpose-card" data-purpose="other">
-                                    <i class="bi bi-gear-fill"></i>
-                                    <h6 class="fw-semibold mt-2 mb-1">Otro</h6>
-                                    <p class="text-muted small mb-0">Configuración manual de todos los parámetros.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Stage 2 -->
-                    <div class="wizard-stage" id="wizardStage2">
-
-                        <h6 class="text-muted text-uppercase small fw-bold mb-2">
-                            <i class="bi bi-tag me-1"></i>Identidad
-                        </h6>
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-8">
-                                <label class="form-label">Título del evento *</label>
-                                <input type="text" class="form-control" id="eventTitle" required
-                                    placeholder="Ej: Entrevistas de Admisión 2025-1">
-                            </div>
-                            <div class="col-md-4" id="fieldEventType">
-                                <label class="form-label">Tipo *</label>
-                                <select class="form-select" id="eventType">
-                                    <option value="interview">Entrevista</option>
-                                    <option value="defense">Defensa de Protocolo</option>
-                                    <option value="workshop">Taller</option>
-                                    <option value="seminar">Seminario</option>
-                                    <option value="conference">Conferencia</option>
-                                    <option value="info_session">Sesión Informativa</option>
-                                    <option value="other">Otro</option>
-                                </select>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Descripción</label>
-                                <textarea class="form-control" id="eventDescription" rows="2"
-                                    placeholder="Información adicional..."></textarea>
-                            </div>
-                        </div>
-
-                        <h6 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
-                            <i class="bi bi-bullseye me-1"></i>Alcance
-                        </h6>
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Programa</label>
-                                <select class="form-select" id="eventProgram">
-                                    <option value="">Todos los programas</option>
-                                </select>
-                                <div class="form-text">Vacío = evento general / informativo.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Periodo académico</label>
-                                <select class="form-select" id="eventAcademicPeriod">
-                                    <option value="">Sin periodo (atemporal)</option>
-                                </select>
-                                <div class="form-text">Sin periodo = siempre visible.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Estado inicial</label>
-                                <select class="form-select" id="eventStatus">
-                                    <option value="draft">Borrador</option>
-                                    <option value="published" selected>Publicado</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Visibilidad</label>
-                                <div class="btn-group w-100" role="group">
-                                    <input type="radio" class="btn-check" name="eventVisibility" id="visPublic"
-                                        value="public" checked>
-                                    <label class="btn btn-outline-primary" for="visPublic">
-                                        <i class="bi bi-globe me-1"></i>Público
-                                    </label>
-                                    <input type="radio" class="btn-check" name="eventVisibility" id="visPrivate"
-                                        value="private">
-                                    <label class="btn btn-outline-warning" for="visPrivate">
-                                        <i class="bi bi-lock-fill me-1"></i>Privado
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <h6 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
-                            <i class="bi bi-calendar-event me-1"></i>Cuándo y dónde
-                        </h6>
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-12">
-                                <label class="form-label">Lugar</label>
-                                <input type="text" class="form-control" id="eventLocation"
-                                    placeholder="Ej: Salón 301, Edificio de Posgrado">
-                            </div>
-                            <div class="col-md-6 d-none" id="fieldEventDates">
-                                <label class="form-label">Fecha del evento</label>
-                                <input type="datetime-local" class="form-control" id="eventDateCreate">
-                            </div>
-                            <div class="col-md-6 d-none" id="fieldEventEndDates">
-                                <label class="form-label">Fecha de fin <span class="text-muted">(opcional)</span></label>
-                                <input type="datetime-local" class="form-control" id="eventEndDateCreate">
-                            </div>
-                            <div class="col-md-6 d-none" id="fieldMaxCapacity">
-                                <label class="form-label">Capacidad máxima *</label>
-                                <input type="number" class="form-control" id="eventMaxCapacity" min="1" placeholder="Ej: 30">
-                            </div>
-                            <div class="col-md-6 d-none" id="fieldCapacityType">
-                                <label class="form-label">Tipo de capacidad *</label>
-                                <select class="form-select" id="eventCapacityType" required>
-                                    <option value="single" selected>Individual (1:1)</option>
-                                    <option value="multiple">Múltiple (cupo limitado)</option>
-                                    <option value="unlimited">Sin límite</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <h6 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
-                            <i class="bi bi-gear me-1"></i>Comportamiento
-                        </h6>
-                        <div class="d-flex flex-wrap gap-3 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="eventRequiresRegistration" checked>
-                                <label class="form-check-label" for="eventRequiresRegistration">Requiere registro</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="eventAllowsAttendance">
-                                <label class="form-check-label" for="eventAllowsAttendance">Control de asistencia</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="eventVisibleToStudents" checked>
-                                <label class="form-check-label" for="eventVisibleToStudents">Visible para estudiantes</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="eventRemindersEnabled" checked>
-                                <label class="form-check-label" for="eventRemindersEnabled">Recordatorios automáticos</label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="wizardBtnCancel">Cancelar</button>
-                    <button type="button" class="btn btn-outline-secondary d-none" id="wizardBtnBack">
-                        <i class="bi bi-arrow-left me-1"></i>Atrás
-                    </button>
-                    <button type="submit" class="btn btn-primary d-none" id="wizardBtnSubmit">
-                        <i class="bi bi-check-lg me-1"></i>Crear evento
-                    </button>
-                </div>
-            </form>
         </div>
-    </div>
-</div>
+
+        <!-- Etapa 2 -->
+        <div class="wizard-stage" id="wizardStage2">
+
+            <h3 class="text-muted text-uppercase small fw-bold mb-2">
+                <i class="bi bi-tag me-1" aria-hidden="true"></i>Identidad
+            </h3>
+            <div class="row g-3 mb-3">
+                <div class="col-md-8">
+                    <label class="form-label" for="eventTitle">Título del evento{{ required_mark() }}</label>
+                    <input type="text" class="form-control" id="eventTitle" required
+                        placeholder="Ej: Entrevistas de Admisión 2025-1">
+                </div>
+                <div class="col-md-4" id="fieldEventType">
+                    <label class="form-label" for="eventType">Tipo{{ required_mark() }}</label>
+                    <select class="form-select" id="eventType">
+                        <option value="interview">Entrevista</option>
+                        <option value="defense">Defensa de Protocolo</option>
+                        <option value="workshop">Taller</option>
+                        <option value="seminar">Seminario</option>
+                        <option value="conference">Conferencia</option>
+                        <option value="info_session">Sesión Informativa</option>
+                        <option value="other">Otro</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="eventDescription">Descripción</label>
+                    <textarea class="form-control" id="eventDescription" rows="2"
+                        placeholder="Información adicional..."></textarea>
+                </div>
+            </div>
+
+            <h3 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
+                <i class="bi bi-bullseye me-1" aria-hidden="true"></i>Alcance
+            </h3>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="eventProgram">Programa</label>
+                    <select class="form-select" id="eventProgram" aria-describedby="eventProgramHelp">
+                        <option value="">Todos los programas</option>
+                    </select>
+                    <div class="form-text" id="eventProgramHelp">Vacío = evento general o informativo.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="eventAcademicPeriod">Periodo académico</label>
+                    <select class="form-select" id="eventAcademicPeriod" aria-describedby="eventAcademicPeriodHelp">
+                        <option value="">Sin periodo (atemporal)</option>
+                    </select>
+                    <div class="form-text" id="eventAcademicPeriodHelp">Sin periodo = siempre visible.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="eventStatus">Estado inicial</label>
+                    <select class="form-select" id="eventStatus">
+                        <option value="draft">Borrador</option>
+                        <option value="published" selected>Publicado</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <span class="form-label d-block" id="eventVisibilityLabel">Visibilidad</span>
+                    <div class="btn-group w-100" role="group" aria-labelledby="eventVisibilityLabel">
+                        <input type="radio" class="btn-check" name="eventVisibility" id="visPublic"
+                            value="public" checked>
+                        <label class="btn btn-outline-primary" for="visPublic">
+                            <i class="bi bi-globe me-1" aria-hidden="true"></i>Público
+                        </label>
+                        <input type="radio" class="btn-check" name="eventVisibility" id="visPrivate"
+                            value="private">
+                        <label class="btn btn-outline-warning" for="visPrivate">
+                            <i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Privado
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
+                <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Cuándo y dónde
+            </h3>
+            <div class="row g-3 mb-3">
+                <div class="col-md-12">
+                    <label class="form-label" for="eventLocation">Lugar</label>
+                    <input type="text" class="form-control" id="eventLocation"
+                        placeholder="Ej: Salón 301, Edificio de Posgrado">
+                </div>
+                <div class="col-md-6 d-none" id="fieldEventDates">
+                    <label class="form-label" for="eventDateCreate">Fecha del evento</label>
+                    <input type="datetime-local" class="form-control" id="eventDateCreate">
+                </div>
+                <div class="col-md-6 d-none" id="fieldEventEndDates">
+                    <label class="form-label" for="eventEndDateCreate">Fecha de fin <span class="text-muted">(opcional)</span></label>
+                    <input type="datetime-local" class="form-control" id="eventEndDateCreate">
+                </div>
+                <div class="col-md-6 d-none" id="fieldMaxCapacity">
+                    <label class="form-label" for="eventMaxCapacity">Capacidad máxima{{ required_mark() }}</label>
+                    <input type="number" class="form-control" id="eventMaxCapacity" min="1" placeholder="Ej: 30">
+                </div>
+                <div class="col-md-6 d-none" id="fieldCapacityType">
+                    <label class="form-label" for="eventCapacityType">Tipo de capacidad{{ required_mark() }}</label>
+                    <select class="form-select" id="eventCapacityType" required>
+                        <option value="single" selected>Individual (1:1)</option>
+                        <option value="multiple">Múltiple (cupo limitado)</option>
+                        <option value="unlimited">Sin límite</option>
+                    </select>
+                </div>
+            </div>
+
+            <h3 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
+                <i class="bi bi-gear me-1" aria-hidden="true"></i>Comportamiento
+            </h3>
+            <div class="d-flex flex-wrap gap-3 mb-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="eventRequiresRegistration" checked>
+                    <label class="form-check-label" for="eventRequiresRegistration">Requiere registro</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="eventAllowsAttendance">
+                    <label class="form-check-label" for="eventAllowsAttendance">Control de asistencia</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="eventVisibleToStudents" checked>
+                    <label class="form-check-label" for="eventVisibleToStudents">Visible para estudiantes</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="eventRemindersEnabled" checked>
+                    <label class="form-check-label" for="eventRemindersEnabled">Recordatorios automáticos</label>
+                </div>
+            </div>
+        </div>
+    </form>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="wizardBtnCancel">Cancelar</button>
+    <button type="button" class="btn btn-outline-secondary d-none" id="wizardBtnBack">
+        <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Atrás
+    </button>
+    <button type="submit" form="createEventForm" class="btn btn-primary d-none" id="wizardBtnSubmit">
+        <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Crear evento
+    </button>
+    {% endif %}
+{% endcall %}
 
 <!-- Modal: Confirmar eliminación de evento -->
-<div class="modal fade" id="confirmDeleteEventModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">
-                    <i class="bi bi-exclamation-triangle me-2"></i>Eliminar evento
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="deleteEventId">
-                <div class="alert alert-warning">
-                    <i class="bi bi-info-circle me-1"></i>Esta acción no se puede deshacer.
-                </div>
-                <p>¿Eliminar el evento <strong id="deleteEventTitle"></strong>?</p>
-                <div id="deleteEventWarning" class="alert alert-danger d-none">
-                    <i class="bi bi-exclamation-circle me-1"></i>
-                    Tiene <strong id="deleteEventAppointmentsCount">0</strong> citas activas que se cancelarán.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteEventBtn">
-                    <i class="bi bi-trash me-1"></i>Eliminar evento
-                </button>
-            </div>
-        </div>
+{% call(section) modal_shell('confirmDeleteEventModal', 'Eliminar evento', icon='exclamation-triangle') %}
+    {% if section == 'body' %}
+    <input type="hidden" id="deleteEventId">
+    <div class="alert alert-warning">
+        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Esta acción no se puede deshacer.
     </div>
-</div>
+    <p>¿Eliminar el evento <strong id="deleteEventTitle"></strong>?</p>
+    <div id="deleteEventWarning" class="alert alert-danger d-none">
+        <i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>
+        Tiene <strong id="deleteEventAppointmentsCount">0</strong> citas activas que se cancelarán.
+    </div>
+    {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-danger" id="confirmDeleteEventBtn">
+        <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar evento
+    </button>
+    {% endif %}
+{% endcall %}
 {% endblock %}
 
 {% block styles %}

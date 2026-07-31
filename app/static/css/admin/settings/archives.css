@@ -1,38 +1,31 @@
+/* app/static/css/admin/settings/archives.css
+   Catálogo de archivos y pestaña de retención.
+
+   Los bloques .student-card y #slotsTable que vivían aquí eran CSS muerto
+   (ningún markup de esta página los usaba) y traían colores fuera de la
+   marca: se eliminaron. */
+
 #tblArchives td,
 #tblArchives th {
-    vertical-align: middle;
+  vertical-align: middle;
 }
 
 .toggle-cell {
-    text-align: center;
+  text-align: center;
 }
 
 .template-link {
-    max-width: 220px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: inline-block;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
 }
 
-.student-card {
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.student-card:hover {
-    background-color: #f8f9fa;
-}
-
-.student-card.selected {
-    background-color: #e3f2fd;
-    border-left: 3px solid #1976d2;
-}
-
-#slotsTable tbody tr.slot-free {
-    background-color: #f8fff8;
-}
-
-#slotsTable tbody tr.slot-booked {
-    background-color: #fff3cd;
+/* Buscador de la barra de herramientas: ocupa el ancho disponible en móvil
+   y se limita a una medida legible desde tablet. */
+.archives-search {
+  flex: 1 1 12rem;
+  max-width: 22.5rem;
 }

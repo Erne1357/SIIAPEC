@@ -36,6 +36,7 @@
 
   function fmtDate(iso) {
     if (!iso) return '—';
+    if (window.SIIAP && window.SIIAP.formatDate) return window.SIIAP.formatDate(iso, 'short');
     return new Date(iso).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' });
   }
 
@@ -54,14 +55,28 @@
       if (!data.ok) throw new Error(data.error || 'Error al cargar plantillas');
       renderTemplates(data.data || []);
     } catch (e) {
-      tbodyTpl.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">${e.message}</td></tr>`;
+      tbodyTpl.innerHTML = `<tr><td colspan="6">
+        <div class="empty-state empty-state--inline empty-state--error">
+          <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+          <p class="empty-state__title">No se pudieron cargar las plantillas</p>
+          <p class="empty-state__description">Vuelve a intentarlo en unos segundos.</p>
+          <p class="empty-state__error-detail">${e.message}</p>
+        </div>
+      </td></tr>`;
     }
   }
 
   function renderTemplates(list) {
     if (!list.length) {
-      tbodyTpl.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">
-        No hay plantillas registradas. ${IS_ADMIN ? 'Usa el botón <strong>Subir Plantilla</strong> para agregar la primera.' : ''}</td></tr>`;
+      tbodyTpl.innerHTML = `<tr><td colspan="6">
+        <div class="empty-state empty-state--inline">
+          <div class="empty-state__icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></div>
+          <p class="empty-state__title">Sin plantillas registradas</p>
+          ${IS_ADMIN
+            ? '<p class="empty-state__description">Usa el botón «Subir plantilla» para agregar la primera.</p>'
+            : '<p class="empty-state__description">Solicita a Administración de posgrado que cargue una plantilla.</p>'}
+        </div>
+      </td></tr>`;
       return;
     }
 
@@ -69,34 +84,37 @@
       const label   = DOC_TYPE_LABELS[t.document_type] || t.document_type;
       const program = t.program_id ? (t.program_name || `Programa #${t.program_id}`) : '<span class="text-muted">Global</span>';
       const badge   = t.file_type === 'html'
-        ? '<span class="badge text-bg-info">HTML→PDF</span>'
-        : '<span class="badge text-bg-secondary">DOCX</span>';
+        ? '<span class="badge bg-info-soft">HTML a PDF</span>'
+        : '<span class="badge bg-primary-soft">DOCX</span>';
       const active  = t.is_active
-        ? '<span class="badge text-bg-success">Activa</span>'
-        : '<span class="badge text-bg-secondary">Inactiva</span>';
+        ? '<span class="status-badge status-badge--accepted status-badge--sm">' +
+          '<i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>Activa</span></span>'
+        : '<span class="status-badge status-badge--deferred status-badge--sm">' +
+          '<i class="bi bi-pause-circle-fill" aria-hidden="true"></i><span>Inactiva</span></span>';
 
       const adminBtns = IS_ADMIN ? `
-        <button class="btn btn-sm btn-outline-secondary btn-edit ms-1"
+        <button type="button" class="btn btn-sm btn-outline-secondary btn-edit ms-1 tap-target"
           data-id="${t.id}" data-name="${t.name}" data-desc="${t.description || ''}"
-          data-active="${t.is_active}" title="Editar">
-          <i class="bi bi-pencil"></i>
+          data-active="${t.is_active}"
+          aria-label="Editar la plantilla ${t.name}" title="Editar la plantilla ${t.name}">
+          <i class="bi bi-pencil" aria-hidden="true"></i>
         </button>` : '';
 
       return `<tr>
-        <td>
-          <div class="fw-semibold">${t.name}</div>
-          ${t.description ? `<div class="text-muted small">${t.description}</div>` : ''}
-          <div class="text-muted small">Subida: ${fmtDate(t.created_at)}</div>
-        </td>
+        <th scope="row" class="fw-normal">
+          <span class="fw-semibold d-block">${t.name}</span>
+          ${t.description ? `<span class="text-muted small d-block">${t.description}</span>` : ''}
+          <span class="text-muted small d-block">Subida: ${fmtDate(t.created_at)}</span>
+        </th>
         <td>${label}</td>
         <td>${program}</td>
         <td class="text-center">${badge}</td>
         <td class="text-center">${active}</td>
         <td class="text-end text-nowrap">
-          <button class="btn btn-sm btn-outline-success btn-generate"
+          <button type="button" class="btn btn-sm btn-outline-primary btn-generate"
             data-id="${t.id}" data-type="${t.document_type}" data-name="${t.name}"
-            title="Generar documento">
-            <i class="bi bi-download"></i> Generar
+            title="Generar un documento con la plantilla ${t.name}">
+            <i class="bi bi-download me-1" aria-hidden="true"></i>Generar
           </button>
           ${adminBtns}
         </td>

@@ -1,0 +1,18 @@
+/* app/static/css/admin/settings/document_templates.css
+   Plantillas de documentos.
+
+   Existe para retirar el style="z-index:1060; max-height:220px" en línea del
+   buscador de estudiantes: la capa sale del token, no de un literal. */
+
+/* Resultados del buscador de estudiantes dentro del modal «Generar documento».
+   Va por encima del contenido del diálogo pero por debajo de los popovers. */
+#genStudentResults {
+  z-index: var(--z-modal);
+  max-height: 14rem;
+  overflow-y: auto;
+  box-shadow: var(--shadow-3);
+}
+
+#genStudentResults:empty {
+  display: none;
+}

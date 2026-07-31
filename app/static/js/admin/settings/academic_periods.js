@@ -53,7 +53,7 @@ class AcademicPeriodsManager {
                     return;
                 }
                 this.resetForm();
-                document.getElementById('modalPeriodLabel').textContent = 'Nuevo Periodo Academico';
+                document.getElementById('modalPeriodLabel').textContent = 'Nuevo periodo académico';
             });
         }
     }
@@ -65,9 +65,9 @@ class AcademicPeriodsManager {
         container.innerHTML = `
             <div class="text-center py-5">
                 <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Cargando...</span>
+                    <span class="visually-hidden">Cargando periodos…</span>
                 </div>
-                <p class="text-muted mt-2">Cargando periodos...</p>
+                <p class="text-muted mt-2">Cargando periodos…</p>
             </div>
         `;
 
@@ -95,9 +95,11 @@ class AcademicPeriodsManager {
         } catch (error) {
             console.error('Error loading periods:', error);
             container.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
-                    Error al cargar los periodos academicos
+                <div class="empty-state empty-state--error">
+                    <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+                    <p class="empty-state__title">No se pudieron cargar los periodos académicos</p>
+                    <p class="empty-state__description">Comprueba tu conexión y vuelve a intentarlo.</p>
+                    <p class="empty-state__error-detail">${error.message}</p>
                 </div>
             `;
         }
@@ -149,8 +151,7 @@ class AcademicPeriodsManager {
             if (period.is_active) {
                 indicator.classList.add('active');
                 cardEl.classList.add('is-active');
-                badge.textContent = 'ACTIVO';
-                badge.classList.add('text-bg-success');
+                this.paintStatusBadge(badge, 'accepted', 'check-circle-fill', 'Activo');
 
                 // Inyectar botón de transición si el módulo está disponible
                 if (window.PeriodTransition && typeof window.PeriodTransition.getButtonHtml === 'function') {
@@ -164,8 +165,8 @@ class AcademicPeriodsManager {
                 }
             } else {
                 indicator.classList.add('inactive');
-                badge.textContent = this.getStatusLabel(period.status);
-                badge.classList.add('text-bg-secondary');
+                const meta = this.getStatusMeta(period.status);
+                this.paintStatusBadge(badge, meta.key, meta.icon, meta.label);
                 // Mostrar boton activar solo para periodos no activos
                 card.querySelectorAll('.btn-activate').forEach(btn => btn.classList.remove('d-none'));
             }
@@ -189,6 +190,9 @@ class AcademicPeriodsManager {
 
     formatDate(dateStr) {
         if (!dateStr) return '';
+        if (window.SIIAP && window.SIIAP.formatDate) {
+            return window.SIIAP.formatDate(dateStr, 'short', '');
+        }
         const date = new Date(dateStr + 'T00:00:00');
         return date.toLocaleDateString('es-MX', {
             day: '2-digit',
@@ -197,14 +201,29 @@ class AcademicPeriodsManager {
         });
     }
 
-    getStatusLabel(status) {
-        const labels = {
-            'upcoming': 'PROXIMO',
-            'active': 'ACTIVO',
-            'admission_closed': 'ADMISION CERRADA',
-            'completed': 'COMPLETADO'
+    // Estado del periodo -> modificador del componente compartido .status-badge.
+    getStatusMeta(status) {
+        const meta = {
+            'upcoming':          { key: 'in-progress', icon: 'calendar-plus',    label: 'Próximo' },
+            'active':            { key: 'accepted',    icon: 'check-circle-fill', label: 'Activo' },
+            'admission_closed':  { key: 'deliberation', icon: 'door-closed',     label: 'Admisión cerrada' },
+            'completed':         { key: 'enrolled',    icon: 'flag-fill',        label: 'Completado' }
         };
-        return labels[status] || status.toUpperCase();
+        return meta[status] || { key: 'deferred', icon: 'circle', label: status };
+    }
+
+    // Pinta el chip de estado con el markup del componente (icono + texto),
+    // para no depender solo del color (WCAG 1.4.1).
+    paintStatusBadge(badge, key, icon, label) {
+        if (!badge) return;
+        badge.className = `period-status-badge status-badge status-badge--${key} status-badge--sm`;
+        badge.innerHTML = '';
+        const i = document.createElement('i');
+        i.className = `bi bi-${icon}`;
+        i.setAttribute('aria-hidden', 'true');
+        const text = document.createElement('span');
+        text.textContent = label;
+        badge.append(i, text);
     }
 
     resetForm() {
@@ -219,7 +238,7 @@ class AcademicPeriodsManager {
         // Marcar que abrimos en modo edición ANTES de show, para que el
         // listener de show.bs.modal no resetee el formulario.
         this._openingForEdit = true;
-        document.getElementById('modalPeriodLabel').textContent = 'Editar Periodo Academico';
+        document.getElementById('modalPeriodLabel').textContent = 'Editar periodo académico';
         document.getElementById('periodId').value = period.id;
         document.getElementById('periodCode').value = period.code;
         document.getElementById('periodName').value = period.name;
@@ -242,7 +261,7 @@ class AcademicPeriodsManager {
         const btn = document.getElementById('btnSavePeriod');
         const originalText = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Guardando…';
 
         const periodId = document.getElementById('periodId').value;
         const data = {
@@ -322,7 +341,7 @@ class AcademicPeriodsManager {
         const btn = document.getElementById('btnConfirmDelete');
         const originalText = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Eliminando...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Eliminando…';
 
         try {
             const response = await fetch(`${this.API_BASE}/${this.currentDeleteId}`, {

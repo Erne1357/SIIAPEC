@@ -1,6 +1,7 @@
 {% extends "base.html" %}
+{% from '_macros.html' import data_table_open, data_table_close, modal_shell %}
 
-{% block title %}{{ super() }} - Alta Masiva de Estudiantes{% endblock %}
+{% block title %}{{ super() }} - Alta masiva de estudiantes{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/admin/settings/student_bulk_import.css') }}?v={{ static_version }}" rel="stylesheet">
@@ -10,72 +11,70 @@
 <div class="container-fluid px-3 px-md-4 mt-3 mt-md-4">
   <div class="row">
     <div class="col-12">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>
-          <i class="bi bi-people-fill me-2"></i>
-          Alta Masiva de Estudiantes
-        </h2>
-      </div>
-      <p class="text-muted mb-4">
-        Da de alta estudiantes existentes que aún no están registrados en SIIAP.
-        Puedes registrarlos de forma individual o cargando un archivo CSV.
-      </p>
+      <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+          <h1 class="h3 mb-1">
+            <i class="bi bi-people-fill me-2" aria-hidden="true"></i>Alta masiva de estudiantes
+          </h1>
+          <p class="text-muted mb-0 measure-prose">
+            Da de alta estudiantes que ya cursan pero aún no están registrados en SIIAP,
+            de forma individual o cargando un archivo CSV.
+          </p>
+        </div>
+      </header>
 
-      {# ── Card 1: Alta individual ─────────────────────────── #}
-      <div class="card mb-4">
+      {# ── Tarjeta 1: alta individual ─────────────────────── #}
+      <section class="card mb-4" aria-labelledby="individualTitle">
         <div class="card-header">
-          <h5 class="mb-0">
-            <i class="bi bi-person-plus me-2"></i>Alta Individual
-          </h5>
+          <h2 class="h5 mb-0" id="individualTitle">
+            <i class="bi bi-person-plus me-2" aria-hidden="true"></i>Alta individual
+          </h2>
         </div>
         <div class="card-body">
           <form id="individualForm" autocomplete="off" novalidate>
             <div class="row g-3">
-              {# Nombre(s) #}
               <div class="col-md-4">
                 <label for="firstName" class="form-label">
-                  Nombre(s) <span class="text-danger">*</span>
+                  Nombre o nombres<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
                 </label>
-                <input type="text" class="form-control" id="firstName"
-                       placeholder="Ej: Juan Carlos" required>
+                <input type="text" class="form-control" id="firstName" name="firstName"
+                       placeholder="Ej: Juan Carlos" required autocomplete="given-name">
               </div>
               <div class="col-md-4">
                 <label for="lastName" class="form-label">
-                  Apellido Paterno <span class="text-danger">*</span>
+                  Apellido paterno<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
                 </label>
-                <input type="text" class="form-control" id="lastName"
-                       placeholder="Ej: García" required>
+                <input type="text" class="form-control" id="lastName" name="lastName"
+                       placeholder="Ej: García" required autocomplete="family-name">
               </div>
               <div class="col-md-4">
                 <label for="motherLastName" class="form-label">
-                  Apellido Materno <span class="text-danger">*</span>
+                  Apellido materno<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
                 </label>
-                <input type="text" class="form-control" id="motherLastName"
+                <input type="text" class="form-control" id="motherLastName" name="motherLastName"
                        placeholder="Ej: López" required>
               </div>
 
-              {# Email y número de control #}
               <div class="col-md-6">
                 <label for="email" class="form-label">
-                  Correo Electrónico <span class="text-danger">*</span>
+                  Correo electrónico<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
                 </label>
-                <input type="email" class="form-control" id="email"
-                       placeholder="estudiante@ejemplo.com" required>
+                <input type="email" class="form-control" id="email" name="email"
+                       placeholder="estudiante@ejemplo.com" required autocomplete="email">
               </div>
               <div class="col-md-6">
                 <label for="controlNumber" class="form-label">
-                  Número de Control <span class="text-danger">*</span>
+                  Número de control<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
                 </label>
-                <input type="text" class="form-control" id="controlNumber"
+                <input type="text" class="form-control" id="controlNumber" name="controlNumber"
                        placeholder="Ej: M18000001" required>
               </div>
 
-              {# Programa #}
               <div class="col-md-6">
                 <label for="programSlug" class="form-label">
-                  Programa <span class="text-danger">*</span>
+                  Programa<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
                 </label>
-                <select class="form-select" id="programSlug" required>
+                <select class="form-select" id="programSlug" name="programSlug" required>
                   <option value="">— Selecciona un programa —</option>
                   {% for p in programs %}
                   <option value="{{ p.slug }}">{{ p.name }}</option>
@@ -83,140 +82,125 @@
                 </select>
               </div>
 
-              {# Periodo de admisión #}
               <div class="col-md-6">
                 <label for="admissionPeriodCode" class="form-label">
-                  Periodo de Admisión <span class="text-danger">*</span>
+                  Periodo de admisión<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
                 </label>
-                <select class="form-select" id="admissionPeriodCode" required>
+                <select class="form-select" id="admissionPeriodCode" name="admissionPeriodCode" required>
                   <option value="">— Selecciona un periodo —</option>
                   {% for period in periods %}
                   <option value="{{ period.code }}">
-                    {{ period.code }} — {{ period.name }}
-                    {% if period.is_active %} (activo){% endif %}
+                    {{ period.code }} — {{ period.name }}{% if period.is_active %} (activo){% endif %}
                   </option>
                   {% endfor %}
                 </select>
               </div>
 
-              {# Semestre actual #}
               <div class="col-md-4">
                 <label for="currentSemester" class="form-label">
-                  Semestre Actual <span class="text-danger">*</span>
+                  Semestre actual<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
                 </label>
-                <input type="number" class="form-control" id="currentSemester"
-                       min="1" max="20" placeholder="Ej: 3" required>
-                <div class="form-text">Semestre en el que está cursando actualmente.</div>
+                <input type="number" class="form-control" id="currentSemester" name="currentSemester"
+                       min="1" max="20" placeholder="Ej: 3" required aria-describedby="currentSemesterHelp">
+                <div id="currentSemesterHelp" class="form-text">Semestre que está cursando ahora mismo.</div>
               </div>
 
-              {# SECIHTI #}
               <div class="col-md-4 d-flex align-items-center">
                 <div class="form-check form-switch mt-3">
-                  <input class="form-check-input" type="checkbox" id="hasConacyt" role="switch">
-                  <label class="form-check-label" for="hasConacyt">
-                    Beca SECIHTI
-                  </label>
+                  <input class="form-check-input" type="checkbox" id="hasConacyt" name="hasConacyt" role="switch">
+                  <label class="form-check-label" for="hasConacyt">Beca SECIHTI</label>
                 </div>
               </div>
             </div>
 
             {# Área de mensajes de validación #}
-            <div id="individualValidationArea" class="mt-3 d-none">
+            <div id="individualValidationArea" class="mt-3 d-none" role="status" aria-live="polite">
               <div id="individualValidationMessages"></div>
             </div>
 
-            {# Botones #}
-            <div class="d-flex gap-2 mt-4">
+            <div class="d-flex flex-wrap gap-2 mt-4">
               <button type="button" class="btn btn-outline-primary" id="btnValidateIndividual">
-                <i class="bi bi-check2-circle me-1"></i>Validar
+                <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Validar
               </button>
               <button type="button" class="btn btn-primary" id="btnCreateIndividual" disabled>
-                <i class="bi bi-person-check-fill me-1"></i>Crear Estudiante
+                <i class="bi bi-person-check-fill me-1" aria-hidden="true"></i>Crear estudiante
               </button>
             </div>
           </form>
         </div>
-      </div>
+      </section>
 
-      {# ── Card 2: Alta masiva CSV ──────────────────────────── #}
-      <div class="card mb-4">
+      {# ── Tarjeta 2: alta masiva CSV ─────────────────────── #}
+      <section class="card mb-4" aria-labelledby="csvTitle">
         <div class="card-header">
-          <h5 class="mb-0">
-            <i class="bi bi-file-earmark-spreadsheet me-2"></i>Alta Masiva (CSV)
-          </h5>
+          <h2 class="h5 mb-0" id="csvTitle">
+            <i class="bi bi-file-earmark-spreadsheet me-2" aria-hidden="true"></i>Alta masiva por CSV
+          </h2>
         </div>
         <div class="card-body">
 
-          {# Descargar plantilla #}
-          <div class="mb-3">
+          <div class="mb-3 d-flex flex-wrap align-items-center gap-2">
             <button type="button" class="btn btn-outline-secondary btn-sm" id="btnDownloadTemplate">
-              <i class="bi bi-download me-1"></i>Descargar plantilla CSV
+              <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar plantilla CSV
             </button>
-            <span class="text-muted ms-2 small">
-              Usa esta plantilla para preparar el archivo exitosamente.
-            </span>
+            <span class="text-muted small">Usa esta plantilla para preparar el archivo sin errores.</span>
           </div>
 
-          {# Selección de archivo #}
           <div class="mb-3">
             <label for="csvFileInput" class="form-label fw-semibold">
-              Archivo CSV <span class="text-danger">*</span>
+              Archivo CSV<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
             </label>
-            <input type="file" class="form-control" id="csvFileInput" accept=".csv">
+            <input type="file" class="form-control" id="csvFileInput" name="csvFileInput" accept=".csv">
           </div>
 
-          {# Botones CSV #}
-          <div class="d-flex gap-2 mb-4">
+          <div class="d-flex flex-wrap gap-2 mb-4">
             <button type="button" class="btn btn-outline-primary" id="btnValidateCsv">
-              <i class="bi bi-search me-1"></i>Validar CSV
+              <i class="bi bi-search me-1" aria-hidden="true"></i>Validar CSV
             </button>
             <button type="button" class="btn btn-primary" id="btnExecuteCsv" disabled>
-              <i class="bi bi-cloud-upload me-1"></i>Aplicar válidas
+              <i class="bi bi-cloud-upload me-1" aria-hidden="true"></i>Aplicar las filas válidas
             </button>
           </div>
 
-          {# Resumen y tabla de preview (ocultos hasta validar) #}
+          {# Resumen y vista previa (ocultos hasta validar) #}
           <div id="csvPreviewSection" class="d-none">
-            {# Summary bar #}
-            <div class="d-flex align-items-center gap-3 mb-3" id="csvSummaryBar">
-              <span class="badge bg-success fs-6" id="summaryValid">0 válidas</span>
-              <span class="text-muted">/</span>
-              <span class="badge bg-secondary fs-6" id="summaryTotal">0 total</span>
-              <span class="badge bg-danger fs-6 d-none" id="summaryInvalid">0 con errores</span>
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3" id="csvSummaryBar"
+                 role="status" aria-live="polite">
+              <span class="badge bg-success" id="summaryValid">0 válidas</span>
+              <span class="badge bg-secondary" id="summaryTotal">0 total</span>
+              <span class="badge bg-danger d-none" id="summaryInvalid">0 con errores</span>
             </div>
 
-            {# Tabla preview con scroll horizontal #}
-            <div class="csv-table-wrapper">
-              <table class="table table-sm table-bordered mb-0" id="csvPreviewTable">
-                <thead class="table-light">
-                  <tr>
-                    <th class="text-center" style="width:50px;">#</th>
-                    <th>Estado</th>
-                    <th>Nombre</th>
-                    <th>Apellido P.</th>
-                    <th>Apellido M.</th>
-                    <th>Email</th>
-                    <th>No. Control</th>
-                    <th>Programa</th>
-                    <th>Semestre</th>
-                    <th>Periodo</th>
-                    <th>SECIHTI</th>
-                    <th>Errores</th>
-                  </tr>
-                </thead>
-                <tbody id="csvPreviewBody">
-                  <tr>
-                    <td colspan="12" class="text-center text-muted py-3">
-                      Sube un archivo CSV y haz clic en "Validar CSV" para ver la vista previa.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            {{ data_table_open('Vista previa de los estudiantes del archivo CSV', id='csvPreviewTable',
+                               table_class='table-sm align-middle', wrapper_class='csv-table-wrapper') }}
+              <thead class="table-light">
+                <tr>
+                  <th scope="col" class="text-center w-px-50">Fila</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col">Nombre</th>
+                  <th scope="col">Apellido paterno</th>
+                  <th scope="col">Apellido materno</th>
+                  <th scope="col">Correo</th>
+                  <th scope="col">Número de control</th>
+                  <th scope="col">Programa</th>
+                  <th scope="col">Semestre</th>
+                  <th scope="col">Periodo</th>
+                  <th scope="col">SECIHTI</th>
+                  <th scope="col">Errores</th>
+                </tr>
+              </thead>
+              <tbody id="csvPreviewBody">
+                <tr>
+                  <td colspan="12" class="text-center text-muted py-3">
+                    Sube un archivo CSV y pulsa «Validar CSV» para ver la vista previa.
+                  </td>
+                </tr>
+              </tbody>
+            {{ data_table_close() }}
           </div>
 
         </div>
-      </div>
+      </section>
 
     </div>
   </div>
@@ -224,73 +208,62 @@
 {% endblock %}
 
 {% block modals %}
-{# Modal resultado de ejecución CSV #}
-<div class="modal fade" id="csvResultModal" tabindex="-1" aria-labelledby="csvResultModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="csvResultModalLabel">
-          <i class="bi bi-clipboard-check me-2"></i>Resultado de Alta Masiva
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-      </div>
-      <div class="modal-body">
-        {# Resumen numérico #}
-        <div class="d-flex gap-3 mb-4" id="csvResultSummary">
-          <div class="text-center">
-            <div class="fs-3 fw-bold text-success" id="resultCreatedCount">0</div>
-            <div class="small text-muted">Creados</div>
-          </div>
-          <div class="text-center">
-            <div class="fs-3 fw-bold text-danger" id="resultFailedCount">0</div>
-            <div class="small text-muted">Con error</div>
-          </div>
-        </div>
-
-        {# Lista de usuarios creados #}
-        <div id="resultCreatedSection" class="d-none mb-3">
-          <h6 class="text-success">
-            <i class="bi bi-check-circle-fill me-1"></i>Estudiantes creados
-          </h6>
-          <div class="table-responsive">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Email</th>
-                  <th>No. Control</th>
-                </tr>
-              </thead>
-              <tbody id="resultCreatedList"></tbody>
-            </table>
-          </div>
-        </div>
-
-        {# Lista de fallos #}
-        <div id="resultFailedSection" class="d-none">
-          <h6 class="text-danger">
-            <i class="bi bi-x-circle-fill me-1"></i>Registros con error
-          </h6>
-          <div class="table-responsive">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Email</th>
-                  <th>Error</th>
-                </tr>
-              </thead>
-              <tbody id="resultFailedList"></tbody>
-            </table>
-          </div>
+{# Resultado de la ejecución del CSV #}
+{% call(section) modal_shell('csvResultModal', 'Resultado del alta masiva', size='lg',
+                             icon='clipboard-check', scrollable=true) %}
+  {% if section == 'body' %}
+    <div class="row g-3 mb-4" id="csvResultSummary">
+      <div class="col-6">
+        <div class="stat-card stat-card--success h-100">
+          <i class="bi bi-check-circle-fill stat-card__icon" aria-hidden="true"></i>
+          <p class="stat-card__value" id="resultCreatedCount">0</p>
+          <p class="stat-card__label">Creados</p>
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      <div class="col-6">
+        <div class="stat-card stat-card--danger h-100">
+          <i class="bi bi-x-circle-fill stat-card__icon" aria-hidden="true"></i>
+          <p class="stat-card__value" id="resultFailedCount">0</p>
+          <p class="stat-card__label">Con error</p>
+        </div>
       </div>
     </div>
-  </div>
-</div>
+
+    <div id="resultCreatedSection" class="d-none mb-3">
+      <h3 class="h6 text-success-strong">
+        <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Estudiantes creados
+      </h3>
+      {{ data_table_open('Estudiantes creados correctamente', table_class='table-sm') }}
+        <thead>
+          <tr>
+            <th scope="col">Identificador</th>
+            <th scope="col">Correo</th>
+            <th scope="col">Número de control</th>
+          </tr>
+        </thead>
+        <tbody id="resultCreatedList"></tbody>
+      {{ data_table_close() }}
+    </div>
+
+    <div id="resultFailedSection" class="d-none">
+      <h3 class="h6 text-danger-strong">
+        <i class="bi bi-x-circle-fill me-1" aria-hidden="true"></i>Registros con error
+      </h3>
+      {{ data_table_open('Registros del CSV que no se pudieron dar de alta', table_class='table-sm') }}
+        <thead>
+          <tr>
+            <th scope="col">Fila</th>
+            <th scope="col">Correo</th>
+            <th scope="col">Error</th>
+          </tr>
+        </thead>
+        <tbody id="resultFailedList"></tbody>
+      {{ data_table_close() }}
+    </div>
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+  {% endif %}
+{% endcall %}
 {% endblock %}
 
 {% block scripts %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_macros.html' import data_table_open, data_table_close, modal_shell, field, icon_button %}
 
 {% block title %}{{ super() }} - Worker Celery{% endblock %}
 
@@ -10,96 +11,91 @@
 <div class="container-fluid px-3 px-md-4 mt-3 mt-md-4">
 
   {# ── Cabecera ──────────────────────────────────────────────────────────── #}
-  <div class="d-flex justify-content-between align-items-center mb-4">
+  <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div>
-      <h2 class="mb-0">
-        <i class="bi bi-cpu me-2"></i>Worker Celery
-      </h2>
-      <p class="text-muted small mb-0 mt-1">
-        Monitoreo, historial y configuración de tareas asíncronas
+      <h1 class="h3 mb-1">
+        <i class="bi bi-cpu me-2" aria-hidden="true"></i>Worker Celery
+      </h1>
+      <p class="text-muted small mb-0">
+        Monitoreo, historial y configuración de tareas asíncronas.
       </p>
     </div>
-    <div class="d-flex align-items-center gap-2">
-      {# Badge de estado en vivo #}
-      <span id="workerStatusBadge" class="badge rounded-pill bg-secondary fs-6 px-3 py-2">
-        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <span id="workerStatusBadge" class="badge rounded-pill bg-secondary fs-6 px-3 py-2"
+            role="status" aria-live="polite">
+        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
         Verificando…
       </span>
-      <button class="btn btn-outline-secondary btn-sm" id="btnRefreshStatus" title="Actualizar estado">
-        <i class="bi bi-arrow-clockwise"></i>
-      </button>
+      {{ icon_button('arrow-clockwise', 'Actualizar el estado del worker', id='btnRefreshStatus') }}
     </div>
-  </div>
+  </header>
 
   {# ── Tarjetas de resumen ───────────────────────────────────────────────── #}
-  <div class="row g-3 mb-4" id="summaryCards">
+  <section class="row g-3 mb-4" id="summaryCards" aria-label="Resumen de actividad del worker">
     <div class="col-6 col-md-3">
-      <div class="card text-center h-100 border-0 shadow-sm">
-        <div class="card-body py-3">
-          <div class="fs-3 fw-bold text-success" id="cardActive">—</div>
-          <div class="text-muted small">Tareas activas</div>
-        </div>
+      <div class="stat-card stat-card--success h-100">
+        <i class="bi bi-lightning-charge-fill stat-card__icon" aria-hidden="true"></i>
+        <p class="stat-card__value" id="cardActive">—</p>
+        <p class="stat-card__label">Tareas activas</p>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="card text-center h-100 border-0 shadow-sm">
-        <div class="card-body py-3">
-          <div class="fs-3 fw-bold text-primary" id="cardWorkers">—</div>
-          <div class="text-muted small">Workers online</div>
-        </div>
+      <div class="stat-card stat-card--brand h-100">
+        <i class="bi bi-hdd-rack-fill stat-card__icon" aria-hidden="true"></i>
+        <p class="stat-card__value" id="cardWorkers">—</p>
+        <p class="stat-card__label">Workers en línea</p>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="card text-center h-100 border-0 shadow-sm">
-        <div class="card-body py-3">
-          <div class="fs-3 fw-bold text-info" id="cardSuccess">—</div>
-          <div class="text-muted small">Exitosas (total)</div>
-        </div>
+      <div class="stat-card stat-card--info h-100">
+        <i class="bi bi-check-circle-fill stat-card__icon" aria-hidden="true"></i>
+        <p class="stat-card__value" id="cardSuccess">—</p>
+        <p class="stat-card__label">Exitosas (total)</p>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="card text-center h-100 border-0 shadow-sm">
-        <div class="card-body py-3">
-          <div class="fs-3 fw-bold text-danger" id="cardFailures">—</div>
-          <div class="text-muted small">Fallidas (total)</div>
-        </div>
+      <div class="stat-card stat-card--danger h-100">
+        <i class="bi bi-x-circle-fill stat-card__icon" aria-hidden="true"></i>
+        <p class="stat-card__value" id="cardFailures">—</p>
+        <p class="stat-card__label">Fallidas (total)</p>
       </div>
     </div>
-  </div>
+  </section>
 
-  {# ── Tabs principales ──────────────────────────────────────────────────── #}
+  {# ── Pestañas principales ──────────────────────────────────────────────── #}
   <ul class="nav nav-tabs mb-0" id="workerTabs" role="tablist">
-    <li class="nav-item">
+    <li class="nav-item" role="presentation">
       <button class="nav-link active" id="tab-historial" data-bs-toggle="tab"
-              data-bs-target="#paneHistorial" type="button">
-        <i class="bi bi-clock-history me-1"></i> Historial
+              data-bs-target="#paneHistorial" type="button" role="tab"
+              aria-controls="paneHistorial" aria-selected="true">
+        <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Historial
       </button>
     </li>
-    <li class="nav-item">
+    <li class="nav-item" role="presentation">
       <button class="nav-link" id="tab-schedules" data-bs-toggle="tab"
-              data-bs-target="#paneSchedules" type="button">
-        <i class="bi bi-calendar-check me-1"></i> Tareas programadas
+              data-bs-target="#paneSchedules" type="button" role="tab"
+              aria-controls="paneSchedules" aria-selected="false">
+        <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Tareas programadas
       </button>
     </li>
-    <li class="nav-item">
+    <li class="nav-item" role="presentation">
       <button class="nav-link" id="tab-manual" data-bs-toggle="tab"
-              data-bs-target="#paneManual" type="button">
-        <i class="bi bi-play-circle me-1"></i> Ejecución manual
+              data-bs-target="#paneManual" type="button" role="tab"
+              aria-controls="paneManual" aria-selected="false">
+        <i class="bi bi-play-circle me-1" aria-hidden="true"></i>Ejecución manual
       </button>
     </li>
   </ul>
 
-  <div class="tab-content bg-white border border-top-0 rounded-bottom shadow-sm p-4">
+  <div class="tab-content">
 
-    {# ══════════════════════════════════════════════════════════════════════
-       TAB 1: HISTORIAL
-    ══════════════════════════════════════════════════════════════════════ #}
-    <div class="tab-pane fade show active" id="paneHistorial" role="tabpanel">
+    {# ═══ TAB 1: HISTORIAL ═══ #}
+    <div class="tab-pane fade show active" id="paneHistorial" role="tabpanel" aria-labelledby="tab-historial">
 
-      {# Filtros #}
       <div class="row g-2 mb-3">
         <div class="col-sm-4 col-md-3">
-          <select class="form-select form-select-sm" id="filterStatus">
+          <label class="form-label small" for="filterStatus">Estado</label>
+          <select class="form-select form-select-sm" id="filterStatus" name="filterStatus">
             <option value="">Todos los estados</option>
             <option value="success">Exitosas</option>
             <option value="failure">Fallidas</option>
@@ -109,231 +105,224 @@
           </select>
         </div>
         <div class="col-sm-4 col-md-3">
-          <select class="form-select form-select-sm" id="filterTriggeredBy">
+          <label class="form-label small" for="filterTriggeredBy">Origen</label>
+          <select class="form-select form-select-sm" id="filterTriggeredBy" name="filterTriggeredBy">
             <option value="">Cualquier origen</option>
             <option value="scheduled">Programadas</option>
             <option value="manual">Manuales</option>
           </select>
         </div>
         <div class="col-sm-4 col-md-3">
-          <select class="form-select form-select-sm" id="filterTaskName">
+          <label class="form-label small" for="filterTaskName">Tarea</label>
+          <select class="form-select form-select-sm" id="filterTaskName" name="filterTaskName">
             <option value="">Todas las tareas</option>
-            <option value="app.tasks.maintenance.cleanup_expired_admission_files">Limpieza archivos expirados</option>
+            <option value="app.tasks.maintenance.cleanup_expired_admission_files">Limpieza de archivos expirados</option>
             <option value="app.tasks.maintenance.apply_retention_policies">Retención</option>
             <option value="app.tasks.maintenance.cleanup_old_notifications">Notificaciones antiguas</option>
             <option value="app.tasks.notifications.send_bulk_notification">Envío masivo</option>
             <option value="app.tasks.notifications.send_bulk_notification_by_filter">Envío por filtro</option>
           </select>
         </div>
-        <div class="col-sm-12 col-md-3 d-flex gap-2">
-          <button class="btn btn-sm btn-primary flex-fill" id="btnApplyFilters">
-            <i class="bi bi-funnel me-1"></i> Filtrar
+        <div class="col-sm-12 col-md-3 d-flex align-items-end gap-2">
+          <button type="button" class="btn btn-sm btn-primary flex-fill" id="btnApplyFilters">
+            <i class="bi bi-funnel me-1" aria-hidden="true"></i>Filtrar
           </button>
-          <button class="btn btn-sm btn-outline-secondary" id="btnClearFilters" title="Limpiar filtros">
-            <i class="bi bi-x-lg"></i>
-          </button>
+          {{ icon_button('x-lg', 'Limpiar los filtros del historial', id='btnClearFilters') }}
         </div>
       </div>
 
-      {# Tabla de historial #}
-      <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle">
-          <thead class="table-light">
-            <tr>
-              <th class="w-px-180">Tarea</th>
-              <th class="w-px-100">Estado</th>
-              <th class="w-px-100">Origen</th>
-              <th class="w-px-150">Inicio</th>
-              <th class="w-px-90">Duración</th>
-              <th>Resultado / Error</th>
-            </tr>
-          </thead>
-          <tbody id="historialBody">
-            <tr>
-              <td colspan="6" class="text-center py-4">
-                <div class="spinner-border text-primary" role="status"></div>
-                <p class="text-muted mt-2 mb-0">Cargando historial…</p>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {{ data_table_open('Historial de ejecuciones de tareas asíncronas', table_class='table-sm table-hover align-middle') }}
+        <thead class="table-light">
+          <tr>
+            <th scope="col" class="w-px-180">Tarea</th>
+            <th scope="col" class="w-px-100">Estado</th>
+            <th scope="col" class="w-px-100">Origen</th>
+            <th scope="col" class="w-px-150">Inicio</th>
+            <th scope="col" class="w-px-90">Duración</th>
+            <th scope="col">Resultado o error</th>
+          </tr>
+        </thead>
+        <tbody id="historialBody" aria-live="polite">
+          <tr>
+            <td colspan="6" class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando historial…</span>
+              </div>
+              <p class="text-muted mt-2 mb-0">Cargando historial…</p>
+            </td>
+          </tr>
+        </tbody>
+      {{ data_table_close() }}
 
-      {# Paginación #}
-      <div class="d-flex justify-content-between align-items-center mt-2" id="historialPagination">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2" id="historialPagination">
         <small class="text-muted" id="historialInfo"></small>
-        <nav>
+        <nav aria-label="Paginación del historial">
           <ul class="pagination pagination-sm mb-0" id="historialPages"></ul>
         </nav>
       </div>
 
-      {# Live feed — aparece cuando hay eventos WS #}
-      <div class="mt-4" id="liveFeedSection" class="d-none">
-        <h6 class="text-muted mb-2">
-          <i class="bi bi-broadcast me-1 text-success"></i> Actividad en vivo
-        </h6>
-        <div id="liveFeed" class="live-feed border rounded p-2"></div>
-      </div>
+      {# Feed en vivo: aparece cuando llega el primer evento por WebSocket #}
+      <section class="mt-4 d-none" id="liveFeedSection" aria-labelledby="liveFeedTitle">
+        <h2 class="h6 text-muted mb-2" id="liveFeedTitle">
+          <i class="bi bi-broadcast me-1 text-success-strong" aria-hidden="true"></i>Actividad en vivo
+        </h2>
+        <div id="liveFeed" class="live-feed border rounded p-2" role="log" aria-live="polite"></div>
+      </section>
     </div>
 
-    {# ══════════════════════════════════════════════════════════════════════
-       TAB 2: TAREAS PROGRAMADAS
-    ══════════════════════════════════════════════════════════════════════ #}
-    <div class="tab-pane fade" id="paneSchedules" role="tabpanel">
+    {# ═══ TAB 2: TAREAS PROGRAMADAS ═══ #}
+    <div class="tab-pane fade" id="paneSchedules" role="tabpanel" aria-labelledby="tab-schedules">
 
-      <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <p class="text-muted small mb-0">
-          Los cambios se aplican en el próximo tick de Celery Beat sin necesidad de reiniciar.
+          Los cambios se aplican en el próximo ciclo de Celery Beat, sin reiniciar el servicio.
         </p>
-        <button class="btn btn-sm btn-outline-secondary" id="btnRefreshSchedules">
-          <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnRefreshSchedules">
+          <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Actualizar
         </button>
       </div>
 
       <div id="schedulesLoading" class="text-center py-4">
-        <div class="spinner-border text-primary" role="status"></div>
-        <p class="text-muted mt-2">Cargando schedules…</p>
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Cargando tareas programadas…</span>
+        </div>
+        <p class="text-muted mt-2">Cargando tareas programadas…</p>
       </div>
 
-      <div class="table-responsive d-none" id="schedulesTableWrapper">
-        <table class="table table-hover align-middle">
+      <div class="d-none" id="schedulesTableWrapper">
+        {{ data_table_open('Tareas programadas de Celery Beat', table_class='table-hover align-middle') }}
           <thead class="table-light">
             <tr>
-              <th>Nombre</th>
-              <th>Tarea</th>
-              <th>Schedule</th>
-              <th class="w-px-110">Última ejecución</th>
-              <th class="w-px-80">Total</th>
-              <th class="w-px-80">Estado</th>
-              <th class="w-px-60"></th>
+              <th scope="col">Nombre</th>
+              <th scope="col">Tarea</th>
+              <th scope="col">Programación</th>
+              <th scope="col" class="w-px-110">Última ejecución</th>
+              <th scope="col" class="w-px-80">Total</th>
+              <th scope="col" class="w-px-80">Estado</th>
+              <th scope="col" class="w-px-60 text-end"><span class="visually-hidden">Acciones</span></th>
             </tr>
           </thead>
-          <tbody id="schedulesBody"></tbody>
-        </table>
+          <tbody id="schedulesBody" aria-live="polite"></tbody>
+        {{ data_table_close() }}
       </div>
 
-      <div class="alert alert-warning d-none" id="schedulesError">
-        <i class="bi bi-exclamation-triangle me-2"></i>
+      <div class="alert alert-warning d-none" id="schedulesError" role="alert">
+        <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
         <span id="schedulesErrorMsg"></span>
       </div>
     </div>
 
-    {# ══════════════════════════════════════════════════════════════════════
-       TAB 3: EJECUCIÓN MANUAL
-    ══════════════════════════════════════════════════════════════════════ #}
-    <div class="tab-pane fade" id="paneManual" role="tabpanel">
+    {# ═══ TAB 3: EJECUCIÓN MANUAL ═══ #}
+    <div class="tab-pane fade" id="paneManual" role="tabpanel" aria-labelledby="tab-manual">
 
-      <div class="alert alert-info mb-4">
-        <i class="bi bi-info-circle me-2"></i>
-        Las tareas se encolan inmediatamente y se ejecutan en el worker. Puedes seguir
+      <div class="alert alert-info mb-4" role="note">
+        <i class="bi bi-info-circle me-2" aria-hidden="true"></i>
+        Las tareas se encolan de inmediato y se ejecutan en el worker. Puedes seguir
         el progreso en la pestaña <strong>Historial</strong>.
       </div>
 
-      {# Tareas de mantenimiento #}
-      <h5 class="mb-3">
-        <i class="bi bi-tools me-2 text-muted"></i>Tareas de mantenimiento
-      </h5>
+      <h2 class="h5 mb-3">
+        <i class="bi bi-tools me-2 text-muted" aria-hidden="true"></i>Tareas de mantenimiento
+      </h2>
       <div class="row g-3 mb-4">
 
-        {# Cleanup expired files #}
+        {# Limpieza de archivos expirados — la única destructiva #}
         <div class="col-md-4">
-          <div class="card h-100 border-0 shadow-sm">
+          <div class="card h-100 shadow-sm">
             <div class="card-body">
-              <div class="d-flex align-items-center mb-2">
-                <span class="task-icon bg-warning-subtle text-warning rounded-circle me-3">
+              <div class="d-flex align-items-center gap-3 mb-2">
+                <span class="task-icon bg-warning-soft rounded-circle" aria-hidden="true">
                   <i class="bi bi-trash3"></i>
                 </span>
-                <h6 class="card-title mb-0">Limpieza de archivos expirados</h6>
+                <h3 class="card-title h6 mb-0">Limpieza de archivos expirados</h3>
               </div>
               <p class="card-text text-muted small">
-                Elimina archivos físicos de procesos de admisión cuya fecha límite ya pasó
-                y marca las submissions como expiradas.
+                Elimina del servidor los archivos de procesos de admisión cuya fecha límite ya pasó
+                y marca sus entregas como expiradas.
               </p>
-              <p class="card-text small text-muted">
-                <i class="bi bi-clock me-1"></i>Programada: diario 02:00
+              <p class="card-text small text-muted mb-0">
+                <i class="bi bi-clock me-1" aria-hidden="true"></i>Programada: todos los días a las 02:00.
               </p>
             </div>
             <div class="card-footer bg-transparent border-0 pt-0">
-              <button class="btn btn-warning w-100 btn-run-task"
+              <button type="button" class="btn btn-warning w-100 btn-run-task"
                       data-task-key="cleanup_expired_admission_files"
                       data-task-name="Limpieza de archivos expirados">
-                <i class="bi bi-play-fill me-1"></i> Ejecutar ahora
+                <i class="bi bi-play-fill me-1" aria-hidden="true"></i>Ejecutar ahora
               </button>
             </div>
           </div>
         </div>
 
-        {# Apply retention policies #}
+        {# Políticas de retención #}
         <div class="col-md-4">
-          <div class="card h-100 border-0 shadow-sm">
+          <div class="card h-100 shadow-sm">
             <div class="card-body">
-              <div class="d-flex align-items-center mb-2">
-                <span class="task-icon bg-primary-subtle text-primary rounded-circle me-3">
+              <div class="d-flex align-items-center gap-3 mb-2">
+                <span class="task-icon bg-primary-soft rounded-circle" aria-hidden="true">
                   <i class="bi bi-shield-lock"></i>
                 </span>
-                <h6 class="card-title mb-0">Aplicar políticas de retención</h6>
+                <h3 class="card-title h6 mb-0">Aplicar políticas de retención</h3>
               </div>
               <p class="card-text text-muted small">
-                Purga archivos de usuarios según las políticas configuradas en RetentionPolicy
-                (antigüedad y estado del proceso).
+                Purga los archivos de los usuarios según los años de conservación configurados
+                para cada tipo de documento.
               </p>
-              <p class="card-text small text-muted">
-                <i class="bi bi-clock me-1"></i>Programada: lunes 03:00
+              <p class="card-text small text-muted mb-0">
+                <i class="bi bi-clock me-1" aria-hidden="true"></i>Programada: los lunes a las 03:00.
               </p>
             </div>
             <div class="card-footer bg-transparent border-0 pt-0">
-              <button class="btn btn-primary w-100 btn-run-task"
+              <button type="button" class="btn btn-outline-primary w-100 btn-run-task"
                       data-task-key="apply_retention_policies"
                       data-task-name="Aplicar políticas de retención">
-                <i class="bi bi-play-fill me-1"></i> Ejecutar ahora
+                <i class="bi bi-play-fill me-1" aria-hidden="true"></i>Ejecutar ahora
               </button>
             </div>
           </div>
         </div>
 
-        {# Cleanup old notifications #}
+        {# Notificaciones antiguas #}
         <div class="col-md-4">
-          <div class="card h-100 border-0 shadow-sm">
+          <div class="card h-100 shadow-sm">
             <div class="card-body">
-              <div class="d-flex align-items-center mb-2">
-                <span class="task-icon bg-info-subtle text-info rounded-circle me-3">
+              <div class="d-flex align-items-center gap-3 mb-2">
+                <span class="task-icon bg-info-soft rounded-circle" aria-hidden="true">
                   <i class="bi bi-bell-slash"></i>
                 </span>
-                <h6 class="card-title mb-0">Limpiar notificaciones antiguas</h6>
+                <h3 class="card-title h6 mb-0">Limpiar notificaciones antiguas</h3>
               </div>
               <p class="card-text text-muted small">
-                Marca como eliminadas (soft delete) las notificaciones leídas con más
-                de N días de antigüedad.
+                Marca como eliminadas las notificaciones ya leídas con más de N días de antigüedad.
               </p>
-              <div class="mb-2">
-                <label class="form-label small mb-1">Días de antigüedad</label>
-                <input type="number" class="form-control form-control-sm" id="notifDays"
+              <div class="mb-0">
+                <label class="form-label small mb-1" for="notifDays">Días de antigüedad</label>
+                <input type="number" class="form-control form-control-sm" id="notifDays" name="notifDays"
                        value="30" min="1" max="365">
               </div>
             </div>
             <div class="card-footer bg-transparent border-0 pt-0">
-              <button class="btn btn-info w-100 btn-run-task"
+              <button type="button" class="btn btn-outline-primary w-100 btn-run-task"
                       data-task-key="cleanup_old_notifications"
                       data-task-name="Limpiar notificaciones antiguas"
                       id="btnCleanupNotif">
-                <i class="bi bi-play-fill me-1"></i> Ejecutar ahora
+                <i class="bi bi-play-fill me-1" aria-hidden="true"></i>Ejecutar ahora
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {# Envío masivo de notificaciones #}
-      <h5 class="mb-3">
-        <i class="bi bi-megaphone me-2 text-muted"></i>Envío masivo de notificaciones
-      </h5>
-      <div class="card border-0 shadow-sm">
+      <h2 class="h5 mb-3">
+        <i class="bi bi-megaphone me-2 text-muted" aria-hidden="true"></i>Envío masivo de notificaciones
+      </h2>
+      <div class="card shadow-sm">
         <div class="card-body">
           <form id="formBulkNotif">
             <div class="row g-3">
               <div class="col-md-4">
-                <label class="form-label">Destinatarios</label>
-                <select class="form-select" id="bulkFilterType" required>
+                <label class="form-label" for="bulkFilterType">Destinatarios</label>
+                <select class="form-select" id="bulkFilterType" name="bulkFilterType" required>
                   <option value="">— Seleccionar —</option>
                   <option value="all">Todos los usuarios activos</option>
                   <option value="role">Por rol</option>
@@ -342,13 +331,13 @@
                 </select>
               </div>
               <div class="col-md-4 d-none" id="bulkFilterValueWrapper">
-                <label class="form-label" id="bulkFilterValueLabel">Valor del filtro</label>
-                <input type="text" class="form-control" id="bulkFilterValue"
+                <label class="form-label" for="bulkFilterValue" id="bulkFilterValueLabel">Valor del filtro</label>
+                <input type="text" class="form-control" id="bulkFilterValue" name="bulkFilterValue"
                        placeholder="Ej: applicant, in_progress…">
               </div>
               <div class="col-md-4">
-                <label class="form-label">Prioridad</label>
-                <select class="form-select" id="bulkPriority">
+                <label class="form-label" for="bulkPriority">Prioridad</label>
+                <select class="form-select" id="bulkPriority" name="bulkPriority">
                   <option value="low">Baja</option>
                   <option value="medium" selected>Media</option>
                   <option value="high">Alta</option>
@@ -356,29 +345,31 @@
                 </select>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Título</label>
-                <input type="text" class="form-control" id="bulkTitle"
+                <label class="form-label" for="bulkTitle">Título</label>
+                <input type="text" class="form-control" id="bulkTitle" name="bulkTitle"
                        placeholder="Ej: Recordatorio de fecha límite" maxlength="120" required>
               </div>
               <div class="col-md-6">
-                <label class="form-label">URL de acción <span class="text-muted small">(opcional)</span></label>
-                <input type="text" class="form-control" id="bulkActionUrl"
+                <label class="form-label" for="bulkActionUrl">
+                  URL de acción <span class="text-muted small">(opcional)</span>
+                </label>
+                <input type="text" class="form-control" id="bulkActionUrl" name="bulkActionUrl"
                        placeholder="Ej: /user/dashboard">
               </div>
               <div class="col-12">
-                <label class="form-label">Mensaje</label>
-                <textarea class="form-control" id="bulkMessage" rows="3"
+                <label class="form-label" for="bulkMessage">Mensaje</label>
+                <textarea class="form-control" id="bulkMessage" name="bulkMessage" rows="3"
                           placeholder="Texto del mensaje que recibirá el usuario…" required></textarea>
               </div>
             </div>
           </form>
         </div>
-        <div class="card-footer bg-transparent border-top d-flex justify-content-end gap-2">
+        <div class="card-footer bg-transparent border-top d-flex flex-wrap justify-content-end gap-2">
           <button type="button" class="btn btn-outline-secondary" id="btnResetBulk">
-            <i class="bi bi-x-circle me-1"></i> Limpiar
+            <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Limpiar
           </button>
-          <button type="button" class="btn btn-success" id="btnSendBulk">
-            <i class="bi bi-send me-1"></i> Encolar envío masivo
+          <button type="button" class="btn btn-primary" id="btnSendBulk">
+            <i class="bi bi-send me-1" aria-hidden="true"></i>Encolar envío masivo
           </button>
         </div>
       </div>
@@ -388,106 +379,71 @@
   </div>{# /tab-content #}
 
 </div>{# /container #}
-
-
 {% endblock %}
 
 {% block modals %}
-{# ══════════════════════════════════════════════════════════════════════════
-   MODAL: EDITAR SCHEDULE
-══════════════════════════════════════════════════════════════════════════ #}
-<div class="modal fade" id="modalEditSchedule" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">
-          <i class="bi bi-calendar-event me-2"></i>Editar schedule
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <p class="text-muted small mb-3">
-          Los cambios se aplican en el próximo tick de Celery Beat
-          <strong>sin reiniciar el contenedor</strong>.
-        </p>
-        <input type="hidden" id="editScheduleName">
+{# ── Editar la programación de una tarea ─────────────────────────────────── #}
+{% call(section) modal_shell('modalEditSchedule', 'Editar programación', icon='calendar-event') %}
+  {% if section == 'body' %}
+    <p class="text-muted small mb-3">
+      Los cambios se aplican en el próximo ciclo de Celery Beat, <strong>sin reiniciar el contenedor</strong>.
+    </p>
+    <input type="hidden" id="editScheduleName" name="editScheduleName">
 
-        <div class="mb-3">
-          <label class="form-label">Nombre de la entrada</label>
-          <input type="text" class="form-control" id="editScheduleLabel" disabled>
+    {{ field('editScheduleLabel', 'Nombre de la entrada', disabled=true) }}
+
+    <fieldset class="mb-3">
+      <legend class="h6">Expresión cron</legend>
+      <div class="row g-2">
+        <div class="col-6 col-sm-3">
+          <label class="form-label small" for="editCronMinute">Minuto</label>
+          <input type="text" class="form-control form-control-sm" id="editCronMinute" name="editCronMinute"
+                 placeholder="0-59 o *">
         </div>
-
-        <hr class="my-3">
-        <h6 class="mb-3">Expresión cron</h6>
-
-        <div class="row g-2 mb-3">
-          <div class="col">
-            <label class="form-label small">Minuto</label>
-            <input type="text" class="form-control form-control-sm" id="editCronMinute"
-                   placeholder="0-59 o *">
-          </div>
-          <div class="col">
-            <label class="form-label small">Hora</label>
-            <input type="text" class="form-control form-control-sm" id="editCronHour"
-                   placeholder="0-23 o *">
-          </div>
-          <div class="col">
-            <label class="form-label small">Día semana</label>
-            <input type="text" class="form-control form-control-sm" id="editCronDow"
-                   placeholder="0-6 o *">
-          </div>
-          <div class="col">
-            <label class="form-label small">Día mes</label>
-            <input type="text" class="form-control form-control-sm" id="editCronDom"
-                   placeholder="1-31 o *">
-          </div>
+        <div class="col-6 col-sm-3">
+          <label class="form-label small" for="editCronHour">Hora</label>
+          <input type="text" class="form-control form-control-sm" id="editCronHour" name="editCronHour"
+                 placeholder="0-23 o *">
         </div>
-
-        <div class="mb-3">
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="editEnabled">
-            <label class="form-check-label" for="editEnabled">Tarea habilitada</label>
-          </div>
+        <div class="col-6 col-sm-3">
+          <label class="form-label small" for="editCronDow">Día de la semana</label>
+          <input type="text" class="form-control form-control-sm" id="editCronDow" name="editCronDow"
+                 placeholder="0-6 o *">
         </div>
+        <div class="col-6 col-sm-3">
+          <label class="form-label small" for="editCronDom">Día del mes</label>
+          <input type="text" class="form-control form-control-sm" id="editCronDom" name="editCronDom"
+                 placeholder="1-31 o *">
+        </div>
+      </div>
+    </fieldset>
 
-        <div class="alert alert-warning d-none" id="editScheduleAlert"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="btnSaveSchedule">
-          <i class="bi bi-check-lg me-1"></i> Guardar cambios
-        </button>
-      </div>
+    <div class="form-check form-switch mb-3">
+      <input class="form-check-input" type="checkbox" id="editEnabled" name="editEnabled" role="switch">
+      <label class="form-check-label" for="editEnabled">Tarea habilitada</label>
     </div>
-  </div>
-</div>
 
+    <div class="alert alert-warning d-none mb-0" id="editScheduleAlert" role="alert"></div>
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-primary" id="btnSaveSchedule">
+      <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Guardar cambios
+    </button>
+  {% endif %}
+{% endcall %}
 
-{# ══════════════════════════════════════════════════════════════════════════
-   MODAL: CONFIRMACIÓN EJECUCIÓN MANUAL
-══════════════════════════════════════════════════════════════════════════ #}
-<div class="modal fade" id="modalConfirmRun" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content">
-      <div class="modal-header border-0">
-        <h5 class="modal-title">
-          <i class="bi bi-play-circle me-2 text-success"></i>Confirmar ejecución
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <p>¿Ejecutar <strong id="confirmTaskName"></strong> ahora?</p>
-        <p class="text-muted small">La tarea se encola inmediatamente en el worker.</p>
-      </div>
-      <div class="modal-footer border-0 pt-0">
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-sm btn-success" id="btnConfirmRunTask">
-          <i class="bi bi-play-fill me-1"></i> Sí, ejecutar
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
+{# ── Confirmar ejecución manual ──────────────────────────────────────────── #}
+{% call(section) modal_shell('modalConfirmRun', 'Confirmar ejecución', size='sm', icon='play-circle') %}
+  {% if section == 'body' %}
+    <p>¿Ejecutar <strong id="confirmTaskName"></strong> ahora?</p>
+    <p class="text-muted small mb-0">La tarea se encola de inmediato en el worker.</p>
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-sm btn-primary" id="btnConfirmRunTask">
+      <i class="bi bi-play-fill me-1" aria-hidden="true"></i>Sí, ejecutar
+    </button>
+  {% endif %}
+{% endcall %}
 {% endblock %}
 
 {% block scripts %}

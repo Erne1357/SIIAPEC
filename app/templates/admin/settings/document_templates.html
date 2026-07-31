@@ -1,116 +1,131 @@
 {% extends "base.html" %}
-{% block title %}{{ super() }} - Plantillas de Documentos{% endblock %}
+{% from '_macros.html' import data_table_open, data_table_close, modal_shell, field %}
+
+{% block title %}{{ super() }} - Plantillas de documentos{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/admin/settings/document_templates.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-3 px-md-4 mt-3 mt-md-4">
 
   {# Encabezado #}
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-    <h2 class="mb-0">
-      <i class="bi bi-file-earmark-text me-2"></i>Plantillas de Documentos
-    </h2>
+  <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">
+        <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>Plantillas de documentos
+      </h1>
+      <p class="text-muted mb-0">
+        Cartas, constancias y tiras de materias que el sistema genera automáticamente.
+      </p>
+    </div>
     {% if is_postgrad_admin %}
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalUpload">
-      <i class="bi bi-upload me-1"></i> Subir Plantilla
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalUpload">
+      <i class="bi bi-upload me-1" aria-hidden="true"></i>Subir plantilla
     </button>
     {% endif %}
-  </div>
+  </header>
 
-  {# Alertas #}
-  <div id="alerts"></div>
+  {# Sumidero de avisos #}
+  <div id="alerts" role="status" aria-live="polite"></div>
 
-  {# Info sobre variables #}
-  <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
-    <i class="bi bi-info-circle-fill fs-5 flex-shrink-0 mt-1"></i>
+  {# Información sobre variables #}
+  <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="note">
+    <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
     <div>
       Las plantillas pueden ser archivos <strong>HTML</strong> o <strong>DOCX</strong> con marcadores
-      <code>{% raw %}{{variable}}{% endraw %}</code> que se sustituyen automáticamente al generar el documento.
-      <a href="#sectionVariables" class="alert-link ms-1">Ver variables disponibles →</a>
+      <code>{% raw %}{{variable}}{% endraw %}</code> que se sustituyen al generar el documento.
+      <a href="#sectionVariables" class="alert-link ms-1">Ver las variables disponibles</a>
     </div>
   </div>
 
   {# Filtros #}
-  <div class="card mb-4">
-    <div class="card-body py-2">
-      <div class="row g-2 align-items-center">
-        <div class="col-sm-auto">
-          <label class="form-label mb-0 small fw-semibold">Tipo de documento</label>
-        </div>
-        <div class="col-sm-3">
-          <select id="filterDocType" class="form-select form-select-sm">
+  <section class="card mb-4" aria-labelledby="templatesFiltersTitle">
+    <div class="card-body py-3">
+      <h2 class="visually-hidden" id="templatesFiltersTitle">Filtros</h2>
+      <div class="row g-2 align-items-end">
+        <div class="col-sm-4 col-lg-3">
+          <label class="form-label mb-1 small fw-semibold" for="filterDocType">Tipo de documento</label>
+          <select id="filterDocType" name="filterDocType" class="form-select form-select-sm">
             <option value="">Todos</option>
-            <option value="acceptance_letter">Carta de Aceptación</option>
-            <option value="enrollment_confirmation">Confirmación de Inscripción</option>
-            <option value="course_schedule">Tira de Materias</option>
+            <option value="acceptance_letter">Carta de aceptación</option>
+            <option value="enrollment_confirmation">Confirmación de inscripción</option>
+            <option value="course_schedule">Tira de materias</option>
           </select>
         </div>
         <div class="col-sm-auto">
           <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" id="filterActiveOnly" checked>
+            <input class="form-check-input" type="checkbox" role="switch" id="filterActiveOnly"
+                   name="filterActiveOnly" checked>
             <label class="form-check-label small" for="filterActiveOnly">Solo activas</label>
           </div>
         </div>
-        <div class="col-sm-auto ms-auto">
-          <button class="btn btn-sm btn-outline-secondary" id="btnRefresh">
-            <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
+        <div class="col-sm-auto ms-sm-auto">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="btnRefresh">
+            <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Actualizar
           </button>
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
   {# Tabla de plantillas #}
-  <div class="card mb-5">
-    <div class="card-header fw-semibold">Plantillas registradas</div>
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Nombre</th>
-            <th>Tipo de Documento</th>
-            <th>Programa</th>
-            <th class="text-center">Formato</th>
-            <th class="text-center">Activa</th>
-            <th class="text-end">Acciones</th>
-          </tr>
-        </thead>
-        <tbody id="tbodyTemplates">
-          <tr id="trLoading">
-            <td colspan="6" class="text-center py-4 text-muted">
-              <div class="spinner-border spinner-border-sm me-2" role="status"></div>Cargando…
-            </td>
-          </tr>
-        </tbody>
-      </table>
+  <section class="card mb-5" aria-labelledby="templatesTableTitle">
+    <div class="card-header fw-semibold">
+      <h2 class="h6 mb-0" id="templatesTableTitle">Plantillas registradas</h2>
     </div>
-  </div>
+    {{ data_table_open('Plantillas de documentos registradas', table_class='table-hover align-middle', wrapper_class='border-0') }}
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Nombre</th>
+          <th scope="col">Tipo de documento</th>
+          <th scope="col">Programa</th>
+          <th scope="col" class="text-center">Formato</th>
+          <th scope="col" class="text-center">Estado</th>
+          <th scope="col" class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tbodyTemplates" aria-live="polite">
+        <tr id="trLoading">
+          <td colspan="6" class="text-center py-4 text-muted">
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+              <span class="visually-hidden">Cargando plantillas…</span>
+            </div>Cargando…
+          </td>
+        </tr>
+      </tbody>
+    {{ data_table_close() }}
+  </section>
 
   {# Variables disponibles #}
-  <div id="sectionVariables" class="card mb-5">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <span class="fw-semibold"><i class="bi bi-braces me-2"></i>Variables disponibles para plantillas</span>
-      <button class="btn btn-sm btn-link p-0" data-bs-toggle="collapse" data-bs-target="#collapseVars">
-        <i class="bi bi-chevron-down"></i>
+  <section id="sectionVariables" class="card mb-5" aria-labelledby="variablesTitle">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <h2 class="h6 mb-0" id="variablesTitle">
+        <i class="bi bi-braces me-2" aria-hidden="true"></i>Variables disponibles para plantillas
+      </h2>
+      <button type="button" class="btn btn-sm btn-link p-0 tap-target" data-bs-toggle="collapse"
+              data-bs-target="#collapseVars" aria-expanded="true" aria-controls="collapseVars"
+              aria-label="Mostrar u ocultar la lista de variables" title="Mostrar u ocultar variables">
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
       </button>
     </div>
     <div class="collapse show" id="collapseVars">
       <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-sm mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Marcador</th>
-                <th>Descripción</th>
-              </tr>
-            </thead>
-            <tbody id="tbodyVariables">
-              <tr><td colspan="2" class="text-muted text-center py-3">Cargando…</td></tr>
-            </tbody>
-          </table>
-        </div>
+        {{ data_table_open('Marcadores admitidos en las plantillas y su significado', table_class='table-sm', wrapper_class='border-0') }}
+          <thead class="table-light">
+            <tr>
+              <th scope="col">Marcador</th>
+              <th scope="col">Descripción</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyVariables" aria-live="polite">
+            <tr><td colspan="2" class="text-muted text-center py-3">Cargando…</td></tr>
+          </tbody>
+        {{ data_table_close() }}
       </div>
     </div>
-  </div>
+  </section>
 
 </div>
 {% endblock %}
@@ -118,147 +133,134 @@
 
 {% block modals %}
 
-{# ── MODAL: Subir plantilla ────────────────────────────────────────────────── #}
 {% if is_postgrad_admin %}
-<div class="modal fade" id="modalUpload" tabindex="-1" aria-labelledby="modalUploadLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="modalUploadLabel"><i class="bi bi-upload me-2"></i>Subir Plantilla</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form id="formUpload" novalidate>
-        <div class="modal-body">
-          <div class="row g-3">
-
-            <div class="col-12">
-              <label class="form-label">Archivo <span class="text-danger">*</span></label>
-              <input type="file" class="form-control" id="uploadFile" accept=".html,.docx" required>
-              <div class="form-text">Formatos aceptados: <strong>.html</strong> (se convierte a PDF) o <strong>.docx</strong> (se rellena y descarga como DOCX).</div>
-            </div>
-
-            <div class="col-md-8">
-              <label class="form-label">Nombre descriptivo <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" id="uploadName" placeholder="Ej: Carta de Aceptación 2026" required>
-            </div>
-
-            <div class="col-md-4">
-              <label class="form-label">Tipo de documento <span class="text-danger">*</span></label>
-              <select class="form-select" id="uploadDocType" required>
-                <option value="">Seleccionar…</option>
-                <option value="acceptance_letter">Carta de Aceptación</option>
-                <option value="enrollment_confirmation">Confirmación de Inscripción</option>
-                <option value="course_schedule">Tira de Materias</option>
-              </select>
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">Programa (opcional)</label>
-              <select class="form-select" id="uploadProgramId">
-                <option value="">Global (aplica a todos los programas)</option>
-              </select>
-              <div class="form-text">Si se deja vacío, la plantilla aplica a todos los programas.</div>
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">Descripción (opcional)</label>
-              <input type="text" class="form-control" id="uploadDescription" placeholder="Notas sobre esta plantilla">
-            </div>
-
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary" id="btnUploadSubmit">
-            <span class="spinner-border spinner-border-sm d-none me-1" id="spinnerUpload"></span>
-            Subir Plantilla
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-{# ── MODAL: Editar plantilla ───────────────────────────────────────────────── #}
-<div class="modal fade" id="modalEdit" tabindex="-1" aria-labelledby="modalEditLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="modalEditLabel"><i class="bi bi-pencil me-2"></i>Editar Plantilla</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form id="formEdit" novalidate>
-        <div class="modal-body">
-          <input type="hidden" id="editId">
-          <div class="mb-3">
-            <label class="form-label">Nombre <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="editName" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Descripción</label>
-            <input type="text" class="form-control" id="editDescription">
-          </div>
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="editIsActive">
-            <label class="form-check-label" for="editIsActive">Plantilla activa</label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-danger me-auto" id="btnDeleteTemplate">
-            <i class="bi bi-trash me-1"></i>Eliminar
-          </button>
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Guardar cambios</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-{% endif %}
-
-{# ── MODAL: Generar documento ─────────────────────────────────────────────── #}
-<div class="modal fade" id="modalGenerate" tabindex="-1" aria-labelledby="modalGenerateLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="modalGenerateLabel"><i class="bi bi-file-earmark-arrow-down me-2"></i>Generar Documento</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="genDocType">
-        <p class="text-muted small mb-3">Plantilla: <strong id="genTemplateName"></strong></p>
-
-        <div class="mb-3">
-          <label class="form-label">Buscar estudiante <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="genStudentSearch" placeholder="Nombre o correo del estudiante…" autocomplete="off">
-          <div id="genStudentResults" class="list-group mt-1 position-absolute w-100" style="z-index:1060; max-height:220px; overflow-y:auto;"></div>
-          <input type="hidden" id="genUserId">
-          <input type="hidden" id="genProgramId">
-          <div id="genStudentSelected" class="mt-2 d-none">
-            <span class="badge bg-success" id="genStudentBadge"></span>
-            <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2" id="btnClearStudent">Cambiar</button>
+{# ── Subir plantilla ─────────────────────────────────────────────────────── #}
+{% call(section) modal_shell('modalUpload', 'Subir plantilla', size='lg', icon='upload') %}
+  {% if section == 'body' %}
+    <form id="formUpload" novalidate>
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label" for="uploadFile">
+            Archivo<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
+          </label>
+          <input type="file" class="form-control" id="uploadFile" name="uploadFile"
+                 accept=".html,.docx" required aria-describedby="uploadFileHelp">
+          <div id="uploadFileHelp" class="form-text">
+            Formatos aceptados: <strong>.html</strong> (se convierte a PDF) o <strong>.docx</strong>
+            (se rellena y se descarga como DOCX).
           </div>
         </div>
 
-        <div class="mb-3">
-          <label class="form-label">Periodo académico (opcional)</label>
-          <select class="form-select" id="genPeriodId">
-            <option value="">Periodo activo / más reciente</option>
+        <div class="col-md-8">
+          <label class="form-label" for="uploadName">
+            Nombre descriptivo<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
+          </label>
+          <input type="text" class="form-control" id="uploadName" name="uploadName"
+                 placeholder="Ej: Carta de aceptación 2026" required>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label" for="uploadDocType">
+            Tipo de documento<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
+          </label>
+          <select class="form-select" id="uploadDocType" name="uploadDocType" required>
+            <option value="">Seleccionar…</option>
+            <option value="acceptance_letter">Carta de aceptación</option>
+            <option value="enrollment_confirmation">Confirmación de inscripción</option>
+            <option value="course_schedule">Tira de materias</option>
           </select>
         </div>
 
-        <div class="alert alert-warning d-none" id="genError"></div>
+        <div class="col-md-6">
+          <label class="form-label" for="uploadProgramId">Programa (opcional)</label>
+          <select class="form-select" id="uploadProgramId" name="uploadProgramId"
+                  aria-describedby="uploadProgramIdHelp">
+            <option value="">Global (aplica a todos los programas)</option>
+          </select>
+          <div id="uploadProgramIdHelp" class="form-text">
+            Si se deja vacío, la plantilla aplica a todos los programas.
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label" for="uploadDescription">Descripción (opcional)</label>
+          <input type="text" class="form-control" id="uploadDescription" name="uploadDescription"
+                 placeholder="Notas sobre esta plantilla">
+        </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-success" id="btnGenerateConfirm">
-          <span class="spinner-border spinner-border-sm d-none me-1" id="spinnerGenerate"></span>
-          <i class="bi bi-download me-1"></i>Generar y Descargar
+    </form>
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="submit" class="btn btn-primary" id="btnUploadSubmit" form="formUpload">
+      <span class="spinner-border spinner-border-sm d-none me-1" id="spinnerUpload" role="status" aria-hidden="true"></span>
+      Subir plantilla
+    </button>
+  {% endif %}
+{% endcall %}
+
+{# ── Editar plantilla ────────────────────────────────────────────────────── #}
+{% call(section) modal_shell('modalEdit', 'Editar plantilla', icon='pencil') %}
+  {% if section == 'body' %}
+    <form id="formEdit" novalidate>
+      <input type="hidden" id="editId" name="editId">
+      {{ field('editName', 'Nombre', required=true) }}
+      {{ field('editDescription', 'Descripción') }}
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" id="editIsActive" name="editIsActive">
+        <label class="form-check-label" for="editIsActive">Plantilla activa</label>
+      </div>
+    </form>
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-danger me-auto" id="btnDeleteTemplate">
+      <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar plantilla
+    </button>
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="submit" class="btn btn-primary" form="formEdit">Guardar cambios</button>
+  {% endif %}
+{% endcall %}
+{% endif %}
+
+{# ── Generar documento ───────────────────────────────────────────────────── #}
+{% call(section) modal_shell('modalGenerate', 'Generar documento', icon='file-earmark-arrow-down') %}
+  {% if section == 'body' %}
+    <input type="hidden" id="genDocType" name="genDocType">
+    <p class="text-muted small mb-3">Plantilla: <strong id="genTemplateName"></strong></p>
+
+    <div class="mb-3 position-relative">
+      <label class="form-label" for="genStudentSearch">
+        Buscar estudiante<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
+      </label>
+      <input type="text" class="form-control" id="genStudentSearch" name="genStudentSearch"
+             placeholder="Nombre o correo del estudiante…" autocomplete="off"
+             role="combobox" aria-expanded="false" aria-controls="genStudentResults" aria-autocomplete="list">
+      <div id="genStudentResults" class="list-group mt-1 position-absolute w-100" role="listbox"
+           aria-label="Resultados de la búsqueda de estudiantes"></div>
+      <input type="hidden" id="genUserId" name="genUserId">
+      <input type="hidden" id="genProgramId" name="genProgramId">
+      <div id="genStudentSelected" class="mt-2 d-none">
+        <span class="badge bg-primary-soft" id="genStudentBadge"></span>
+        <button type="button" class="btn btn-sm btn-link text-danger-strong p-0 ms-2" id="btnClearStudent">
+          Cambiar de estudiante
         </button>
       </div>
     </div>
-  </div>
-</div>
+
+    <div class="mb-3">
+      <label class="form-label" for="genPeriodId">Periodo académico (opcional)</label>
+      <select class="form-select" id="genPeriodId" name="genPeriodId">
+        <option value="">Periodo activo o más reciente</option>
+      </select>
+    </div>
+
+    <div class="alert alert-warning d-none" id="genError" role="alert"></div>
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-primary" id="btnGenerateConfirm">
+      <span class="spinner-border spinner-border-sm d-none me-1" id="spinnerGenerate" role="status" aria-hidden="true"></span>
+      <i class="bi bi-download me-1" aria-hidden="true"></i>Generar y descargar
+    </button>
+  {% endif %}
+{% endcall %}
 
 {% endblock %}
 

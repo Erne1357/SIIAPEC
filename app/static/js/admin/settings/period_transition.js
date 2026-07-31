@@ -41,6 +41,7 @@
 
   function fmtDate(isoStr) {
     if (!isoStr) return '—';
+    if (window.SIIAP && window.SIIAP.formatDate) return window.SIIAP.formatDate(isoStr, 'short');
     return new Date(isoStr).toLocaleDateString('es-MX', {
       day: '2-digit', month: 'short', year: 'numeric'
     });
@@ -218,8 +219,9 @@
   }
 
   function emptyState(msg) {
-    return `<div class="text-center py-4 text-muted">
-      <i class="bi bi-check2-circle fs-3 d-block mb-2"></i>${escHtml(msg)}
+    return `<div class="empty-state empty-state--compact">
+      <div class="empty-state__icon"><i class="bi bi-check2-circle" aria-hidden="true"></i></div>
+      <p class="empty-state__title">${escHtml(msg)}</p>
     </div>`;
   }
 
@@ -312,15 +314,17 @@
     return tableWrap(['Nombre', 'Correo', 'Programa', 'Estado'], rows);
   }
 
-  function tableWrap(headers, rows) {
-    const ths = headers.map(h => `<th>${escHtml(h)}</th>`).join('');
-    return `
-      <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle mb-0">
+  function tableWrap(headers, rows, caption) {
+    const ths = headers.map(h => `<th scope="col">${escHtml(h)}</th>`).join('');
+    const html = `
+      <div class="siiap-table-wrapper">
+        <table class="table siiap-table table-sm table-hover align-middle mb-0">
+          <caption class="visually-hidden">${escHtml(caption || 'Vista previa de la transición de periodo')}</caption>
           <thead class="table-light"><tr>${ths}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;
+    return html;
   }
 
   // ── Actualizar badges de tabs ──────────────────────────────────────────────
@@ -341,7 +345,12 @@
 
   function setTabContent(id, html) {
     const el = document.getElementById(id);
-    if (el) el.innerHTML = html;
+    if (!el) return;
+    el.innerHTML = html;
+    // El contenido se inyecta tras DOMContentLoaded: activar la pista de scroll.
+    if (window.SIIAP && window.SIIAP.initDataTable) {
+      el.querySelectorAll('.siiap-table-wrapper').forEach(window.SIIAP.initDataTable);
+    }
   }
 
   // ── Ejecución con doble confirmación ──────────────────────────────────────
@@ -495,7 +504,7 @@
                 data-target-period-id="${nextPeriod.id}"
                 data-target-period-code="${escHtml(nextPeriod.code)}"
                 title="Cerrar periodo ${escHtml(activePeriod.code)} y avanzar a ${escHtml(nextPeriod.code)}">
-          <i class="bi bi-arrow-right-circle me-1"></i>Cerrar periodo y avanzar
+          <i class="bi bi-arrow-right-circle me-1" aria-hidden="true"></i>Cerrar periodo y avanzar
         </button>`;
     }
   };

@@ -18,29 +18,63 @@ document.addEventListener('DOMContentLoaded', () => {
   const reviewForm = document.querySelector('[data-review-form="true"]');
   if (reviewForm) {
     let pendingAction = null;
+    const decisionButtons = Array.from(
+      reviewForm.querySelectorAll('button[type="submit"][data-action]')
+    );
+    const decisionStatus = document.getElementById('decisionStatus');
 
     // Captura qué botón se pulsó (approve/reject)
-    reviewForm.querySelectorAll('button[type="submit"][data-action]').forEach(btn => {
+    decisionButtons.forEach(btn => {
       btn.addEventListener('click', () => { pendingAction = btn.getAttribute('data-action'); });
     });
+
+    // Bloquea la doble decisión mientras el envío está en curso.
+    function setDecisionBusy(busy, message) {
+      reviewForm.setAttribute('aria-busy', busy ? 'true' : 'false');
+      decisionButtons.forEach(btn => {
+        btn.disabled = busy;
+        const icon = btn.querySelector('i.bi');
+        if (!icon) return;
+        if (busy) {
+          if (!icon.dataset.restIcon) icon.dataset.restIcon = icon.className;
+          icon.className = 'bi bi-arrow-repeat bi-spin me-1';
+        } else if (icon.dataset.restIcon) {
+          icon.className = icon.dataset.restIcon;
+        }
+      });
+      if (decisionStatus) decisionStatus.textContent = message || '';
+      if (message && window.SIIAP?.announce) window.SIIAP.announce(message);
+    }
 
     reviewForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const subId = reviewForm.getAttribute('data-sub-id');
       const nextUrl = reviewForm.getAttribute('data-next-url') || window.location.href;
-      const comment = reviewForm.comment?.value?.trim() || '';
+      const commentField = reviewForm.comment;
+      const comment = commentField?.value?.trim() || '';
 
       if (!pendingAction) return;
 
       if (pendingAction === 'reject') {
+        // El motivo es obligatorio: sin él, el aspirante no sabe qué corregir.
+        if (!comment) {
+          commentField?.setAttribute('aria-invalid', 'true');
+          commentField?.focus();
+          emitFlash('warning', 'Escribe el motivo del rechazo: el aspirante lo verá para corregir su documento.');
+          return;
+        }
+        commentField?.removeAttribute('aria-invalid');
+
         const ok = await siiapConfirm({
           type: 'danger',
           title: 'Rechazar documento',
-          message: '¿Estás seguro de rechazar este documento?',
-          confirmLabel: 'Sí, rechazar',
+          message: 'El aspirante recibirá el motivo y podrá subir una nueva versión del documento.',
+          confirmLabel: 'Rechazar y notificar',
         });
         if (!ok) return;
       }
+
+      setDecisionBusy(true, 'Enviando decisión…');
 
       try {
         const res = await fetch(`/api/v1/admin/review/submissions/${subId}/decision`, {
@@ -61,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
           } else {
             emitFlash('danger', msg);
           }
+          setDecisionBusy(false, 'No se pudo registrar la decisión.');
           return;
         }
 
@@ -74,9 +109,21 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         console.error('review decision error:', err);
         emitFlash('danger', 'Error de red. Intenta de nuevo.');
+        setDecisionBusy(false, 'Error de red al enviar la decisión.');
       }
     });
   }
+
+  // Reemplaza el onchange inline de la plantilla (regla: sin JS en el HTML).
+  const showAllProgramsToggle = document.getElementById('showAllPrograms');
+  showAllProgramsToggle?.addEventListener('change', (e) => {
+    window.SIIAP?.announce?.(
+      e.target.checked
+        ? 'Mostrando también documentos de otros programas. Actualizando resultados…'
+        : 'Mostrando solo los documentos de tus programas. Actualizando resultados…'
+    );
+    e.target.form?.submit();
+  });
 
   // ==================== GESTIÓN DE PRÓRROGAS ====================
   const extensionsTab = document.getElementById('extensions-tab');
@@ -99,10 +146,32 @@ document.addEventListener('DOMContentLoaded', () => {
   // Botón de filtrar
   document.getElementById('filterExtensionsBtn')?.addEventListener('click', loadExtensions);
 
+  // Mapea el estado de la prórroga al modificador de status-badge del sistema.
+  const EXTENSION_STATUS = {
+    pending:   { key: 'pending',  label: 'Pendiente' },
+    granted:   { key: 'approved', label: 'Concedida' },
+    rejected:  { key: 'rejected', label: 'Rechazada' },
+    cancelled: { key: 'deferred', label: 'Cancelada' }
+  };
+
+  function extensionBadge(status) {
+    const meta = EXTENSION_STATUS[status];
+    if (!meta) return window.SIIAP.statusBadge('pending', 'Desconocido', 'sm');
+    return window.SIIAP.statusBadge(meta.key, meta.label, 'sm');
+  }
+
+  function setExtensionsBusy(busy, message) {
+    if (extensionsTableBody) {
+      extensionsTableBody.setAttribute('aria-busy', busy ? 'true' : 'false');
+    }
+    if (message) window.SIIAP?.announce?.(message);
+  }
+
   async function loadExtensions() {
     if (!extensionsTableBody) return;
 
-    extensionsTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">Cargando...</td></tr>';
+    setExtensionsBusy(true, 'Cargando solicitudes de prórroga…');
+    extensionsTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">Cargando…</td></tr>';
 
     try {
       const params = new URLSearchParams();
@@ -129,7 +198,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (err) {
       console.error('Error loading extensions:', err);
-      extensionsTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-3">Error al cargar solicitudes</td></tr>';
+      extensionsTableBody.innerHTML = `
+        <tr>
+          <td colspan="7">
+            <div class="empty-state empty-state--inline empty-state--error">
+              <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+              <h3 class="empty-state__title">No se pudieron cargar las solicitudes</h3>
+              <p class="empty-state__description">Revisa tu conexión y vuelve a intentarlo.</p>
+              <div class="empty-state__actions">
+                <button type="button" id="retryExtensionsBtn" class="btn btn-outline-primary">
+                  <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>
+                  <span class="btn-label">Reintentar</span>
+                </button>
+              </div>
+            </div>
+          </td>
+        </tr>`;
+      document.getElementById('retryExtensionsBtn')?.addEventListener('click', loadExtensions);
+      setExtensionsBusy(false, 'No se pudieron cargar las solicitudes de prórroga.');
     }
   }
 
@@ -137,48 +223,60 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!extensionsTableBody) return;
 
     if (extensionRequests.length === 0) {
-      extensionsTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No hay solicitudes de prórroga</td></tr>';
+      extensionsTableBody.innerHTML = `
+        <tr>
+          <td colspan="7">
+            <div class="empty-state empty-state--inline">
+              <div class="empty-state__icon"><i class="bi bi-inbox" aria-hidden="true"></i></div>
+              <h3 class="empty-state__title">Sin solicitudes de prórroga</h3>
+              <p class="empty-state__description">No hay solicitudes que coincidan con los filtros seleccionados.</p>
+            </div>
+          </td>
+        </tr>`;
+      setExtensionsBusy(false, 'Sin solicitudes de prórroga para los filtros aplicados.');
       return;
     }
 
+    const esc = (s) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
     extensionsTableBody.innerHTML = extensionRequests.map(ext => {
-      const requestedDate = new Date(ext.requested_until);
-      const createdDate = new Date(ext.created_at);
-      
-      const statusBadge = {
-        'pending': '<span class="badge bg-warning">Pendiente</span>',
-        'granted': '<span class="badge bg-success">Concedida</span>',
-        'rejected': '<span class="badge bg-danger">Rechazada</span>',
-        'cancelled': '<span class="badge bg-secondary">Cancelada</span>'
-      }[ext.status] || '<span class="badge bg-secondary">Desconocido</span>';
+      const requestedDate = window.SIIAP.formatDate(ext.requested_until, 'numeric');
+      const createdDate = window.SIIAP.formatDate(ext.created_at, 'numeric');
+      const statusBadge = extensionBadge(ext.status);
 
       return `
         <tr data-extension-id="${ext.id}">
-          <td>${ext.id}</td>
+          <th scope="row" class="fw-normal">${ext.id}</th>
           <td>
-            <div class="fw-semibold">${ext.user_name || 'N/A'}</div>
-            <small class="text-muted">${ext.user_email || ''}</small>
+            <div class="fw-semibold">${esc(ext.user_name || 'Sin nombre')}</div>
+            <small class="text-muted">${esc(ext.user_email || '')}</small>
           </td>
-          <td>${ext.archive_name}</td>
-          <td>${requestedDate.toLocaleDateString('es-MX')}</td>
-          <td>${createdDate.toLocaleDateString('es-MX')}</td>
+          <td>${esc(ext.archive_name)}</td>
+          <td>${requestedDate}</td>
+          <td>${createdDate}</td>
           <td>${statusBadge}</td>
           <td>
             ${ext.status === 'pending' ? `
-              <button class="btn btn-sm btn-outline-primary btn-review-extension" 
-                      data-extension-id="${ext.id}">
-                <i class="bi bi-eye me-1"></i>Revisar
+              <button type="button" class="btn btn-sm btn-outline-primary btn-review-extension"
+                      data-extension-id="${ext.id}"
+                      aria-label="Revisar la solicitud de prórroga #${ext.id}">
+                <i class="bi bi-eye me-1" aria-hidden="true"></i>Revisar
               </button>
             ` : `
-              <button class="btn btn-sm btn-outline-secondary btn-view-extension" 
-                      data-extension-id="${ext.id}">
-                <i class="bi bi-info-circle-fill me-1"></i>Ver
+              <button type="button" class="btn btn-sm btn-outline-secondary btn-view-extension"
+                      data-extension-id="${ext.id}"
+                      aria-label="Ver el detalle de la solicitud de prórroga #${ext.id}">
+                <i class="bi bi-info-circle-fill me-1" aria-hidden="true"></i>Ver
               </button>
             `}
           </td>
         </tr>
       `;
     }).join('');
+
+    setExtensionsBusy(false, `${extensionRequests.length} solicitudes de prórroga cargadas.`);
 
     // Event listeners para botones
     document.querySelectorAll('.btn-review-extension, .btn-view-extension').forEach(btn => {
@@ -191,7 +289,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateExtensionCounts() {
     const pendingCount = extensionRequests.filter(e => e.status === 'pending').length;
-    document.getElementById('pendingExtensionsCount').textContent = pendingCount;
+    const counter = document.getElementById('pendingExtensionsCount');
+    if (counter) counter.textContent = pendingCount;
   }
 
   function openExtensionModal(extId) {
@@ -205,13 +304,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('extensionStudentName').textContent = ext.user_name || 'N/A';
     document.getElementById('extensionStudentEmail').textContent = ext.user_email || '';
     document.getElementById('extensionArchiveName').textContent = ext.archive_name;
-    document.getElementById('extensionRequestedUntil').textContent = 
-      new Date(ext.requested_until).toLocaleDateString('es-MX');
+    document.getElementById('extensionRequestedUntil').textContent =
+      window.SIIAP.formatDate(ext.requested_until);
     document.getElementById('extensionReason').textContent = ext.reason || 'Sin motivo especificado';
 
-    // Pre-llenar fecha concedida con la solicitada
-    const requestedDate = new Date(ext.requested_until);
-    document.getElementById('extensionGrantedUntil').value = requestedDate.toISOString().split('T')[0];
+    // Pre-llenar fecha concedida con la solicitada (en hora local, sin desfase)
+    const requestedDate = window.SIIAP.parseDate(ext.requested_until);
+    document.getElementById('extensionGrantedUntil').value = requestedDate
+      ? `${requestedDate.getFullYear()}-${String(requestedDate.getMonth() + 1).padStart(2, '0')}-${String(requestedDate.getDate()).padStart(2, '0')}`
+      : '';
 
     // Si ya fue revisada, mostrar decisión
     if (ext.status !== 'pending') {

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
+{% from '_macros.html' import modal_shell %}
 
-{% block title %}{{ super() }} - Periodos Academicos{% endblock %}
+{% block title %}{{ super() }} - Periodos académicos{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/admin/settings/academic_periods.css') }}?v={{ static_version }}" rel="stylesheet">
@@ -13,53 +14,67 @@
 <div class="container-fluid px-3 px-md-4 mt-3 mt-md-4">
   <div class="row">
     <div class="col-12">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>
-          <i class="bi bi-calendar3 me-2"></i>
-          Periodos Academicos
-        </h2>
+      <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+          <h1 class="h3 mb-1">
+            <i class="bi bi-calendar3 me-2" aria-hidden="true"></i>Periodos académicos
+          </h1>
+          <p class="text-muted mb-0">
+            Calendario de admisión y de clases de cada periodo escolar.
+          </p>
+        </div>
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalPeriod">
-          <i class="bi bi-plus-lg me-1"></i> Nuevo Periodo
+          <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nuevo periodo
         </button>
+      </header>
+
+      <div class="d-none" id="alertNoPeriods">
+        <div class="empty-state">
+          <div class="empty-state__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
+          <h2 class="empty-state__title">Aún no hay periodos académicos</h2>
+          <p class="empty-state__description">
+            Crea el primero para poder abrir convocatorias de admisión y avanzar semestres.
+          </p>
+          <div class="empty-state__actions">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalPeriod">
+              <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Crear el primer periodo
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div class="alert alert-info d-none" id="alertNoPeriods">
-        <i class="bi bi-info-circle me-2"></i>
-        No hay periodos academicos configurados. Crea el primero usando el boton "Nuevo Periodo".
-      </div>
-
-      <div id="periodsContainer">
+      <div id="periodsContainer" role="region" aria-live="polite" aria-label="Listado de periodos académicos">
         <div class="text-center py-5">
           <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Cargando...</span>
+            <span class="visually-hidden">Cargando periodos…</span>
           </div>
-          <p class="text-muted mt-2">Cargando periodos...</p>
+          <p class="text-muted mt-2">Cargando periodos…</p>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Template para tarjeta de periodo -->
+<!-- Plantilla de tarjeta de periodo -->
 <template id="templatePeriodCard">
   <div class="card mb-3 period-card" data-period-id="">
     <div class="card-body">
       <div class="row align-items-center">
         <div class="col-md-8">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="period-indicator"></span>
-            <h5 class="card-title mb-0">
-              <span class="period-code fw-bold"></span> - <span class="period-name"></span>
-            </h5>
-            <span class="badge period-status-badge"></span>
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="period-indicator" aria-hidden="true"></span>
+            <h2 class="card-title h5 mb-0">
+              <span class="period-code fw-bold"></span> · <span class="period-name"></span>
+            </h2>
+            <span class="period-status-badge"></span>
           </div>
           <div class="text-muted small">
             <div class="mb-1">
-              <i class="bi bi-calendar-event me-1"></i>
-              <strong>Admision:</strong> <span class="admission-dates"></span>
+              <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>
+              <strong>Admisión:</strong> <span class="admission-dates"></span>
             </div>
             <div>
-              <i class="bi bi-calendar-check me-1"></i>
+              <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>
               <strong>Clases:</strong> <span class="class-dates"></span>
             </div>
           </div>
@@ -85,65 +100,80 @@
 {% endblock %}
 
 {% block modals %}
-<!-- Modal para crear/editar periodo -->
+<!-- Modal para crear o editar periodo -->
 <div class="modal fade" id="modalPeriod" tabindex="-1" aria-labelledby="modalPeriodLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modalPeriodLabel">Nuevo Periodo Academico</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <h2 class="modal-title h5" id="modalPeriodLabel">Nuevo periodo académico</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form id="formPeriod" autocomplete="off">
         <div class="modal-body">
-          <input type="hidden" id="periodId">
+          <input type="hidden" id="periodId" name="periodId">
 
           <div class="row g-3">
             <div class="col-md-4">
-              <label for="periodCode" class="form-label">Codigo <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" id="periodCode" placeholder="Ej: 20253" maxlength="5" required>
-              <div class="form-text">Formato: YYYYN (Ej: 20253 = Ago-Dic 2025)</div>
+              <label for="periodCode" class="form-label">
+                Código<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
+              </label>
+              <input type="text" class="form-control" id="periodCode" name="periodCode"
+                     placeholder="Ej: 20253" maxlength="5" required aria-describedby="periodCodeHelp">
+              <div id="periodCodeHelp" class="form-text">Formato AAAAN (por ejemplo, 20253 = agosto–diciembre 2025).</div>
             </div>
             <div class="col-md-8">
-              <label for="periodName" class="form-label">Nombre <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" id="periodName" placeholder="Ej: Agosto-Diciembre 2025" required>
+              <label for="periodName" class="form-label">
+                Nombre<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
+              </label>
+              <input type="text" class="form-control" id="periodName" name="periodName"
+                     placeholder="Ej: Agosto–diciembre 2025" required>
             </div>
           </div>
 
-          <hr class="my-4">
-          <h6 class="text-muted mb-3">Fechas del Periodo de Clases</h6>
-
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label for="startDate" class="form-label">Inicio de Clases <span class="text-danger">*</span></label>
-              <input type="date" class="form-control" id="startDate" required>
+          <fieldset class="mt-4">
+            <legend class="h6 text-muted">Fechas del periodo de clases</legend>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="startDate" class="form-label">
+                  Inicio de clases<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
+                </label>
+                <input type="date" class="form-control" id="startDate" name="startDate" required>
+              </div>
+              <div class="col-md-6">
+                <label for="endDate" class="form-label">
+                  Fin de clases<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
+                </label>
+                <input type="date" class="form-control" id="endDate" name="endDate" required>
+              </div>
             </div>
-            <div class="col-md-6">
-              <label for="endDate" class="form-label">Fin de Clases <span class="text-danger">*</span></label>
-              <input type="date" class="form-control" id="endDate" required>
-            </div>
-          </div>
+          </fieldset>
 
-          <hr class="my-4">
-          <h6 class="text-muted mb-3">Fechas del Periodo de Admision</h6>
-
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label for="admissionStartDate" class="form-label">Inicio de Admisiones <span class="text-danger">*</span></label>
-              <input type="date" class="form-control" id="admissionStartDate" required>
+          <fieldset class="mt-4">
+            <legend class="h6 text-muted">Fechas del periodo de admisión</legend>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="admissionStartDate" class="form-label">
+                  Inicio de admisiones<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
+                </label>
+                <input type="date" class="form-control" id="admissionStartDate" name="admissionStartDate" required>
+              </div>
+              <div class="col-md-6">
+                <label for="admissionEndDate" class="form-label">
+                  Fin de admisiones<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
+                </label>
+                <input type="date" class="form-control" id="admissionEndDate" name="admissionEndDate" required>
+              </div>
             </div>
-            <div class="col-md-6">
-              <label for="admissionEndDate" class="form-label">Fin de Admisiones <span class="text-danger">*</span></label>
-              <input type="date" class="form-control" id="admissionEndDate" required>
-            </div>
-          </div>
+          </fieldset>
 
-          <div class="alert alert-warning mt-3 mb-0">
-            <i class="bi bi-info-circle me-1"></i> Las fechas de admision deben ser anteriores al inicio de clases.
+          <div class="alert alert-info mt-3 mb-0" role="note">
+            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+            Las fechas de admisión deben ser anteriores al inicio de clases.
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary" id="btnSavePeriod">Guardar Periodo</button>
+          <button type="submit" class="btn btn-primary" id="btnSavePeriod">Guardar periodo</button>
         </div>
       </form>
     </div>
@@ -151,25 +181,24 @@
 </div>
 
 {% if has_perm('permanence.api.advance_bulk') %}
-<!-- Modal: Cerrar periodo y avanzar a siguiente -->
+<!-- Modal: cerrar periodo y avanzar al siguiente -->
 <div class="modal fade" id="modalPeriodTransition" tabindex="-1"
      aria-labelledby="modalPeriodTransitionLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
 
-      <div class="modal-header bg-warning-subtle">
-        <h5 class="modal-title" id="modalPeriodTransitionLabel">
-          <i class="bi bi-arrow-right-circle me-2"></i>
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="modalPeriodTransitionLabel">
+          <i class="bi bi-arrow-right-circle me-2" aria-hidden="true"></i>
           Cerrar periodo
           <strong id="transitionSourceCode">—</strong>
           y avanzar a
           <strong id="transitionTargetCode">—</strong>
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
 
       <div class="modal-body p-0">
-        <!-- Tabs de navegación -->
         <ul class="nav nav-tabs px-3 pt-3" id="transitionTabs" role="tablist">
           <li class="nav-item" role="presentation">
             <button class="nav-link active" id="tab-advance-btn"
@@ -192,7 +221,7 @@
                     data-bs-toggle="tab" data-bs-target="#tab-admit-migrate"
                     type="button" role="tab">
               Aspirantes a migrar
-              <span class="badge bg-info text-dark ms-1" id="badgeAdmitMigrate">…</span>
+              <span class="badge bg-info ms-1" id="badgeAdmitMigrate">…</span>
             </button>
           </li>
           <li class="nav-item" role="presentation">
@@ -229,48 +258,47 @@
           </li>
         </ul>
 
-        <!-- Contenido de tabs -->
         <div class="tab-content" id="transitionTabContent">
           <div class="tab-pane fade show active" id="tab-advance" role="tabpanel">
-            <div id="tabAdvance" class="p-3"></div>
+            <div id="tabAdvance" class="p-3" aria-live="polite"></div>
           </div>
           <div class="tab-pane fade" id="tab-blocked" role="tabpanel">
-            <div id="tabBlocked" class="p-0"></div>
+            <div id="tabBlocked" class="p-0" aria-live="polite"></div>
           </div>
           <div class="tab-pane fade" id="tab-admit-migrate" role="tabpanel">
-            <div id="tabAdmitMigrate" class="p-3"></div>
+            <div id="tabAdmitMigrate" class="p-3" aria-live="polite"></div>
           </div>
           <div class="tab-pane fade" id="tab-admit-expire" role="tabpanel">
-            <div id="tabAdmitExpire" class="p-3"></div>
+            <div id="tabAdmitExpire" class="p-3" aria-live="polite"></div>
           </div>
           <div class="tab-pane fade" id="tab-admit-aligned" role="tabpanel">
-            <div id="tabAdmitAligned" class="p-3"></div>
+            <div id="tabAdmitAligned" class="p-3" aria-live="polite"></div>
           </div>
           <div class="tab-pane fade" id="tab-deferred" role="tabpanel">
-            <div id="tabDeferred" class="p-3"></div>
+            <div id="tabDeferred" class="p-3" aria-live="polite"></div>
           </div>
           <div class="tab-pane fade" id="tab-on-leave" role="tabpanel">
-            <div id="tabOnLeave" class="p-3"></div>
+            <div id="tabOnLeave" class="p-3" aria-live="polite"></div>
           </div>
         </div>
-      </div><!-- /.modal-body -->
+      </div>
 
-      <div class="modal-footer d-flex justify-content-between">
+      <div class="modal-footer d-flex flex-wrap justify-content-between gap-2">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-          <i class="bi bi-x me-1"></i>Cancelar
+          <i class="bi bi-x me-1" aria-hidden="true"></i>Cancelar
         </button>
-        <div class="d-flex gap-2 align-items-center">
-          <span class="text-muted small d-none" id="confirmHint">
-            <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
-            Esta acción no se puede deshacer. Haz clic de nuevo para confirmar.
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="text-warning-strong small d-none" id="confirmHint">
+            <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>
+            Esta acción no se puede deshacer. Confirma de nuevo para aplicarla.
           </span>
-          <!-- Primer botón de confirmación -->
+          <!-- Primera confirmación -->
           <button type="button" class="btn btn-danger" id="btnConfirmTransition" disabled>
-            <i class="bi bi-check-circle me-1"></i>Confirmar y aplicar
+            <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Confirmar y aplicar
           </button>
-          <!-- Segundo botón (doble confirmación) — oculto hasta primer click -->
+          <!-- Segunda confirmación: oculta hasta el primer clic -->
           <button type="button" class="btn btn-danger d-none" id="btnConfirmTransition2">
-            <i class="bi bi-exclamation-triangle-fill me-1"></i>Sí, aplicar ahora
+            <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>Sí, aplicar ahora
           </button>
         </div>
       </div>
@@ -280,25 +308,23 @@
 </div>
 {% endif %}
 
-<!-- Modal de confirmacion para eliminar -->
-<div class="modal fade" id="modalDelete" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Confirmar Eliminacion</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p>Estas seguro de eliminar el periodo <strong id="deletePeriodCode"></strong>?</p>
-        <p class="text-muted small mb-0">Esta accion no se puede deshacer.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-danger btn-sm" id="btnConfirmDelete">Eliminar</button>
-      </div>
+{# Confirmación destructiva: mismo patrón que el resto de la sección. #}
+{% call(section) modal_shell('modalDelete', 'Eliminar periodo académico', icon='exclamation-triangle-fill') %}
+  {% if section == 'body' %}
+    <div class="alert alert-danger d-flex align-items-start gap-2 mb-3" role="alert">
+      <i class="bi bi-exclamation-octagon-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+      <div><strong>Esta acción no se puede deshacer.</strong></div>
     </div>
-  </div>
-</div>
+    <p class="mb-0">
+      ¿Seguro que deseas eliminar el periodo <strong id="deletePeriodCode"></strong>?
+    </p>
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-danger" id="btnConfirmDelete">
+      <i class="bi bi-trash me-1" aria-hidden="true"></i>Sí, eliminar periodo
+    </button>
+  {% endif %}
+{% endcall %}
 {% endblock %}
 
 {% block scripts %}

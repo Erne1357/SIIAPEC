@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% from '_macros.html' import data_table_open, data_table_close, modal_shell, icon_button %}
+
 {% block title %}Gestión de Permisos — SIIAP{% endblock %}
 
 {% block styles %}
@@ -7,22 +9,26 @@
 
 {% block content %}
 <div class="container-fluid py-4">
-  <div class="d-flex align-items-center gap-3 mb-4">
-    <i class="bi bi-shield-lock-fill fs-3 text-primary"></i>
-    <div>
-      <h1 class="h3 mb-0">Gestión de Permisos de Roles</h1>
-      <p class="text-muted small mb-0">Agrega o revierte permisos adicionales por rol. Los permisos base del sistema no se pueden quitar.</p>
+  <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-shield-lock-fill icon-xl text-brand-primary" aria-hidden="true"></i>
+      <div>
+        <h1 class="h3 mb-1">Gestión de permisos de roles</h1>
+        <p class="text-muted small mb-0">
+          Agrega o revierte permisos adicionales por rol. Los permisos base del sistema no se pueden quitar.
+        </p>
+      </div>
     </div>
-  </div>
+  </header>
 
   <div class="row g-4">
     <!-- Panel izquierdo: selector de rol -->
     <div class="col-lg-3">
       <div class="card shadow-sm">
         <div class="card-header fw-semibold">
-          <i class="bi bi-people-fill me-2"></i>Roles
+          <i class="bi bi-people-fill me-2" aria-hidden="true"></i>Roles
         </div>
-        <div class="list-group list-group-flush" id="roleList">
+        <div class="list-group list-group-flush" id="roleList" role="tablist" aria-label="Roles del sistema">
           {% for role in roles %}
           <button type="button"
             class="list-group-item list-group-item-action {% if loop.first %}active{% endif %}"
@@ -36,14 +42,13 @@
 
       <!-- Auditoría rápida -->
       <div class="card shadow-sm mt-3">
-        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-          <span><i class="bi bi-clock-history me-2"></i>Auditoría</span>
-          <button class="btn btn-sm btn-outline-secondary" id="btnRefreshAudit">
-            <i class="bi bi-arrow-repeat"></i>
-          </button>
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center gap-2">
+          <span><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Auditoría</span>
+          {{ icon_button('arrow-repeat', 'Actualizar auditoría', id='btnRefreshAudit') }}
         </div>
-        <div class="card-body p-2 audit-log-body" id="auditLog">
-          <p class="text-muted small text-center py-2">Selecciona un rol para ver el historial.</p>
+        <div class="card-body p-2 audit-log-body" id="auditLog"
+             role="region" aria-live="polite" aria-label="Historial de cambios de permisos">
+          <p class="text-muted small text-center py-2 mb-0">Selecciona un rol para ver el historial.</p>
         </div>
       </div>
     </div>
@@ -51,67 +56,64 @@
     <!-- Panel derecho: permisos del rol -->
     <div class="col-lg-9">
       <div class="card shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
           <span class="fw-semibold">
-            Permisos del rol: <span id="currentRoleName" class="text-primary">—</span>
+            Permisos del rol: <span id="currentRoleName" class="text-brand-primary">—</span>
           </span>
           <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addOverrideModal" id="btnAddOverride" disabled>
-            <i class="bi bi-plus-lg me-1"></i>Agregar Permiso
+            <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar permiso
           </button>
         </div>
 
-        <!-- Tabs: Seed vs Overrides -->
-        <ul class="nav nav-tabs px-3 pt-2" id="permTabs">
-          <li class="nav-item">
-            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabSeed">
-              Permisos Base <span class="badge bg-secondary ms-1" id="seedCount">0</span>
+        <!-- Pestañas: base vs overrides -->
+        <ul class="nav nav-tabs px-3 pt-2" id="permTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#tabSeed">
+              Permisos base <span class="badge bg-secondary ms-1" id="seedCount">0</span>
             </button>
           </li>
-          <li class="nav-item">
-            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabOverrides">
-              Overrides <span class="badge bg-warning text-dark ms-1" id="overrideCount">0</span>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#tabOverrides">
+              Permisos adicionales <span class="badge bg-warning ms-1" id="overrideCount">0</span>
             </button>
           </li>
         </ul>
 
         <div class="tab-content">
-          <!-- Tab: Seed permissions -->
-          <div class="tab-pane fade show active p-3" id="tabSeed">
-            <input type="text" class="form-control form-control-sm mb-3" id="seedFilter" placeholder="Buscar permiso…">
-            <div class="table-responsive">
-              <table class="table table-sm table-hover" id="seedTable">
-                <thead class="table-light">
-                  <tr>
-                    <th>Codename</th>
-                    <th>Descripción</th>
-                    <th>Tipo</th>
-                  </tr>
-                </thead>
-                <tbody id="seedBody">
-                  <tr><td colspan="3" class="text-center text-muted py-3">Selecciona un rol.</td></tr>
-                </tbody>
-              </table>
-            </div>
+          <!-- Pestaña: permisos base -->
+          <div class="tab-pane fade show active p-3" id="tabSeed" role="tabpanel">
+            <label class="form-label visually-hidden" for="seedFilter">Buscar permiso base</label>
+            <input type="search" class="form-control form-control-sm mb-3" id="seedFilter" placeholder="Buscar permiso…">
+            {{ data_table_open('Permisos base del rol seleccionado', id='seedTable', table_class='table-sm table-hover align-middle') }}
+              <thead class="table-light">
+                <tr>
+                  <th scope="col">Clave</th>
+                  <th scope="col">Descripción</th>
+                  <th scope="col">Tipo</th>
+                </tr>
+              </thead>
+              <tbody id="seedBody" aria-live="polite">
+                <tr><td colspan="3" class="text-center text-muted py-3">Selecciona un rol.</td></tr>
+              </tbody>
+            {{ data_table_close() }}
           </div>
 
-          <!-- Tab: Overrides -->
-          <div class="tab-pane fade p-3" id="tabOverrides">
-            <div class="table-responsive">
-              <table class="table table-sm table-hover" id="overridesTable">
-                <thead class="table-light">
-                  <tr>
-                    <th>Codename</th>
-                    <th>Estado</th>
-                    <th>Creado</th>
-                    <th>Revocado</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="overridesBody">
-                  <tr><td colspan="5" class="text-center text-muted py-3">Selecciona un rol.</td></tr>
-                </tbody>
-              </table>
-            </div>
+          <!-- Pestaña: permisos adicionales -->
+          <div class="tab-pane fade p-3" id="tabOverrides" role="tabpanel">
+            {{ data_table_open('Permisos adicionales concedidos al rol seleccionado', id='overridesTable', table_class='table-sm table-hover align-middle') }}
+              <thead class="table-light">
+                <tr>
+                  <th scope="col">Clave</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col">Creado</th>
+                  <th scope="col">Revocado</th>
+                  <th scope="col"><span class="visually-hidden">Acciones</span></th>
+                </tr>
+              </thead>
+              <tbody id="overridesBody" aria-live="polite">
+                <tr><td colspan="5" class="text-center text-muted py-3">Selecciona un rol.</td></tr>
+              </tbody>
+            {{ data_table_close() }}
           </div>
         </div>
       </div>
@@ -121,51 +123,48 @@
 {% endblock %}
 
 {% block modals %}
-<!-- Modal: Agregar Override -->
-<div class="modal fade" id="addOverrideModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Agregar Permiso a Rol</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Recurso</label>
-          <select class="form-select" id="filterResource">
-            <option value="">— Todos —</option>
-            {% for r in resources %}
-            <option value="{{ r }}">{{ r }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Permiso</label>
-          <select class="form-select" id="selectCodename" size="8">
-            <option value="" disabled selected>Cargando…</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Justificación <span class="text-muted fw-normal">(opcional)</span></label>
-          <textarea class="form-control" id="overrideReason" rows="2" maxlength="500" placeholder="¿Por qué se agrega este permiso?"></textarea>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button class="btn btn-primary" id="btnSubmitOverride">
-          <i class="bi bi-check-lg me-1"></i>Agregar
-        </button>
+{% call(section) modal_shell('addOverrideModal', 'Agregar permiso a rol', icon='shield-plus') %}
+  {% if section == 'body' %}
+    <div class="mb-3">
+      <label class="form-label fw-semibold" for="filterResource">Recurso</label>
+      <select class="form-select" id="filterResource" name="filterResource">
+        <option value="">— Todos —</option>
+        {% for r in resources %}
+        <option value="{{ r }}">{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-semibold" for="selectCodename">Permiso</label>
+      <select class="form-select" id="selectCodename" name="selectCodename" size="8"
+              aria-describedby="selectCodenameHelp">
+        <option value="" disabled selected>Cargando…</option>
+      </select>
+      <div id="selectCodenameHelp" class="form-text">
+        Solo se listan los permisos que aún no tiene el rol.
       </div>
     </div>
-  </div>
-</div>
+    <div class="mb-3">
+      <label class="form-label fw-semibold" for="overrideReason">
+        Justificación <span class="text-muted fw-normal">(opcional)</span>
+      </label>
+      <textarea class="form-control" id="overrideReason" name="overrideReason" rows="2" maxlength="500"
+                placeholder="¿Por qué se agrega este permiso?"></textarea>
+    </div>
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-primary" id="btnSubmitOverride">
+      <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Agregar
+    </button>
+  {% endif %}
+{% endcall %}
 
-<!-- Toast feedback -->
+<!-- Aviso de resultado -->
 <div class="position-fixed top-0 end-0 p-3 toast-stack-top">
-  <div id="permToast" class="toast align-items-center" role="alert">
+  <div id="permToast" class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="d-flex">
       <div class="toast-body" id="permToastBody"></div>
-      <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+      <button type="button" class="btn-close me-2 m-auto tap-target" data-bs-dismiss="toast" aria-label="Cerrar aviso"></button>
     </div>
   </div>
 </div>
