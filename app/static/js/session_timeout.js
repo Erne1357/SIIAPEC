@@ -50,6 +50,11 @@
     const m = getBsModal();
     if (!m) return;
     m.show();
+    // El diálogo aparece sin que el usuario lo pida: se anuncia por la región
+    // viva única para que un lector de pantalla no lo pase por alto.
+    if (window.SIIAP && typeof window.SIIAP.announce === 'function') {
+      window.SIIAP.announce('Tu sesión expirará en 1 minuto por inactividad.');
+    }
     autoLogoutTimer = setTimeout(doApiLogout, AUTO_LOGOUT_MS);
   }
 
@@ -62,13 +67,11 @@
 
   async function doApiLogout() {
     try {
-      const res = await fetch(sessionLogoutUrl, {
+      await fetch(sessionLogoutUrl, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'X-CSRFToken': csrf }
       });
-      let json = null;
-      try { json = await res.json(); } catch (_) {}
       // NO mostrar flash aquí - dejamos que el backend maneje los mensajes
     } catch (e) {
       console.warn('[session] fallo logout API, redirigiendo igual.', e);

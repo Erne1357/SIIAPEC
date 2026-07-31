@@ -7,18 +7,23 @@
 #}
 
 {% macro user_card() %}
+{# El avatar es decorativo: el nombre ya está en texto contiguo (WCAG 1.1.1). #}
 <div class="user-card d-flex align-items-center gap-2 p-2">
-  <img src="{{ current_user.avatar_url }}" alt="avatar" width="40" height="40"
-       class="rounded-circle flex-shrink-0">
+  <img src="{{ current_user.avatar_url }}" alt="" loading="lazy"
+       class="avatar-sm rounded-circle flex-shrink-0">
   <div class="flex-grow-1 text-truncate">
     <div class="fw-semibold small text-truncate">
       {{ current_user.first_name }} {{ current_user.last_name }}
     </div>
     {% if role_label %}
-      <span class="badge {{ role_badge_class }} text-uppercase small">{{ role_label }}</span>
+      {# .status-badge neutro (4.86:1 verificado). El rol lo comunica el texto,
+         nunca el color: por eso no se usa el badge sólido de Bootstrap. #}
+      <span class="status-badge status-badge--sm">{{ role_label }}</span>
     {% endif %}
     {% if has_perm('permanence.api.view_status') and current_user.control_number %}
-      <div class="small text-muted">{{ current_user.control_number }}</div>
+      <div class="small text-secondary">
+        <span class="visually-hidden">Número de control:</span>{{ current_user.control_number }}
+      </div>
     {% endif %}
   </div>
 </div>
@@ -33,25 +38,25 @@
 
   <a class="nav-link {% if request.endpoint=='pages_user.profile' %}active{% endif %}"
      href="{{ url_for('pages_user.profile') }}">
-    <i class="bi bi-person me-2"></i>Perfil
+    <i class="bi bi-person me-2" aria-hidden="true"></i>Perfil
   </a>
 
   <a class="nav-link {% if request.endpoint=='pages_user.dashboard' %}active{% endif %}"
      href="{{ url_for('pages_user.dashboard') }}">
-    <i class="bi bi-grid-fill me-2"></i>Dashboard
+    <i class="bi bi-grid-fill me-2" aria-hidden="true"></i>Dashboard
   </a>
 
   <h6 class="sidebar-section-label">Académico</h6>
 
   <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %}"
      href="{{ url_for('program.list_programs') }}">
-    <i class="bi bi-clipboard me-2"></i>Programas
+    <i class="bi bi-clipboard me-2" aria-hidden="true"></i>Programas
   </a>
 
   {% if up and has_perm('programs.api.enroll') %}
   <a class="nav-link {% if request.endpoint == 'program.admission.admission_dashboard' %}active{% endif %}"
      href="{{ url_for('program.admission.admission_dashboard', slug=up.program.slug) }}">
-    <i class="bi bi-clipboard-data me-2"></i>Admisión
+    <i class="bi bi-clipboard-data me-2" aria-hidden="true"></i>Admisión
   </a>
   {% endif %}
 
@@ -60,15 +65,18 @@
   {# ── Eventos: enlaces directos (sin dropdown duplicando label) ── #}
   <a class="nav-link {% if request.endpoint.startswith('pages_events_public') %}active{% endif %}"
      href="{{ url_for('pages_events_public.list_events') }}">
-    <i class="bi bi-calendar me-2"></i>Eventos Públicos
+    <i class="bi bi-calendar me-2" aria-hidden="true"></i>Eventos Públicos
+    {# events/invitations-badge.js escribe el número por socket: la región viva
+       hace que el cambio se anuncie. Conservar [data-role]. #}
     <span class="badge bg-danger ms-auto d-none invitations-badge"
           data-role="invitations-badge"
+          role="status" aria-live="polite" aria-atomic="true"
           aria-label="Invitaciones pendientes"></span>
   </a>
   {% if has_perm('events.page.view') %}
   <a class="nav-link {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
      href="{{ url_for('pages_admin.pages_events.index') }}">
-    <i class="bi bi-calendar-plus me-2"></i>Gestión de Eventos
+    <i class="bi bi-calendar-plus me-2" aria-hidden="true"></i>Gestión de Eventos
   </a>
   {% endif %}
 
@@ -77,24 +85,26 @@
   <h6 class="sidebar-section-label">Gestión</h6>
   <a class="nav-link {% if request.endpoint=='pages_coordinator.dashboard' %}active{% endif %}"
      href="{{ url_for('pages_coordinator.dashboard') }}">
-    <i class="bi bi-people-fill me-2"></i>Coordinación
+    <i class="bi bi-people-fill me-2" aria-hidden="true"></i>Coordinación
   </a>
 
   <div class="dropdown-menu-container">
-    <a href="#"
-       class="nav-link dropdown-toggle-custom {% if request.endpoint in ['pages_coordinator.deliberation', 'pages_coordinator.acceptance'] %}active{% endif %}"
-       data-dropdown="{{ prefix }}admission-menu">
-      <i class="bi bi-person-plus-fill me-2"></i>Gestión de Admisión
-      <i class="bi bi-chevron-right ms-auto dropdown-arrow"></i>
-    </a>
+    {# No navega: es un disclosure. base.js sincroniza aria-expanded. #}
+    <button type="button"
+       class="nav-link dropdown-toggle-custom w-100 border-0 bg-transparent text-start {% if request.endpoint in ['pages_coordinator.deliberation', 'pages_coordinator.acceptance'] %}active{% endif %}"
+       data-dropdown="{{ prefix }}admission-menu"
+       aria-expanded="false" aria-controls="{{ prefix }}admission-menu">
+      <i class="bi bi-person-plus-fill me-2" aria-hidden="true"></i>Gestión de Admisión
+      <i class="bi bi-chevron-right ms-auto dropdown-arrow" aria-hidden="true"></i>
+    </button>
     <div class="dropdown-submenu" id="{{ prefix }}admission-menu">
       <a class="nav-link submenu-item {% if request.endpoint=='pages_coordinator.deliberation' %}active{% endif %}"
          href="{{ url_for('pages_coordinator.deliberation') }}">
-        <i class="bi bi-hammer me-2"></i>Deliberación
+        <i class="bi bi-hammer me-2" aria-hidden="true"></i>Deliberación
       </a>
       <a class="nav-link submenu-item {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
          href="{{ url_for('pages_coordinator.acceptance') }}">
-        <i class="bi bi-file-earmark-check-fill me-2"></i>Aceptación
+        <i class="bi bi-file-earmark-check-fill me-2" aria-hidden="true"></i>Aceptación
       </a>
     </div>
   </div>
@@ -104,7 +114,7 @@
   {% if has_perm('permanence.page.view') %}
   <a class="nav-link {% if request.endpoint=='pages_coordinator.permanence' %}active{% endif %}"
      href="{{ url_for('pages_coordinator.permanence') }}">
-    <i class="bi bi-calendar2-check-fill me-2"></i>Permanencia
+    <i class="bi bi-calendar2-check-fill me-2" aria-hidden="true"></i>Permanencia
   </a>
   {% endif %}
 
@@ -112,7 +122,7 @@
   {% if has_perm('admin_review.page.view') %}
   <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
      href="{{ url_for('pages_admin.pages_review.index') }}">
-    <i class="bi bi-file-earmark-text me-2"></i>Documentos
+    <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>Documentos
   </a>
   {% endif %}
 
@@ -120,62 +130,64 @@
   {% if has_perm('archives.api.list') %}
   <hr class="mx-3">
   <div class="dropdown-menu-container">
-    <a href="#"
-       class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') or request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
-       data-dropdown="{{ prefix }}config-menu">
-      <i class="bi bi-gear-fill me-2"></i>Configuración
-      <i class="bi bi-chevron-right ms-auto dropdown-arrow"></i>
-    </a>
+    {# No navega: es un disclosure. base.js sincroniza aria-expanded. #}
+    <button type="button"
+       class="nav-link dropdown-toggle-custom w-100 border-0 bg-transparent text-start {% if request.endpoint.startswith('pages_admin.pages_settings') or request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
+       data-dropdown="{{ prefix }}config-menu"
+       aria-expanded="false" aria-controls="{{ prefix }}config-menu">
+      <i class="bi bi-gear-fill me-2" aria-hidden="true"></i>Configuración
+      <i class="bi bi-chevron-right ms-auto dropdown-arrow" aria-hidden="true"></i>
+    </button>
     <div class="dropdown-submenu" id="{{ prefix }}config-menu">
       <a class="nav-link submenu-item {% if request.endpoint == 'pages_admin.pages_settings.index' %}active{% endif %}"
          href="{{ url_for('pages_admin.pages_settings.index') }}">
-        <i class="bi bi-folder-fill me-2"></i>Archivos
+        <i class="bi bi-folder-fill me-2" aria-hidden="true"></i>Archivos
       </a>
       <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.users' %}active{% endif %}"
          href="{{ url_for('pages_admin.pages_settings.users') }}">
-        <i class="bi bi-person-gear me-2"></i>Usuarios
+        <i class="bi bi-person-gear me-2" aria-hidden="true"></i>Usuarios
       </a>
       <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
          href="{{ url_for('pages_admin.pages_emails.email_config') }}">
-        <i class="bi bi-envelope-fill me-2"></i>Correos
+        <i class="bi bi-envelope-fill me-2" aria-hidden="true"></i>Correos
       </a>
       <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.document_templates' %}active{% endif %}"
          href="{{ url_for('pages_admin.pages_settings.document_templates') }}">
-        <i class="bi bi-file-earmark-text me-2"></i>Plantillas
+        <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>Plantillas
       </a>
       {% if not has_perm('academic_periods.api.create') and current_user.coordinated_programs %}
       <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
          href="{{ url_for('pages_admin.pages_settings.config_program', slug=current_user.coordinated_programs[0].slug) }}">
-        <i class="bi bi-mortarboard-fill me-2"></i>Programa
+        <i class="bi bi-mortarboard-fill me-2" aria-hidden="true"></i>Programa
       </a>
       {% elif has_perm('academic_periods.api.create') %}
       <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
          href="{{ url_for('program.list_programs') }}">
-        <i class="bi bi-mortarboard-fill me-2"></i>Programas
+        <i class="bi bi-mortarboard-fill me-2" aria-hidden="true"></i>Programas
       </a>
       <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.academic_periods' %}active{% endif %}"
          href="{{ url_for('pages_admin.pages_settings.academic_periods') }}">
-        <i class="bi bi-calendar3 me-2"></i>Periodos Académicos
+        <i class="bi bi-calendar3 me-2" aria-hidden="true"></i>Periodos Académicos
       </a>
       <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.celery_worker' %}active{% endif %}"
          href="{{ url_for('pages_admin.pages_settings.celery_worker') }}">
-        <i class="bi bi-robot me-2"></i>Tareas programadas
+        <i class="bi bi-robot me-2" aria-hidden="true"></i>Tareas programadas
       </a>
       <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.permissions_manager' %}active{% endif %}"
          href="{{ url_for('pages_admin.pages_settings.permissions_manager') }}">
-        <i class="bi bi-shield-lock-fill me-2"></i>Permisos
+        <i class="bi bi-shield-lock-fill me-2" aria-hidden="true"></i>Permisos
       </a>
       {% if has_perm('admin.page.purge') %}
       <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.data_cleanup' %}active{% endif %}"
          href="{{ url_for('pages_admin.pages_settings.data_cleanup') }}">
-        <i class="bi bi-archive me-2"></i>Limpieza de datos
+        <i class="bi bi-archive me-2" aria-hidden="true"></i>Limpieza de datos
       </a>
       {% endif %}
       {% endif %}
       {% if has_perm('student_bulk.page.view') %}
       <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.student_bulk_import' %}active{% endif %}"
          href="{{ url_for('pages_admin.pages_settings.student_bulk_import') }}">
-        <i class="bi bi-people-fill me-2"></i>Alta Masiva
+        <i class="bi bi-people-fill me-2" aria-hidden="true"></i>Alta Masiva
       </a>
       {% endif %}
     </div>

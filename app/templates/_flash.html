@@ -1,6 +1,10 @@
 {# app/templates/_flash.html #}
+{# El contenedor es la ÚNICA región viva: las alertas hijas no llevan role
+   para no anidar cortesías distintas (polite vs. el assertive implícito de
+   role="alert"), que NVDA/JAWS anuncian por duplicado. #}
 <div id="flash-container" class="flash-container"
-     role="region" aria-live="polite" aria-label="Notificaciones del sistema">
+     role="region" aria-live="polite" aria-atomic="false"
+     aria-label="Notificaciones del sistema">
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
@@ -12,20 +16,27 @@
           'info': 'info'
         }.get(category, 'info') %}
         
-        <div class="alert alert-{{ alert_type }} alert-dismissible fade show" role="alert">
-          <strong>
-            {% if alert_type == 'success' %}
-              <i class="bi bi-check-circle-fill me-1"></i>
-            {% elif alert_type == 'danger' %}
-              <i class="bi bi-exclamation-circle-fill me-1"></i>
-            {% elif alert_type == 'warning' %}
-              <i class="bi bi-exclamation-triangle-fill me-1"></i>
-            {% else %}
-              <i class="bi bi-info-circle-fill me-1"></i>
-            {% endif %}
-          </strong>
+        {% set alert_prefix = {
+          'success': 'Éxito:',
+          'danger': 'Error:',
+          'warning': 'Aviso:',
+          'info': 'Información:'
+        }.get(alert_type, 'Información:') %}
+
+        <div class="alert alert-{{ alert_type }} alert-dismissible fade show">
+          <span class="visually-hidden">{{ alert_prefix }}</span>
+          {% if alert_type == 'success' %}
+            <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>
+          {% elif alert_type == 'danger' %}
+            <i class="bi bi-exclamation-circle-fill me-1" aria-hidden="true"></i>
+          {% elif alert_type == 'warning' %}
+            <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>
+          {% else %}
+            <i class="bi bi-info-circle-fill me-1" aria-hidden="true"></i>
+          {% endif %}
           {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+          <button type="button" class="btn-close tap-target" data-bs-dismiss="alert"
+                  aria-label="Cerrar aviso"></button>
         </div>
       {% endfor %}
     {% endif %}

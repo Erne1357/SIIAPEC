@@ -1,9 +1,30 @@
 // app/static/js/notifications.js
+/**
+ * Campana, panel desplegable y FAB móvil de notificaciones.
+ *
+ * Contrato de accesibilidad (no romper):
+ *  - #notificationBell y #notificationFab son disclosures: aria-expanded /
+ *    aria-controls los sincroniza SIIAP.syncExpanded (js/base.js).
+ *  - #notificationDropdown es role="dialog": Escape lo cierra y devuelve el
+ *    foco al disparador que lo abrió.
+ *  - Cada .notification-item se renderiza con role="button" y tabindex="0"
+ *    porque abre la notificación al activarse (WCAG 2.1.1).
+ *  - Clases y atributos que el CSS y otros módulos esperan y que NO deben
+ *    renombrarse: .notification-item, data-id, data-action-url,
+ *    .notification-icon.bg-*, .btn-mark-read, .notification-empty.
+ */
+
+/** IDs de los dos badges (cabecera y FAB móvil). */
+const NOTIFICATION_BADGE_IDS = ['notificationBadge', 'notificationBadgeMobile'];
+/** IDs de los dos disparadores del panel. */
+const NOTIFICATION_TRIGGER_IDS = ['notificationBell', 'notificationFab'];
 
 class NotificationManager {
     constructor() {
         this.dropdownOpen = false;
         this.isMobile = window.innerWidth < 768;
+        this.unreadCount = 0;
+        this.lastTrigger = null;
         this.init();
     }
 
@@ -56,36 +77,47 @@ class NotificationManager {
     }
 
     setBadgeCount(count) {
-        const label = count > 99 ? '99+' : count;
-        const show = count > 0;
-        const ariaLabel = count === 0
-            ? 'Sin notificaciones nuevas'
-            : count === 1
-                ? '1 notificación no leída'
-                : `${count > 99 ? 'Más de 99' : count} notificaciones no leídas`;
+        this.paintBadges(Number(count) || 0);
+    }
 
-        ['notificationBadge', 'notificationBadgeMobile'].forEach(id => {
+    /**
+     * Pinta los dos badges y renombra los disparadores.
+     * El número va en [data-count] para no borrar el texto oculto
+     * ("notificaciones sin leer") que da la unidad al anuncio.
+     * @param {number} count
+     */
+    paintBadges(count) {
+        const value = count > 99 ? '99+' : String(count);
+        const show = count > 0;
+
+        NOTIFICATION_BADGE_IDS.forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
-            el.textContent = label;
+            const slot = el.querySelector('[data-count]');
+            if (slot) {
+                slot.textContent = value;
+            } else {
+                el.textContent = value;
+            }
             el.classList.toggle('d-none', !show);
-            el.setAttribute('aria-label', ariaLabel);
         });
+
+        const triggerLabel = count === 0
+            ? 'Notificaciones'
+            : count === 1
+                ? 'Notificaciones, 1 sin leer'
+                : `Notificaciones, ${value} sin leer`;
+
+        NOTIFICATION_TRIGGER_IDS.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.setAttribute('aria-label', triggerLabel);
+        });
+
+        this.unreadCount = count;
     }
 
     incrementBadge() {
-        ['notificationBadge', 'notificationBadgeMobile'].forEach(id => {
-            const el = document.getElementById(id);
-            if (!el) return;
-            const current = parseInt(el.textContent) || 0;
-            const next = current + 1;
-            el.textContent = next > 99 ? '99+' : next;
-            el.classList.remove('d-none');
-            const ariaLabel = next === 1
-                ? '1 notificación no leída'
-                : `${next > 99 ? 'Más de 99' : next} notificaciones no leídas`;
-            el.setAttribute('aria-label', ariaLabel);
-        });
+        this.paintBadges((this.unreadCount || 0) + 1);
     }
 
     // ── Toast ─────────────────────────────────────────────────────────────────
@@ -105,6 +137,26 @@ class NotificationManager {
 
     // ── Dropdown ──────────────────────────────────────────────────────────────
 
+    /** Devuelve los disparadores presentes en la página. */
+    triggers() {
+        return NOTIFICATION_TRIGGER_IDS
+            .map(id => document.getElementById(id))
+            .filter(Boolean);
+    }
+
+    /** Propaga aria-expanded/aria-controls a campana y FAB. */
+    syncTriggers(open) {
+        const dropdown = document.getElementById('notificationDropdown');
+        this.triggers().forEach(trigger => {
+            if (window.SIIAP && typeof window.SIIAP.syncExpanded === 'function') {
+                window.SIIAP.syncExpanded(trigger, dropdown, open);
+            } else {
+                trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+                if (dropdown) dropdown.classList.toggle('show', !!open);
+            }
+        });
+    }
+
     wireEvents() {
         const bell = document.getElementById('notificationBell');
         const dropdown = document.getElementById('notificationDropdown');
@@ -117,8 +169,17 @@ class NotificationManager {
         });
 
         document.addEventListener('click', (e) => {
-            if (!dropdown.contains(e.target) && !bell.contains(e.target)) {
+            const insideTrigger = this.triggers().some(t => t.contains(e.target));
+            if (!dropdown.contains(e.target) && !insideTrigger) {
                 this.closeDropdown();
+            }
+        });
+
+        // Escape cierra el panel y devuelve el foco a quien lo abrió (WCAG 2.1.2)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.dropdownOpen) {
+                e.stopPropagation();
+                this.closeDropdown(true);
             }
         });
 
@@ -140,31 +201,77 @@ class NotificationManager {
     }
 
     async toggleDropdown(fromFab = false) {
-        const dropdown = document.getElementById('notificationDropdown');
-
         if (this.dropdownOpen) {
-            this.closeDropdown();
+            this.closeDropdown(true);
         } else {
-            await this.loadUnreadNotifications();
-            dropdown.classList.add('show');
-            if (fromFab) dropdown.classList.add('from-fab');
-            this.dropdownOpen = true;
+            await this.openDropdown(fromFab);
         }
     }
 
-    closeDropdown() {
+    async openDropdown(fromFab = false) {
         const dropdown = document.getElementById('notificationDropdown');
-        dropdown.classList.remove('show', 'from-fab');
+        if (!dropdown) return;
+
+        this.lastTrigger = document.getElementById(
+            fromFab ? 'notificationFab' : 'notificationBell'
+        );
+
+        await this.loadUnreadNotifications();
+        dropdown.classList.toggle('from-fab', !!fromFab);
+        this.dropdownOpen = true;
+        this.syncTriggers(true);
+        this.focusFirstItem(dropdown);
+    }
+
+    /** Mueve el foco al primer elemento accionable del panel recién abierto. */
+    focusFirstItem(dropdown) {
+        const first = dropdown.querySelector(
+            '.notification-item, .notification-dropdown-footer a, #markAllReadBtn'
+        );
+        if (first && typeof first.focus === 'function') first.focus();
+    }
+
+    /**
+     * @param {boolean} [restoreFocus] - true cuando el cierre lo pidió el
+     *   usuario (Escape o segundo clic): el foco vuelve al disparador.
+     */
+    closeDropdown(restoreFocus = false) {
+        const dropdown = document.getElementById('notificationDropdown');
+        if (!dropdown) return;
+
+        const wasOpen = this.dropdownOpen;
+        dropdown.classList.remove('from-fab');
         this.dropdownOpen = false;
+        this.syncTriggers(false);
+
+        if (restoreFocus && wasOpen) {
+            const trigger = this.lastTrigger || document.getElementById('notificationBell');
+            if (trigger && typeof trigger.focus === 'function') trigger.focus();
+        }
     }
 
     // ── Lista de notificaciones ───────────────────────────────────────────────
+
+    /** Marca el contenedor como ocupado y anuncia el estado por la región viva. */
+    setListBusy(container, busy, message) {
+        if (window.SIIAP && typeof window.SIIAP.setBusy === 'function') {
+            window.SIIAP.setBusy(container, busy, message ? { message } : undefined);
+        } else {
+            container.setAttribute('aria-busy', busy ? 'true' : 'false');
+        }
+    }
 
     async loadUnreadNotifications() {
         const container = document.getElementById('notificationsList');
         if (!container) return;
 
-        container.innerHTML = '<div class="notification-loading"><div class="spinner-border spinner-border-sm"></div></div>';
+        this.setListBusy(container, true, 'Cargando notificaciones…');
+        container.innerHTML = `
+            <div class="notification-loading">
+                <div class="spinner-border spinner-border-sm" aria-hidden="true"></div>
+                <span class="visually-hidden">Cargando notificaciones…</span>
+            </div>
+        `;
 
         try {
             const res = await window.apiClient.get('/api/v1/notifications?unread_only=true&limit=5');
@@ -174,10 +281,11 @@ class NotificationManager {
             if (notifications.length === 0) {
                 container.innerHTML = `
                     <div class="notification-empty">
-                        <i class="bi bi-bell-slash"></i>
+                        <i class="bi bi-bell-slash" aria-hidden="true"></i>
                         <p class="mb-0">No hay notificaciones nuevas</p>
                     </div>
                 `;
+                this.setListBusy(container, false, 'No hay notificaciones nuevas.');
                 return;
             }
 
@@ -188,6 +296,14 @@ class NotificationManager {
                     if (!e.target.closest('.notification-actions') && !e.target.closest('.btn-mark-read')) {
                         this.handleNotificationClick(parseInt(item.dataset.id));
                     }
+                });
+
+                // El elemento es role="button": debe responder a Enter y Espacio.
+                item.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+                    if (e.target !== item) return;   // deja pasar los botones internos
+                    e.preventDefault();
+                    this.handleNotificationClick(parseInt(item.dataset.id));
                 });
 
                 const markReadBtn = item.querySelector('.btn-mark-read');
@@ -208,14 +324,24 @@ class NotificationManager {
                 });
             });
 
+            const total = notifications.length;
+            this.setListBusy(
+                container,
+                false,
+                total === 1
+                    ? '1 notificación sin leer en el panel.'
+                    : `${total} notificaciones sin leer en el panel.`
+            );
+
         } catch (error) {
             console.error('Error loading notifications:', error);
             container.innerHTML = `
                 <div class="notification-empty">
-                    <i class="bi bi-exclamation-circle"></i>
-                    <p class="mb-0">Error al cargar notificaciones</p>
+                    <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+                    <p class="mb-0">No se pudieron cargar las notificaciones</p>
                 </div>
             `;
+            this.setListBusy(container, false, 'No se pudieron cargar las notificaciones.');
         }
     }
 
@@ -225,44 +351,52 @@ class NotificationManager {
         const unreadClass = notification.is_read ? '' : 'unread';
         const timeAgo = this.getTimeAgo(notification.created_at);
         const hasLink = !!notification.action_url;
-        const cursorStyle = hasLink ? 'cursor:pointer;' : '';
+        const readState = notification.is_read ? '' : '<span class="visually-hidden">Sin leer. </span>';
+        const linkHint = hasLink
+            ? '<i class="bi bi-box-arrow-up-right ms-1" aria-hidden="true"></i>' +
+              '<span class="visually-hidden">Abre la página relacionada.</span>'
+            : '';
 
         let actionsHtml = '';
 
         if (notification.type === 'event_invitation' && !notification.is_read && notification.related_invitation_id) {
             actionsHtml = `
                 <div class="notification-actions">
-                    <button class="btn btn-sm btn-success"
+                    <button type="button" class="btn btn-sm btn-success"
                             data-respond-invitation="accepted"
                             data-notification-id="${notification.id}">
-                        <i class="bi bi-check"></i> Aceptar
+                        <i class="bi bi-check" aria-hidden="true"></i> Aceptar invitación
                     </button>
-                    <button class="btn btn-sm btn-danger"
+                    <button type="button" class="btn btn-sm btn-danger"
                             data-respond-invitation="rejected"
                             data-notification-id="${notification.id}">
-                        <i class="bi bi-x"></i> Rechazar
+                        <i class="bi bi-x" aria-hidden="true"></i> Rechazar invitación
                     </button>
                 </div>
             `;
         }
 
+        // role="button" + tabindex="0": el elemento se activa con ratón y con
+        // teclado (Enter/Espacio). Sin esto, abrir una notificación era
+        // imposible sin ratón (WCAG 2.1.1).
         return `
             <div class="notification-item ${unreadClass}" data-id="${notification.id}"
                  data-action-url="${this.escapeHtml(notification.action_url || '')}"
-                 style="${cursorStyle}">
+                 role="button" tabindex="0">
                 <div class="d-flex gap-3">
-                    <div class="notification-icon bg-${color}">
+                    <div class="notification-icon bg-${color}" aria-hidden="true">
                         <i class="${icon}"></i>
                     </div>
                     <div class="notification-content flex-grow-1">
-                        <strong>${this.escapeHtml(notification.title)}</strong>
+                        ${readState}<strong>${this.escapeHtml(notification.title)}</strong>
                         <p class="mb-1">${this.escapeHtml(notification.message)}</p>
                         ${actionsHtml}
-                        <small>${timeAgo}${hasLink ? ' &nbsp;<i class="bi bi-box-arrow-up-right" style="font-size:.7rem;opacity:.6;"></i>' : ''}</small>
+                        <small>${timeAgo}${linkHint}</small>
                     </div>
                     ${!notification.is_read ? `
-                        <button class="btn-mark-read" title="Marcar como leída">
-                            <i class="bi bi-check"></i>
+                        <button type="button" class="btn-mark-read"
+                                aria-label="Marcar como leída" title="Marcar como leída">
+                            <i class="bi bi-check" aria-hidden="true"></i>
                         </button>
                     ` : ''}
                 </div>
@@ -376,15 +510,22 @@ class NotificationManager {
     }
 
     getTimeAgo(dateString) {
-        const date = new Date(dateString);
+        const parse = (window.SIIAP && window.SIIAP.parseDate) || null;
+        const date = parse ? parse(dateString) : new Date(dateString);
+        if (!date || isNaN(date.getTime())) return '';
+
         const now = new Date();
         const seconds = Math.floor((now - date) / 1000);
+        const ago = (n, one, many) => `Hace ${n} ${n === 1 ? one : many}`;
 
         if (seconds < 60) return 'Hace unos segundos';
-        if (seconds < 3600) return `Hace ${Math.floor(seconds / 60)} minutos`;
-        if (seconds < 86400) return `Hace ${Math.floor(seconds / 3600)} horas`;
-        if (seconds < 604800) return `Hace ${Math.floor(seconds / 86400)} días`;
+        if (seconds < 3600) return ago(Math.floor(seconds / 60), 'minuto', 'minutos');
+        if (seconds < 86400) return ago(Math.floor(seconds / 3600), 'hora', 'horas');
+        if (seconds < 604800) return ago(Math.floor(seconds / 86400), 'día', 'días');
 
+        if (window.SIIAP && typeof window.SIIAP.formatDate === 'function') {
+            return window.SIIAP.formatDate(dateString, 'short', '');
+        }
         return date.toLocaleDateString('es-MX', {
             day: 'numeric',
             month: 'short',
@@ -399,7 +540,8 @@ class NotificationManager {
         const actionUrl = item?.dataset?.actionUrl;
 
         await this.markAsRead(notificationId);
-        this.closeDropdown();
+        // Sin navegación el foco quedaría huérfano: vuelve al disparador.
+        this.closeDropdown(!actionUrl);
 
         if (actionUrl) {
             await this._navigateToUrl(actionUrl);
@@ -426,6 +568,8 @@ class NotificationManager {
         try {
             const res = await window.apiClient.patch(`/api/v1/notifications/${notificationId}/read`);
             if (res.ok) {
+                // El anuncio lo emite loadUnreadNotifications con el recuento
+                // resultante: dos anuncios seguidos se pisarían entre sí.
                 await this.updateBadge();
                 await this.loadUnreadNotifications();
             }

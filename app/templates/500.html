@@ -3,6 +3,7 @@
 {% block title %}Error del servidor — 500{% endblock %}
 
 {% block navbar %}{% endblock %}
+{% block mobile_menu_toggle %}{% endblock %}
 
 {% block styles %}
   {{ super() }}
@@ -10,7 +11,9 @@
 {% endblock %}
 
 {% block content %}
-<main class="error-container" role="main" aria-labelledby="error-title">
+{# base.html ya envuelve este bloque en <main id="main-content">: aquí va una
+   <section>, nunca un segundo landmark principal. #}
+<section class="error-container" aria-labelledby="error-title">
   <div class="error-code error-code--server" aria-hidden="true">500</div>
   <h1 id="error-title" class="error-message">Algo salió mal del lado del servidor</h1>
   <p class="text-muted mb-4">
@@ -18,9 +21,9 @@
     indicando la hora aproximada en que ocurrió.
   </p>
   <ul class="error-suggestions">
-    <li><a href="{{ url_for('index') }}"><i class="bi bi-house-fill me-1"></i>Inicio</a></li>
-    <li><a href="javascript:history.back()"><i class="bi bi-arrow-left me-1"></i>Volver</a></li>
-    <li><a href="mailto:posgrado@itcj.edu.mx?subject=Error%20500%20en%20SIIAP"><i class="bi bi-envelope me-1"></i>Reportar a soporte</a></li>
+    <li><a href="{{ url_for('index') }}"><i class="bi bi-house-fill me-1" aria-hidden="true"></i>Inicio</a></li>
+    <li><a href="javascript:history.back()"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Volver</a></li>
+    <li><a href="mailto:posgrado@itcj.edu.mx?subject=Error%20500%20en%20SIIAP"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Reportar a soporte</a></li>
   </ul>
-</main>
+</section>
 {% endblock %}

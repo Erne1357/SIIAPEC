@@ -3,6 +3,7 @@
 {% block title %}Página no encontrada — 404{% endblock %}
 
 {% block navbar %}{% endblock %}
+{% block mobile_menu_toggle %}{% endblock %}
 
 {% block styles %}
   {{ super() }}
@@ -10,7 +11,9 @@
 {% endblock %}
 
 {% block content %}
-<main class="error-container" role="main" aria-labelledby="error-title">
+{# base.html ya envuelve este bloque en <main id="main-content">: aquí va una
+   <section>, nunca un segundo landmark principal. #}
+<section class="error-container" aria-labelledby="error-title">
   <div class="error-code" aria-hidden="true">404</div>
   <h1 id="error-title" class="error-message">Página no encontrada</h1>
   <p class="text-muted mb-4">
@@ -18,9 +21,9 @@
     Estos enlaces te pueden ayudar:
   </p>
   <ul class="error-suggestions">
-    <li><a href="{{ url_for('index') }}"><i class="bi bi-house-fill me-1"></i>Inicio</a></li>
-    <li><a href="{{ url_for('program.list_programs') }}"><i class="bi bi-mortarboard me-1"></i>Programas</a></li>
-    <li><a href="mailto:posgrado@itcj.edu.mx"><i class="bi bi-envelope me-1"></i>Reportar problema</a></li>
+    <li><a href="{{ url_for('index') }}"><i class="bi bi-house-fill me-1" aria-hidden="true"></i>Inicio</a></li>
+    <li><a href="{{ url_for('program.list_programs') }}"><i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Programas</a></li>
+    <li><a href="mailto:posgrado@itcj.edu.mx"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Reportar problema</a></li>
   </ul>
-</main>
+</section>
 {% endblock %}

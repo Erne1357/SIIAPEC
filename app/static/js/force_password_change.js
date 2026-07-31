@@ -116,26 +116,26 @@
 
             const allValid = Object.values(requirements).every(v => v);
 
-            // Actualizar indicadores visuales
+            /**
+             * Una fila de requisito. El icono (no solo el color) indica el
+             * estado y el texto oculto lo verbaliza: WCAG 1.4.1.
+             */
+            const rule = (ok, text) => `
+                <li class="${ok ? 'text-success' : ''}">
+                    <i class="bi ${ok ? 'bi-check-circle-fill' : 'bi-circle'} me-1" aria-hidden="true"></i>
+                    <span class="visually-hidden">${ok ? 'Cumplido:' : 'Pendiente:'}</span>${text}
+                </li>
+            `;
+
             feedback.innerHTML = `
-                <div class="small ${allValid ? 'text-success' : 'text-muted'}">
+                <div class="small">
                     <strong>Requisitos de contraseña:</strong>
-                    <ul class="mb-0 mt-1">
-                        <li class="${requirements.length ? 'text-success' : ''}">
-                            ${requirements.length ? '✓' : '○'} Mínimo 8 caracteres
-                        </li>
-                        <li class="${requirements.uppercase ? 'text-success' : ''}">
-                            ${requirements.uppercase ? '✓' : '○'} Una letra mayúscula
-                        </li>
-                        <li class="${requirements.lowercase ? 'text-success' : ''}">
-                            ${requirements.lowercase ? '✓' : '○'} Una letra minúscula
-                        </li>
-                        <li class="${requirements.number ? 'text-success' : ''}">
-                            ${requirements.number ? '✓' : '○'} Un número
-                        </li>
-                        <li class="${requirements.special ? 'text-success' : ''}">
-                            ${requirements.special ? '✓' : '○'} Un caracter especial
-                        </li>
+                    <ul class="list-unstyled mb-0 mt-1">
+                        ${rule(requirements.length, 'Mínimo 8 caracteres')}
+                        ${rule(requirements.uppercase, 'Una letra mayúscula')}
+                        ${rule(requirements.lowercase, 'Una letra minúscula')}
+                        ${rule(requirements.number, 'Un número')}
+                        ${rule(requirements.special, 'Un carácter especial')}
                     </ul>
                 </div>
             `;
@@ -156,14 +156,16 @@
             }
 
             if (newPassword === confirmPassword) {
-                feedback.textContent = '✓ Las contraseñas coinciden';
+                feedback.innerHTML =
+                    '<i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Las contraseñas coinciden';
                 feedback.className = 'small text-success mt-1';
                 return true;
-            } else {
-                feedback.textContent = '✗ Las contraseñas no coinciden';
-                feedback.className = 'small text-danger mt-1';
-                return false;
             }
+
+            feedback.innerHTML =
+                '<i class="bi bi-exclamation-circle-fill me-1" aria-hidden="true"></i>Las contraseñas no coinciden';
+            feedback.className = 'small text-danger mt-1';
+            return false;
         }
 
         async handleSubmit(e) {
@@ -184,7 +186,8 @@
 
             this.isSubmitting = true;
             this.submitBtn.disabled = true;
-            this.submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cambiando...';
+            this.submitBtn.innerHTML =
+                '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Cambiando…';
 
             const formData = new FormData(this.form);
             const data = {
@@ -246,23 +249,10 @@
     }
 })();
 
-function togglePasswordVisibility(fieldId) {
-    const field = document.getElementById(fieldId);
-    const icon = document.getElementById(fieldId + '_icon');
-
-    if (field.type === 'password') {
-        field.type = 'text';
-        icon.classList.remove('bi-eye');
-        icon.classList.add('bi-eye-slash');
-    } else {
-        field.type = 'password';
-        icon.classList.remove('bi-eye-slash');
-        icon.classList.add('bi-eye');
-    }
-}
-
-// Delegación para botones con data-target (reemplaza los onclick inline)
-document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.js-toggle-password[data-target]');
-    if (btn) togglePasswordVisibility(btn.dataset.target);
-});
+/*
+ * El toggle de visibilidad de contraseña vive ahora en
+ * js/utils/password-toggle.js (contrato data-toggle-password="#id"), que ya
+ * gestiona aria-pressed, aria-label y el icono. La implementación local
+ * (togglePasswordVisibility + delegación sobre .js-toggle-password) se
+ * eliminó para no duplicar handlers sobre el mismo botón.
+ */
