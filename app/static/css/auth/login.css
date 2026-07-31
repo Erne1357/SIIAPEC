@@ -1,35 +1,29 @@
-/*
- * LOGIN — estilos custom dedicados.
- * Sustituye al sistema split-pane generico (auth-split) con un layout
- * propio que evita conflictos con auth/common.css.
- *
- * Layout:
- *   - body con overflow hidden (auth_base.html ya lo aplica)
- *   - #main-content fixed entre header y footer
- *   - .login-shell ocupa toda la altura disponible, grid 2 col en desktop
- *   - .login-hero: imagen institucional + overlay TECNM, padding generoso
- *   - .login-form-col: centra el card vertical y horizontal, scroll interno solo si rebasa
- */
+/* ==========================================================================
+   SIIAP — LOGIN (y «establecer contraseña», que reutiliza este layout).
 
-/* ── Reset del shell del auth_base sobre login ─────────────────────────── */
-body.login-page-body {
-  overflow: hidden !important;
-}
+   Sólo el layout del split-pane y la tarjeta del formulario: el panel
+   institucional es el componente compartido .auth-hero
+   (css/components/_auth-hero.css), que también resuelve la fotografía de
+   fondo y su desactivación por debajo de 992px.
+
+   Layout:
+     - #main-content fijo entre la cabecera y el pie (auth/common.css)
+     - .login-shell ocupa todo el alto disponible; 2 columnas desde 992px
+     - .login-form-col centra la tarjeta y hace scroll interno si rebasa
+   ========================================================================== */
+
+/* ── Reset del shell de auth_base sobre login ──────────────────────────── */
 body.login-page-body .siiapec-welcome-banner {
-  display: none !important;
+  display: none;
 }
+
 body.login-page-body #main-content {
-  position: fixed !important;
-  top: var(--header-h) !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: var(--footer-h) !important;
-  background: none !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  overflow: hidden !important;
-  display: block !important;
+  top: var(--header-h);   /* sin banner: recupera su alto */
+  bottom: var(--auth-footer-h);
+  overflow: hidden;
+  display: block;
 }
+
 body.login-page-body .auth-container,
 body.login-page-body .auth-bg {
   all: unset;
@@ -38,7 +32,7 @@ body.login-page-body .auth-bg {
   height: 100%;
 }
 
-/* ── Layout del login ──────────────────────────────────────────────────── */
+/* ── Layout ────────────────────────────────────────────────────────────── */
 .login-shell {
   width: 100%;
   height: 100%;
@@ -55,101 +49,15 @@ body.login-page-body .auth-bg {
   }
 }
 
-/* ── HERO con imagen institucional ─────────────────────────────────────── */
-.login-hero {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: var(--space-12) var(--space-8);
-  background-image:
-    linear-gradient(135deg,
-      rgba(11, 30, 138, 0.92) 0%,
-      rgba(8, 21, 112, 0.88) 55%,
-      rgba(178, 31, 45, 0.85) 130%),
-    url("../../assets/images/fondo2.jpg");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  color: var(--text-inverse);
-  overflow: hidden;
-}
-.login-hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.10), transparent 40%),
-    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.06), transparent 40%);
-  pointer-events: none;
-}
-.login-hero__content {
-  position: relative;
-  max-width: 520px;
-  z-index: 1;
-}
-.login-hero__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-pill);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-semibold);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  margin-bottom: var(--space-6);
-  color: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(4px);
-}
-.login-hero__title {
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 3.4vw, 2.85rem);
-  font-weight: var(--fw-bold);
-  line-height: var(--lh-tight);
-  margin: 0 0 var(--space-4);
-  letter-spacing: var(--tracking-tight);
-  color: var(--text-inverse);
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
-}
-.login-hero__tagline {
-  font-size: var(--fs-md);
-  line-height: var(--lh-normal);
-  color: rgba(255, 255, 255, 0.92);
-  margin: 0 0 var(--space-6);
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.15);
-}
-.login-hero__highlights {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: var(--space-3);
-}
-.login-hero__highlights li {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  font-size: var(--fs-sm);
-  color: rgba(255, 255, 255, 0.94);
-}
-.login-hero__highlights i {
-  font-size: var(--fs-md);
-  color: rgba(255, 255, 255, 1);
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-/* ── COLUMNA DEL FORM ──────────────────────────────────────────────────── */
+/* ── COLUMNA DEL FORMULARIO ────────────────────────────────────────────── */
 .login-form-col {
   display: grid;
   align-content: safe center;
   justify-items: center;
+  min-height: 0;
   padding: var(--space-6) var(--space-5);
   background: var(--bg-page);
   overflow-y: auto;
-  min-height: 0;
 }
 
 .login-card {
@@ -160,106 +68,146 @@ body.login-page-body .auth-bg {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-4);
 }
+
 .login-card__body {
-  padding: var(--space-6) var(--space-6);
+  padding: var(--space-6);
 }
 
 .login-card__header {
+  margin-bottom: var(--space-5);
   text-align: center;
-  margin-bottom: var(--space-4);
 }
+
 .login-card__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3rem;
-  height: 3rem;
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  margin-bottom: var(--space-3);
   border-radius: var(--radius-pill);
-  background: linear-gradient(135deg,
-    var(--color-brand-primary) 0%,
-    var(--color-brand-accent) 130%);
+  background-color: var(--color-brand-primary);
   color: var(--text-inverse);
-  font-size: 1.4rem;
-  margin-bottom: var(--space-2);
+  font-size: var(--fs-lg);
   box-shadow: var(--shadow-2);
 }
+
 .login-card__title {
+  margin: 0 0 var(--space-1);
   font-family: var(--font-display);
   font-size: var(--fs-xl);
   font-weight: var(--fw-bold);
-  margin: 0 0 var(--space-1);
+  line-height: var(--lh-tight);
   color: var(--text-primary);
 }
+
 .login-card__subtitle {
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
   margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--text-secondary);   /* 5.21:1 sobre --bg-surface */
 }
 
 .login-card .form-label {
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
   color: var(--text-secondary);
-  font-size: var(--fs-sm);
-  margin-bottom: var(--space-2);
 }
+
 .login-card .input-group-text {
   background: var(--bg-surface-sunken);
-  border-color: var(--border-default);
-  color: var(--text-muted);
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
 }
+
 .login-card .input-group:focus-within .input-group-text {
   border-color: var(--color-brand-primary);
   color: var(--color-brand-primary);
 }
+
 .login-card .form-control {
-  padding-top: 0.6rem;
-  padding-bottom: 0.6rem;
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
 }
 
-.login-card__footer {
-  margin-top: var(--space-4);
-  text-align: center;
-  font-size: var(--fs-sm);
+.login-card .form-text {
+  font-size: var(--fs-xs);
   color: var(--text-secondary);
 }
+
+/* Los botones de mostrar/ocultar contraseña conviven con el input dentro de
+   un .input-group: el objetivo táctil se garantiza sin romper el borde. */
+.login-card .input-group > .btn {
+  min-width: var(--tap-min);
+  padding-inline: var(--space-3);
+}
+
+/* ── PIE DE LA TARJETA ─────────────────────────────────────────────────── */
+.login-card__footer {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-default);
+  text-align: center;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--text-secondary);
+}
+
+.login-card__footer p {
+  margin: 0;
+}
+
 .login-card__footer a {
   color: var(--color-brand-primary);
   font-weight: var(--fw-semibold);
   text-decoration: none;
 }
-.login-card__footer a:hover {
+
+.login-card__footer a:hover,
+.login-card__footer a:focus-visible {
   text-decoration: underline;
 }
 
-/* ── RESPONSIVE: < 992px (tablet/mobile) ──────────────────────────────── */
+/* Vía de recuperación de contraseña: no hay flujo automático todavía, así
+   que la salida es el correo de Posgrado. */
+.login-card__help {
+  margin-top: var(--space-3);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+  color: var(--text-secondary);
+}
+
+/* Enlace de salida de la pantalla de contraseña: es un destino aislado, no
+   va en línea dentro de un párrafo, así que necesita objetivo táctil. */
+.login-card__back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-brand-primary);
+}
+
+/* ── RESPONSIVE: < 992px ───────────────────────────────────────────────── */
 @media (max-width: 991.98px) {
-  /* En movil dejamos que la pagina scrollee naturalmente */
+  /* En móvil dejamos que la página haga scroll natural */
   body.login-page-body #main-content {
-    overflow-y: auto !important;
+    overflow-y: auto;
   }
+
   .login-shell {
     height: auto;
     min-height: 100%;
   }
-  .login-hero {
-    min-height: auto;
-    padding: var(--space-3) var(--space-4);
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-  }
-  .login-hero__title,
-  .login-hero__tagline,
-  .login-hero__highlights {
-    display: none;
-  }
-  .login-hero__eyebrow {
-    margin-bottom: 0;
-  }
+
   .login-form-col {
-    overflow: visible;
     align-content: start;
     padding: var(--space-5) var(--space-4);
+    overflow: visible;
   }
 }
 
@@ -267,6 +215,7 @@ body.login-page-body .auth-bg {
   .login-form-col {
     padding: var(--space-4) var(--space-3);
   }
+
   .login-card__body {
     padding: var(--space-5) var(--space-4);
   }

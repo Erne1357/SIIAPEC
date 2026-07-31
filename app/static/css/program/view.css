@@ -1,444 +1,387 @@
-/* ────────────────────────────────────────────────────────────── */
-/* app/static/css/program/view.css */
-/* ────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────────
+   app/static/css/program/view.css
+   Página pública de un programa (única superficie persuasiva).
+   Todo el color, espaciado, radio y tipografía sale de _tokens.css.
+   ────────────────────────────────────────────────────────────── */
 
-/* Variables locales — alineadas a los tokens TECNM globales */
-:root {
-    --primary: var(--color-brand-primary);
-    --primary-light: var(--color-brand-primary-100);
-    --primary-dark: var(--color-brand-primary-700);
-    --secondary: var(--color-neutral-500);
-    --light: var(--bg-surface-sunken);
-    --dark: var(--color-neutral-800);
-    --success: var(--color-success);
-    --info: var(--color-info);
-    --warning: var(--color-warning);
-    --danger: var(--color-danger);
-    --white: var(--color-neutral-0);
-    --black: var(--color-neutral-900);
-    --border-radius: var(--radius-sm);
-    --box-shadow: var(--shadow-3);
-    --transition: all 0.3s ease;
-  }
-  
-  /* Contenedor principal */
-  .program-view-container {
-    max-width: 1200px;
-    margin: 0 auto;
-  }
+/* Contenedor principal */
+.program-view-container {
+  max-width: var(--content-max-w);
+  margin: 0 auto;
+  padding-inline: var(--content-padding);
+  /* Deja aire bajo el último bloque para que el CTA flotante no lo tape */
+  padding-bottom: var(--space-16);
+}
 
-  /* Fix para AOS personalizado en el contenedor de scroll */
-  .program-view-container [data-aos] {
-    transition-property: transform, opacity;
-    transition-duration: 800ms;
-    transition-timing-function: ease-in-out;
-    will-change: transform, opacity;
-  }
+/* Anclas internas: el desplazamiento suave no debe pegar el título al borde */
+.program-view-container section {
+  scroll-margin-top: var(--space-8);
+}
 
-  .program-view-container [data-aos].aos-animate {
-    transform: translateY(0) translateX(0) !important;
-    opacity: 1 !important;
-  }
+/* Ancho de medida del párrafo introductorio de cada sección */
+.program-lead {
+  max-width: var(--measure-prose);
+  margin-inline: auto;
+  font-size: var(--fs-md);
+  line-height: var(--lh-relaxed);
+  color: var(--text-secondary);
+}
 
-  .program-view-container [data-aos="fade-up"] {
-    transform: translateY(30px);
-    opacity: 0;
-  }
+/* ──────────────────────────────────────────────────────────────
+   HERO
+   ────────────────────────────────────────────────────────────── */
 
-  .program-view-container [data-aos="fade-in"] {
-    opacity: 0;
-  }
+.program-hero-section {
+  background: linear-gradient(to right,
+    var(--color-brand-primary-100),
+    var(--bg-surface-sunken));
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  margin-bottom: var(--space-8);
+}
 
-  .program-view-container [data-aos="fade-left"] {
-    transform: translateX(30px);
-    opacity: 0;
-  }
+.program-hero__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 4vw, var(--fs-3xl));
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+  margin-bottom: var(--space-3);
+}
 
-  .program-view-container [data-aos="fade-right"] {
-    transform: translateX(-30px);
-    opacity: 0;
-  }
+.program-hero__lead {
+  font-size: var(--fs-md);
+  line-height: var(--lh-relaxed);
+  color: var(--text-secondary);
+  max-width: var(--measure-prose);
+  margin-bottom: var(--space-6);
+}
 
-  /* Mejorar performance de animaciones */
-  .program-view-container [data-aos] {
-    backface-visibility: hidden;
-    perspective: 1000;
-  }
-  
-  /* Secciones */
-  section {
-    scroll-margin-top: 2rem;
-  }
-  
-  /* Hero Section */
+.program-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* Acciones secundarias: enlaces de navegación interna, no botones.
+   El peso visual de botón queda reservado al CTA real. */
+.program-hero__jump {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding-inline: var(--space-2);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+  color: var(--color-brand-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.program-hero__jump:hover,
+.program-hero__jump:focus-visible {
+  color: var(--color-brand-primary-700);
+}
+
+.program-image-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+}
+
+.program-hero__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 400px;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+}
+
+/* Datos concretos del programa bajo el hero (sustituyen a 3 tarjetas
+   decorativas con copy genérico). Fila de hechos, no tarjetas anidadas. */
+.program-hero__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  list-style: none;
+  margin: var(--space-8) 0 0;
+  padding: var(--space-4) 0 0;
+  border-top: 1px solid var(--border-default);
+}
+
+.program-hero__fact {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.program-hero__fact i {
+  font-size: var(--fs-lg);
+  color: var(--color-brand-primary);
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.program-hero__fact-label {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.program-hero__fact-value {
+  display: block;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+}
+
+@media (max-width: 767.98px) {
   .program-hero-section {
-    background: linear-gradient(to right, var(--primary-light), #f8f9fa);
-    border-radius: 0.5rem;
-    padding: 2rem;
-    margin-bottom: 2rem;
+    padding: var(--space-6);
   }
-  
-  .program-image-container {
-    position: relative;
-    overflow: hidden;
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+  .program-hero__facts {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
   }
-  
-  /* Divider */
-  .divider-center {
-    width: 60px;
-    height: 3px;
-    background-color: var(--primary);
-    margin: 0 auto;
+}
+
+@media (max-width: 575.98px) {
+  .program-hero-section {
+    padding: var(--space-4);
   }
-  
-  /* Cards */
-  .hover-card {
-    transition: var(--transition);
-    border: none;
-  }
-  
-  .hover-card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--box-shadow);
-  }
-  
-  /* Icon Circles */
+}
+
+/* ──────────────────────────────────────────────────────────────
+   PIEZAS COMPARTIDAS DE SECCIÓN
+   ────────────────────────────────────────────────────────────── */
+
+.divider-center {
+  width: 60px;
+  height: 3px;
+  background-color: var(--color-brand-primary);
+  margin: 0 auto;
+}
+
+.hover-card {
+  border: 1px solid var(--border-default);
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.hover-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-3);
+}
+
+.icon-circle {
+  width: 50px;
+  height: 50px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bg-primary-light {
+  background-color: var(--color-brand-primary-100);
+}
+
+@media (max-width: 767.98px) {
   .icon-circle {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 40px;
+    height: 40px;
   }
-  
-  .bg-primary-light {
-    background-color: var(--primary-light);
-  }
-  
-  /* Accordion */
-  .accordion-button:not(.collapsed) {
-    background-color: var(--primary-light);
-    color: var(--primary);
-    box-shadow: none;
-  }
-  
-  .accordion-button:focus {
-    box-shadow: none;
-    border-color: var(--primary-light);
-  }
-  
-  .accordion-button {
-    padding: 0.75rem 1.25rem;
-  }
-  
-  .accordion-body {
-    padding: 1rem 1.25rem;
-  }
-  
-  /* Document Links */
-  .document-link {
-    color: var(--primary);
-    transition: var(--transition);
-  }
-  
-  .document-link:hover {
-    color: var(--primary-dark);
-    text-decoration: underline !important;
-  }
-  
-  /* Curriculum Table */
-  .curriculum-table {
-    border-radius: 0.5rem;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-  
-  .curriculum-table th {
-    background-color: var(--primary);
-    color: var(--white);
-    padding: 0.75rem;
-  }
-  
-  .curriculum-table td {
-    background-color: var(--white);
-    transition: var(--transition);
-    padding: 0.75rem;
-  }
-  
-  .curriculum-table tr:hover td {
-    background-color: var(--primary-light);
-  }
-  
-  /* Buttons */
-  .btn-primary {
-    background-color: var(--primary);
-    border-color: var(--primary);
-    transition: var(--transition);
-  }
-  
-  .btn-primary:hover {
-    background-color: var(--primary-dark);
-    border-color: var(--primary-dark);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-  
-  .btn-outline-primary {
-    color: var(--primary);
-    border-color: var(--primary);
-    transition: var(--transition);
-  }
-  
-  .btn-outline-primary:hover {
-    background-color: var(--primary);
-    color: var(--white);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-  
-  /* Form Controls */
-  .form-control:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-  }
-  
-  /* Responsive Adjustments */
-  @media (max-width: 768px) {
-    .program-hero-section {
-      padding: 1.5rem;
-    }
-    
-    .icon-circle {
-      width: 40px;
-      height: 40px;
-    }
-  }
-  
-  @media (max-width: 576px) {
-    h1.display-5 {
-      font-size: 2rem;
-    }
-    
-    .program-hero-section {
-      padding: 1rem;
-    }
-  }
+}
 
+/* Enlaces a plantillas de documento */
+.document-link {
+  color: var(--color-brand-primary);
+  transition: color var(--duration-fast) var(--ease-out);
+}
 
-  /* Botones flotantes */
-/* Botones flotantes */
+.document-link:hover,
+.document-link:focus-visible {
+  color: var(--color-brand-primary-700);
+  text-decoration: underline;
+}
+
+/* Correos largos dentro de un botón a ancho completo */
+.btn .text-break {
+  overflow-wrap: anywhere;
+}
+
+/* Foco de campos: el anillo de marca, nunca el azul de Bootstrap */
+.program-view-container .form-control:focus {
+  border-color: var(--color-brand-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   BOTONES FLOTANTES
+   ────────────────────────────────────────────────────────────── */
+
 .floating-back-button {
   position: fixed;
-  top: 130px; /* Ajusta según la altura de tu header */
-  left: 260px; /* Ajusta según el ancho de tu sidebar */
+  top: 130px;
+  left: calc(var(--sidebar-w) + var(--space-3));
   z-index: var(--z-dropdown);
-  opacity: 0;
-  transform: translateY(-20px);
-  transition: all 0.5s ease;
 }
 
 .floating-inscription-button {
   position: fixed;
   top: 130px;
-  right: 2rem;
+  right: var(--space-8);
   z-index: var(--z-fab);
-  opacity: 0;
-  transform: translateY(-20px);
-  transition: all 0.5s ease;
 }
 
-.floating-back-button.visible,
-.floating-inscription-button.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
+/* El CTA y el botón de regreso son visibles SIN JavaScript: son la única
+   entrada a la postulación. Antes nacían con opacity:0 y dependían de un
+   setTimeout de 500 ms para existir. */
 
-/* Animación de pulso para el botón de postulación */
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 4px 15px rgba(13, 110, 253, 0.4), 0 0 0 0 rgba(13, 110, 253, 0.7);
-  }
-  50% {
-    box-shadow: 0 6px 20px rgba(13, 110, 253, 0.6), 0 0 0 8px rgba(13, 110, 253, 0);
-  }
-}
-
-.btn-inscription, .btn-back {
-  padding: 0.75rem 1.5rem;
-  border-radius: 50px;
-  font-weight: 600;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s ease;
+.btn-inscription,
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-pill);
+  font-weight: var(--fw-semibold);
+  box-shadow: var(--shadow-3);
+  transition: box-shadow var(--duration-fast) var(--ease-out),
+              background-color var(--duration-fast) var(--ease-out);
 }
 
 .btn-inscription {
-  background: linear-gradient(135deg, var(--color-brand-primary) 0%, var(--color-brand-accent) 100%);
-  border: none;
-  color: white;
-  font-size: 1.1rem;
-  padding: 1rem 2rem;
-  animation: pulse-glow 2s infinite;
-  position: relative;
-  overflow: hidden;
+  background-color: var(--color-brand-accent);
+  border: 1px solid var(--color-brand-accent);
+  color: var(--text-inverse);
+  font-size: var(--fs-md);
+  padding: var(--space-4) var(--space-8);
+  box-shadow: var(--shadow-4);
 }
 
-.btn-inscription::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
-}
-
-.btn-inscription:hover::before {
-  width: 300px;
-  height: 300px;
-}
-
-.btn-inscription:hover {
-  background: linear-gradient(135deg, #0a58ca 0%, #084298 100%);
-  transform: translateY(-5px) scale(1.05);
-  box-shadow: 0 8px 25px rgba(13, 110, 253, 0.5);
-  animation: none;
+.btn-inscription:hover,
+.btn-inscription:focus-visible {
+  background-color: var(--color-brand-accent-600);
+  border-color: var(--color-brand-accent-600);
+  color: var(--text-inverse);
+  box-shadow: var(--shadow-5);
 }
 
 .btn-back {
-  background-color: white;
-  border-color: var(--primary);
-  color: var(--primary);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--color-brand-primary);
+  color: var(--color-brand-primary);
 }
 
-.btn-back:hover {
-  background-color: var(--primary-light);
-  transform: translateY(-3px);
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+.btn-back:hover,
+.btn-back:focus-visible {
+  background-color: var(--color-brand-primary-100);
+  color: var(--color-brand-primary-700);
+  box-shadow: var(--shadow-4);
 }
 
-@media (max-width: 768px) {
+/* El sidebar desaparece a 991.98px y --sidebar-w pasa a 0: anclados arriba,
+   ambos botones quedaban encima del <h1> y de la imagen del hero. Debajo de
+   ese ancho pasan al pie, donde .program-view-container ya reserva espacio. */
+@media (max-width: 991.98px) {
   .floating-back-button {
-    top: 80px;
-    left: 20px;
+    top: auto;
+    bottom: calc(var(--footer-h) + var(--space-4));
+    left: var(--space-4);
   }
 
-  /* En móvil mantener el botón arriba a la derecha, solo ajustar posición */
   .floating-inscription-button {
-    top: 80px;
-    right: 1rem;
-    transform: translateY(-20px);
+    top: auto;
+    bottom: calc(var(--footer-h) + var(--space-4));
+    right: var(--space-4);
   }
+}
 
-  .floating-inscription-button.visible {
-    transform: translateY(0);
-  }
-
-  .btn-inscription {
-    padding: 0.75rem 1.25rem;
-    font-size: 0.95rem;
-    box-shadow: 0 6px 20px rgba(13, 110, 253, 0.4);
-  }
-
+@media (max-width: 767.98px) {
+  .btn-inscription,
   .btn-back {
-    padding: 0.6rem 1.2rem;
-    font-size: 0.9rem;
+    padding: var(--space-3) var(--space-5);
+    font-size: var(--fs-sm);
   }
 }
 
-/* Para pantallas muy pequeñas */
-@media (max-width: 576px) {
-  .btn-inscription {
-    padding: 0.65rem 1.1rem;
-    font-size: 0.9rem;
-  }
+/* ──────────────────────────────────────────────────────────────
+   PROCESO DE ADMISIÓN (fases + línea de tiempo)
+   ────────────────────────────────────────────────────────────── */
 
-  .btn-inscription i {
-    font-size: 0.85rem;
-  }
-}
-/* Estilos para la sección de admisión */
 .admission-phases-nav {
-  background-color: var(--light);
-  border-radius: 0.5rem;
-  padding: 0.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  background-color: var(--bg-surface-sunken);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  box-shadow: var(--shadow-1);
 }
 
 .admission-phases-nav .nav-link {
-  border-radius: 0.5rem;
-  padding: 1rem 0.5rem;
-  color: var(--dark);
-  transition: all 0.3s ease;
-  display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-}
-
-.admission-phases-nav .nav-link.active {
-  background-color: var(--primary);
-  color: white;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2);
 }
 
 .phase-icon-container {
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
 }
 
 .phase-icon {
   width: 50px;
   height: 50px;
-  border-radius: 50%;
-  background-color: var(--white);
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-surface);
+  color: var(--color-brand-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-}
-
-.nav-link.active .phase-icon {
-  background-color: var(--white);
-  color: var(--primary);
+  box-shadow: var(--shadow-1);
 }
 
 .phase-name {
-  font-weight: 600;
-  font-size: 0.9rem;
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
 }
 
 .phase-content {
-  background-color: var(--white);
-  border-radius: 0.5rem;
-  padding: 2rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-1);
 }
 
-/* Timeline de pasos */
 .steps-timeline {
   position: relative;
-  padding: 1rem 0;
+  padding: var(--space-4) 0;
 }
 
-.steps-timeline:before {
+.steps-timeline::before {
   content: '';
   position: absolute;
   top: 0;
   left: 20px;
   height: 100%;
   width: 2px;
-  background-color: var(--primary-light);
+  background-color: var(--color-brand-primary-100);
 }
 
 .timeline-item {
   position: relative;
-  padding-left: 50px;
-  margin-bottom: 2rem;
+  padding-left: var(--space-12);
+  margin-bottom: var(--space-8);
 }
 
 .timeline-item:last-child {
@@ -451,177 +394,147 @@
   top: 0;
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background-color: var(--primary);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-brand-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: var(--z-raised);
+  box-shadow: var(--shadow-2);
 }
 
 .step-number {
-  color: white;
-  font-weight: 700;
-  font-size: 1.1rem;
+  color: var(--text-inverse);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-md);
 }
 
 .timeline-content {
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .admission-phases-nav .nav-link {
-    padding: 0.75rem 0.25rem;
+    padding: var(--space-3) var(--space-1);
   }
-  
+
   .phase-icon {
     width: 40px;
     height: 40px;
-    font-size: 0.9rem;
+    font-size: var(--fs-sm);
   }
-  
+
   .phase-name {
-    font-size: 0.8rem;
+    font-size: var(--fs-xs);
   }
-  
+
   .phase-content {
-    padding: 1.5rem;
+    padding: var(--space-6);
   }
 }
 
-/* Animación para botones flotantes */
-.floating-action-buttons {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all 0.5s ease;
-}
-
-.floating-action-buttons.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.floating-action-buttons.hidden {
-  opacity: 0;
-  transform: translateY(20px);
-  pointer-events: none;
-}
-
-/* ────────────────────────────────────────────────────────────── */
-/* Estilos para Plan de Estudios (Curriculum) */
-/* ────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────────
+   PLAN DE ESTUDIOS
+   ────────────────────────────────────────────────────────────── */
 
 #plan-estudios .accordion-item {
-  border: 1px solid #dee2e6;
-  transition: all 0.3s ease;
-}
-
-#plan-estudios .accordion-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-default);
 }
 
 #plan-estudios .accordion-button {
-  font-size: 1.1rem;
-  padding: 1rem 1.25rem;
-  transition: all 0.3s ease;
+  font-size: var(--fs-md);
+  padding: var(--space-4) var(--space-5);
+  background-color: var(--bg-surface-sunken);
+  color: var(--text-primary);
+  transition: background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
 }
 
+/* Semestre abierto: fondo de marca + chevron blanco.
+   Sin esto, abierto y cerrado se veían idénticos. */
 #plan-estudios .accordion-button:not(.collapsed) {
-  background-color: var(--primary);
-  color: white;
-  box-shadow: 0 2px 8px rgba(13, 110, 253, 0.25);
+  background-color: var(--color-brand-primary);
+  color: var(--text-inverse);
+  box-shadow: none;
+}
+
+#plan-estudios .accordion-button:not(.collapsed)::after {
+  filter: brightness(0) invert(1);
 }
 
 #plan-estudios .accordion-button:focus {
+  border-color: var(--color-brand-primary);
   box-shadow: none;
-  border-color: var(--primary);
 }
 
 #plan-estudios .accordion-button .badge {
-  font-size: 0.85rem;
-  font-weight: 500;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
 }
 
-#plan-estudios .table {
+/* La tabla no debe comprimirse en móvil: se desplaza dentro del wrapper. */
+#plan-estudios .curriculum-table {
+  min-width: 560px;
   margin-bottom: 0;
 }
 
-#plan-estudios .table thead th {
-  font-weight: 600;
-  font-size: 0.9rem;
+#plan-estudios .curriculum-table thead th {
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 0.75rem;
-  border-bottom: 2px solid #dee2e6;
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-3);
+  border-bottom: 2px solid var(--border-default);
 }
 
-#plan-estudios .table tbody td {
-  padding: 0.875rem 0.75rem;
+#plan-estudios .curriculum-table tbody td {
+  padding: var(--space-3);
   vertical-align: middle;
 }
 
-#plan-estudios .table-hover tbody tr:hover {
-  background-color: rgba(13, 110, 253, 0.05);
-  transition: background-color 0.2s ease;
+#plan-estudios .curriculum-table tbody tr:hover {
+  background-color: var(--color-brand-primary-50);
 }
 
 #plan-estudios .font-monospace {
-  font-size: 0.875rem;
-  letter-spacing: 0.5px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-wide);
 }
 
 #plan-estudios .badge {
-  font-size: 0.8rem;
-  padding: 0.35em 0.65em;
-  font-weight: 500;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
 }
 
 /* Resumen de créditos */
-#plan-estudios .alert-success {
-  border-left: 4px solid var(--success);
-  background-color: #d1e7dd;
-  color: #0f5132;
-  font-size: 1.1rem;
+.curriculum-total {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+  padding: var(--space-4);
+  border: 1px solid var(--border-success-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--color-success-100);
+  color: var(--color-success-700);
+  font-size: var(--fs-md);
 }
 
-/* Líneas de investigación */
-#plan-estudios .hover-card {
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-#plan-estudios .hover-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
-}
-
+/* Líneas de investigación: tarjetas informativas, NO clicables */
 #plan-estudios .hover-card .card-body {
-  padding: 1.5rem;
+  padding: var(--space-6);
 }
 
 #plan-estudios .hover-card h4 {
-  font-size: 1.1rem;
-  margin-bottom: 0.75rem;
-  color: var(--primary);
+  font-size: var(--fs-md);
+  margin-bottom: var(--space-3);
+  color: var(--color-brand-primary);
 }
 
 #plan-estudios .hover-card .card-text {
-  font-size: 0.95rem;
-  line-height: 1.6;
-  color: var(--text-muted);
-}
-
-/* Estado vacío */
-#plan-estudios .empty-state {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: var(--text-muted);
-}
-
-#plan-estudios .empty-state i {
-  font-size: 3rem;
-  opacity: 0.5;
-  margin-bottom: 1rem;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-relaxed);
+  color: var(--text-secondary);
 }

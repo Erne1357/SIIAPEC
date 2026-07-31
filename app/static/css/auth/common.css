@@ -1,52 +1,63 @@
-/* === ESTILOS COMPARTIDOS ENTRE PANTALLAS DE AUTENTICACIÓN === */
+/* ==========================================================================
+   SIIAP — Shell compartido de las pantallas SIN SESIÓN
+   (login, registro, establecer contraseña).
+
+   Carga DESPUÉS de _head_css.html (tokens + base + componentes), así que
+   sólo declara lo que es propio del shell de auth: cabecera con logos,
+   banner de bienvenida, contenedor principal y pie fijo.
+
+   Reescrito contra _tokens.css: ya no define --header-h/--footer-h ni los
+   alias legacy --bg--tecnm/--rojoTec, y no vuelve a pedir la fotografía
+   institucional (3.27 MB) como fondo del contenedor: esa imagen sólo la
+   sirve components/_auth-hero.css, y únicamente a partir de 992px.
+   ========================================================================== */
+
 :root {
-  --header-h: 80px;
+  /* Alto del banner de bienvenida: es exclusivo de este shell, no existe
+     en el resto de la app y por eso vive aquí. */
   --banner-h: 3.5rem;
-  --footer-h: 56px;
-  --bg--tecnm: #0b1e8a;
-  --rojoTec: #b21f2d;
+
+  /* El pie de auth_base.html está SIEMPRE visible, mientras que el de
+     base.html es `d-none d-md-flex` y por eso base.css colapsa --footer-h
+     a 0px por debajo de 768px. Usamos un alto propio para no heredar ese
+     colapso y quedarnos con el contenido bajo el pie. */
+  --auth-footer-h: 3.5rem;
+
+  /* Bootstrap 5.3 trae #dc3545 literal para la validación de formularios,
+     que está fuera de la paleta TECNM. Lo alineamos a los tokens: el texto
+     de error usa la rampa -700 (7.28:1 sobre --bg-surface). */
+  --bs-form-invalid-color: var(--color-danger-700);
+  --bs-form-invalid-border-color: var(--color-danger);
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
+/* El mensaje de error es texto, no sólo un borde rojo (WCAG 1.4.1). */
+.invalid-feedback {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
 }
 
-html {
-  height: 100%;
-}
+/* ==========================================================================
+   1. CABECERA CON LOGOS
+   ========================================================================== */
 
-body {
-  min-height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  background-color: #f5f7fb;
-}
-
-body.register-body {
-  min-height: 100vh;
-}
-
-/* === CABECERA CON LOGOS === */
 #auth-header {
   position: fixed;
   top: 0;
-  left: 0;
   right: 0;
-  height: var(--header-h);
+  left: 0;
   z-index: var(--z-fixed);
-  background-color: #fff;
   display: flex;
   align-items: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  height: var(--header-h);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-2);
 }
 
 .header-logo {
   display: block;
   height: auto;
-  object-fit: contain;
-  transition: opacity 0.3s ease;
   flex-shrink: 0;
+  object-fit: contain;
 }
 
 .logo-sep {
@@ -71,30 +82,40 @@ body.register-body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.5rem;
+  padding: var(--space-2);
 }
 
+/* El logotipo «SIIAP» es tipografía de rótulo, no texto de interfaz: escala
+   de forma fluida con el ancho del visor igual que --fs-display, y por eso
+   no se ata a un escalón discreto de --fs-*. */
 .brand-text {
-  font-weight: 700;
+  font-family: var(--font-display);
   font-size: clamp(2rem, 5vw, 4rem);
-  line-height: 1;
-  color: var(--rojoTec);
-  letter-spacing: 0.08em;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-display);
+  color: var(--color-brand-accent);   /* 6.72:1 sobre --bg-surface */
 }
 
-/* === BANNER DE BIENVENIDA === */
+/* ==========================================================================
+   2. BANNER DE BIENVENIDA
+   ========================================================================== */
+
 .siiapec-welcome-banner {
   position: fixed;
   top: var(--header-h);
-  left: 0;
   right: 0;
+  left: 0;
   z-index: var(--z-sticky);
-  background: linear-gradient(135deg, var(--color-brand-primary) 0%, var(--color-brand-accent) 100%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  border-bottom: 2px solid var(--color-brand-primary-700);
   height: var(--banner-h);
-  animation: slideDownSmooth 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  background-image: linear-gradient(
+    135deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-accent) 100%
+  );
+  border-bottom: 1px solid var(--color-brand-primary-700);
+  box-shadow: var(--shadow-2);
+  animation: siiap-auth-banner-slide-down var(--duration-slow) var(--ease-out);
 }
 
 .banner-content {
@@ -102,197 +123,159 @@ body.register-body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 1rem;
+  padding: 0 var(--space-4);
 }
 
 .banner-text {
-  color: #ffffff;
-  font-size: clamp(0.875rem, 2.2vw, 1.1rem);
-  font-weight: 600;
-  text-align: center;
-  line-height: 1.3;
-  letter-spacing: 0.025em;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   margin: 0;
+  font-size: clamp(var(--fs-sm), 2.2vw, var(--fs-md));
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-wide);
+  text-align: center;
+  color: var(--text-inverse);   /* 6.72:1 en el extremo más claro del degradado */
 }
 
-@keyframes slideDownSmooth {
-  0% {
+/* Entrada única (no es un bucle): desacelera, no rebota. */
+@keyframes siiap-auth-banner-slide-down {
+  from {
     transform: translateY(-100%);
     opacity: 0;
   }
-  60% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  75% {
-    transform: translateY(-5px);
-  }
-  100% {
+  to {
     transform: translateY(0);
     opacity: 1;
   }
 }
 
-/* === CONTENEDOR PRINCIPAL === */
+/* ==========================================================================
+   3. CONTENEDOR PRINCIPAL
+   ========================================================================== */
+
+/* auth_base.html incluye _head_css.html, así que base.css aporta
+   `#main-content { flex:1; height:100%; padding }`. Con top + bottom +
+   height:100% el elemento queda sobre-restringido y se extiende por debajo
+   del viewport: neutralizamos ambos aquí, que cargamos después del include
+   y ganamos por orden con la misma especificidad. */
 #main-content {
   position: fixed;
   top: calc(var(--header-h) + var(--banner-h));
-  left: 0;
   right: 0;
-  bottom: var(--footer-h);
-  background: url("../../assets/images/fondo2.jpg") no-repeat center center;
-  background-size: cover;
-  background-attachment: fixed;
-  overflow-y: auto;
+  bottom: var(--auth-footer-h);
+  left: 0;
+  height: auto;
+  padding: 0;
   overflow-x: hidden;
+  overflow-y: auto;
+  background-color: var(--bg-page);
 }
 
+#main-content::-webkit-scrollbar {
+  width: var(--space-2);
+}
+
+#main-content::-webkit-scrollbar-track {
+  background: var(--bg-surface-sunken);
+}
+
+#main-content::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-xs);
+}
+
+#main-content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-400);
+}
+
+/* Envoltorios genéricos de auth_base.html. Las tres pantallas actuales los
+   anulan con `all: unset`; siguen aquí como base de cualquier pantalla auth
+   futura que no traiga su propio layout. */
 .auth-container {
   min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem 1rem;
+  padding: var(--space-8) var(--space-4);
 }
 
 .auth-bg {
   width: 100%;
   max-width: 28rem;
-  padding: 1.25rem;
+  padding: var(--space-5);
 }
 
-/* === TARJETA === */
-.card {
-  background-color: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  border: none;
-  border-top: 5px solid var(--color-brand-primary) !important;
-  border-radius: 1rem;
-  backdrop-filter: blur(10px);
-}
+/* ==========================================================================
+   4. FORMULARIOS
+   ========================================================================== */
 
-.card-body {
-  padding: 2rem;
-}
-
-/* === FORMULARIO === */
 .form-control {
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid #ced4da;
-  transition: all 0.3s ease;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .form-control:focus {
-  border-color: var(--bg--tecnm);
-  box-shadow: 0 0 0 0.2rem rgba(11, 30, 138, 0.25);
-  outline: none;
+  border-color: var(--color-brand-primary);
+  box-shadow: var(--shadow-focus);
 }
 
 .form-label {
-  font-weight: 500;
-  margin-bottom: 0.5rem;
-  color: #495057;
+  margin-bottom: var(--space-2);
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
 }
 
 .btn {
-  border-radius: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  font-weight: 500;
-  transition: all 0.3s ease;
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-md);
+  font-weight: var(--fw-medium);
+  transition: background-color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
 }
 
-.btn-success {
-  background-color: var(--color-success);
-  border-color: var(--color-success);
+/* Los colores de .btn-primary / .btn-success / .btn-danger los resuelve
+   _tokens.css a través de las variables --bs-btn-*: no se redeclaran aquí. */
+
+/* ==========================================================================
+   5. ENLACES Y PIE
+   ========================================================================== */
+
+a {
+  color: var(--color-brand-primary);   /* 13.40:1 sobre --bg-surface */
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
-.btn-success:hover,
-.btn-success:focus,
-.btn-success:active {
-  background-color: #1a8a4a;
-  border-color: #1a8a4a;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(31, 157, 85, 0.3);
-}
-
-.btn-primary {
-  background-color: var(--color-brand-primary);
-  border-color: var(--color-brand-primary);
-}
-
-.btn-primary:hover,
-.btn-primary:focus,
-.btn-primary:active {
-  background-color: var(--color-brand-primary-700);
-  border-color: var(--color-brand-primary-700);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(11, 30, 138, 0.3);
+a:hover {
+  color: var(--color-brand-primary-700);
+  text-decoration: underline;
 }
 
 footer {
   position: fixed;
+  right: 0;
   bottom: 0;
   left: 0;
-  right: 0;
-  height: var(--footer-h);
-  background: #212529;
-  color: #fff;
   z-index: var(--z-sticky);
   display: flex;
   align-items: center;
   justify-content: center;
+  height: var(--auth-footer-h);
+  background-color: var(--color-neutral-800);
+  color: var(--text-inverse);   /* 14.76:1 */
 }
 
-#main-content::-webkit-scrollbar {
-  width: 8px;
-}
+/* ==========================================================================
+   6. RESPONSIVE
+   Sólo se reasignan las variables propias del shell de auth: --header-h ya
+   lo escalan _tokens.css y base.css (--header-h-md / --header-h-sm).
+   ========================================================================== */
 
-#main-content::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
-}
-
-#main-content::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 4px;
-}
-
-#main-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.5);
-}
-
-a {
-  color: var(--bg--tecnm);
-  text-decoration: none;
-  transition: color 0.3s ease;
-}
-
-a:hover {
-  color: #0a1a7a;
-  text-decoration: underline;
-}
-
-.alert {
-  border-radius: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.siiapec-welcome-banner,
-.auth-container,
-.card {
-  will-change: auto;
-}
-
-.siiapec-welcome-banner {
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-
-/* === RESPONSIVE === */
 @media (max-width: 991.98px) {
   :root {
-    --header-h: 72px;
     --banner-h: 3.2rem;
   }
 
@@ -301,59 +284,49 @@ a:hover {
   }
 
   .banner-text {
-    font-size: clamp(0.8rem, 2.5vw, 1rem);
+    font-size: clamp(var(--fs-sm), 2.5vw, var(--fs-base));
   }
 
   .auth-container {
-    padding: 2rem 0.75rem;
-  }
-
-  .card-body {
-    padding: 1.75rem;
+    padding: var(--space-8) var(--space-3);
   }
 }
 
 @media (max-width: 767.98px) {
   :root {
-    --header-h: 70px;
     --banner-h: 3rem;
   }
 
   .logo-sep,
   .logo-posgrado {
-    display: none !important;
+    display: none;
   }
 
   .banner-text {
-    font-size: clamp(0.75rem, 3vw, 0.95rem);
-    line-height: 1.2;
-  }
-
-  .auth-container {
-    padding: 1.5rem 0.75rem;
-  }
-
-  .card-body {
-    padding: 1.5rem;
+    font-size: clamp(var(--fs-xs), 3vw, var(--fs-sm));
+    line-height: var(--lh-tight);
   }
 
   .brand-text {
     font-size: clamp(1.6rem, 6vw, 2.5rem);
   }
+
+  .auth-container {
+    padding: var(--space-6) var(--space-3);
+  }
 }
 
 @media (max-width: 575.98px) {
   :root {
-    --header-h: 64px;
     --banner-h: 2.8rem;
   }
 
   .header-logos {
-    display: none !important;
+    display: none;
   }
 
   #auth-header .d-flex {
-    justify-content: center !important;
+    justify-content: center;
   }
 
   .brand-container {
@@ -361,24 +334,16 @@ a:hover {
   }
 
   .banner-text {
-    font-size: clamp(0.7rem, 3.5vw, 0.85rem);
+    font-size: clamp(var(--fs-xs), 3.5vw, var(--fs-sm));
   }
 
   .auth-bg {
     max-width: 100%;
-    padding: 0.75rem;
-  }
-
-  .card-body {
-    padding: 1.25rem;
-  }
-
-  .btn {
-    padding: 0.65rem 1.25rem;
+    padding: var(--space-3);
   }
 
   .auth-container {
-    padding: 1.25rem 0.5rem;
+    padding: var(--space-5) var(--space-2);
   }
 }
 
@@ -388,22 +353,7 @@ a:hover {
   }
 
   .banner-text {
-    font-size: 0.7rem;
-    letter-spacing: 0.01em;
-  }
-
-  .card {
-    border-radius: 0.75rem;
-  }
-
-  .card-body {
-    padding: 1rem;
+    font-size: var(--fs-xs);
+    letter-spacing: var(--tracking-normal);
   }
 }
-
-.form-control:focus,
-.btn:focus {
-  outline: 2px solid var(--bg--tecnm);
-  outline-offset: 2px;
-}
-

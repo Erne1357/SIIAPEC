@@ -1,4 +1,5 @@
 {% extends 'auth_base.html' %}
+{% from '_macros.html' import required_mark %}
 {% block title %}SIIAP – Iniciar Sesión{% endblock %}
 
 {% block body_class %}login-page-body{% endblock %}
@@ -10,27 +11,32 @@
 
 {% block content %}
 <div class="login-shell">
-  <aside class="login-hero" aria-hidden="true">
-    <div class="login-hero__content">
-      <span class="login-hero__eyebrow">
-        <i class="bi bi-mortarboard-fill"></i>
-        ITCJ · TECNM
-      </span>
-      <h1 class="login-hero__title">
+  <aside class="auth-hero">
+    <div class="auth-hero__content">
+      <h1 class="auth-hero__title">
         Sistema Integral de Información Académica de Posgrado
       </h1>
-      <p class="login-hero__tagline">
+      <p class="auth-hero__tagline">
         Ingresa para gestionar tu trayectoria académica, revisar el avance de tu admisión o coordinar a tus aspirantes.
       </p>
-      <ul class="login-hero__highlights">
-        <li><i class="bi bi-shield-check"></i><span>Acceso seguro con credenciales institucionales.</span></li>
-        <li><i class="bi bi-bell"></i><span>Notificaciones en tiempo real de tus trámites.</span></li>
-        <li><i class="bi bi-clipboard-check"></i><span>Admisión, permanencia y conclusión en un solo lugar.</span></li>
+      <ul class="auth-hero__highlights">
+        <li class="auth-hero__highlight">
+          <i class="bi bi-shield-check" aria-hidden="true"></i>
+          <span>Acceso seguro con credenciales institucionales.</span>
+        </li>
+        <li class="auth-hero__highlight">
+          <i class="bi bi-bell" aria-hidden="true"></i>
+          <span>Notificaciones en tiempo real de tus trámites.</span>
+        </li>
+        <li class="auth-hero__highlight">
+          <i class="bi bi-clipboard-check" aria-hidden="true"></i>
+          <span>Admisión, permanencia y conclusión en un solo lugar.</span>
+        </li>
       </ul>
     </div>
   </aside>
 
-  <main class="login-form-col" role="main">
+  <section class="login-form-col" aria-label="Formulario de inicio de sesión">
     <div class="login-card">
       <div class="login-card__body">
         <div class="login-card__header">
@@ -38,109 +44,67 @@
             <i class="bi bi-box-arrow-in-right"></i>
           </div>
           <h2 class="login-card__title">Iniciar sesión</h2>
-          <p class="login-card__subtitle">Bienvenido de vuelta a SIIAP.</p>
+          <p class="login-card__subtitle">
+            Los campos marcados con {{ required_mark() }} son obligatorios.
+          </p>
         </div>
 
         <form id="loginForm" novalidate>
           <div class="mb-3">
-            <label for="username" class="form-label">Usuario</label>
+            <label for="username" class="form-label">Usuario {{ required_mark() }}</label>
             <div class="input-group">
               <span class="input-group-text" aria-hidden="true"><i class="bi bi-person"></i></span>
               <input type="text" class="form-control" id="username" name="username"
                      placeholder="Tu nombre de usuario"
-                     required autofocus autocomplete="username">
+                     required autofocus
+                     autocomplete="username" inputmode="text"
+                     autocapitalize="none" autocorrect="off" spellcheck="false"
+                     aria-describedby="usernameError">
+            </div>
+            <div id="usernameError" class="invalid-feedback d-block d-none" role="alert">
+              Escribe tu nombre de usuario para continuar.
             </div>
           </div>
+
           <div class="mb-4">
-            <label for="password" class="form-label">Contraseña</label>
+            <label for="password" class="form-label">Contraseña {{ required_mark() }}</label>
             <div class="input-group">
               <span class="input-group-text" aria-hidden="true"><i class="bi bi-lock-fill"></i></span>
               <input type="password" class="form-control" id="password" name="password"
                      placeholder="Tu contraseña"
-                     required autocomplete="current-password">
-              <button class="btn btn-outline-secondary js-toggle-pwd" type="button"
-                      aria-label="Mostrar u ocultar contraseña">
-                <i class="bi bi-eye" id="togglePwdIcon"></i>
+                     required autocomplete="current-password"
+                     aria-describedby="passwordError">
+              <button type="button" class="btn btn-outline-secondary" data-toggle-password="#password">
+                <i class="bi bi-eye-fill" aria-hidden="true"></i>
               </button>
             </div>
+            <div id="passwordError" class="invalid-feedback d-block d-none" role="alert">
+              Escribe tu contraseña para continuar.
+            </div>
           </div>
+
           <button type="submit" class="btn btn-primary w-100 btn-lg fw-semibold">
             <span class="btn-label">Entrar</span>
           </button>
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         </form>
 
         <div class="login-card__footer">
-          ¿No tienes cuenta? <a href="{{ url_for('pages_auth.register_page') }}">Regístrate</a>
+          <p>¿No tienes cuenta? <a href="{{ url_for('pages_auth.register_page') }}">Regístrate</a></p>
+          <p class="login-card__help">
+            ¿Olvidaste tu contraseña? Escribe a
+            <a href="mailto:posgrado@itcj.edu.mx">posgrado@itcj.edu.mx</a>
+            con tu número de control para que te envíen un enlace de restablecimiento.
+          </p>
         </div>
       </div>
     </div>
-  </main>
+  </section>
 </div>
+{% endblock %}
 
-<script type="module">
-  import { api } from "{{ url_for('static', filename='js/api/http.js') }}?v={{ static_version }}";
-
-  function flash(message, level = 'success') {
-    window.dispatchEvent(new CustomEvent('flash', {
-      detail: { level: level, message: message }
-    }));
-  }
-
-  const form = document.getElementById('loginForm');
-  const submitBtn = form.querySelector('button[type="submit"]');
-
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-      try { sessionStorage.removeItem('pendingFlash'); } catch (_) {}
-    }, 100);
-  });
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value;
-
-    if (!username || !password) {
-      flash('Por favor completa todos los campos', 'warning');
-      return;
-    }
-
-    if (window.SIIAP && window.SIIAP.setButtonLoading) {
-      window.SIIAP.setButtonLoading(submitBtn, true, 'Iniciando sesión...');
-    } else {
-      submitBtn.disabled = true;
-    }
-
-    try {
-      await api('/auth/login', { method: 'POST', body: { username, password } });
-      flash('Inicio de sesión exitoso. Redirigiendo...', 'success');
-      setTimeout(() => {
-        window.location.href = "{{ url_for('pages_user.dashboard') }}";
-      }, 100);
-    } catch (err) {
-      console.error('Login error:', err);
-      const errorMsg = err?.message || 'Error de autenticación. Verifica tus credenciales.';
-      flash(errorMsg, 'danger');
-      if (window.SIIAP && window.SIIAP.setButtonLoading) {
-        window.SIIAP.setButtonLoading(submitBtn, false);
-      } else {
-        submitBtn.disabled = false;
-      }
-    }
-  });
-
-  // Toggle mostrar/ocultar contraseña
-  const toggleBtn = document.querySelector('.js-toggle-pwd');
-  const pwdInput = document.getElementById('password');
-  const toggleIcon = document.getElementById('togglePwdIcon');
-  if (toggleBtn && pwdInput && toggleIcon) {
-    toggleBtn.addEventListener('click', () => {
-      const isHidden = pwdInput.type === 'password';
-      pwdInput.type = isHidden ? 'text' : 'password';
-      toggleIcon.classList.toggle('bi-eye', !isHidden);
-      toggleIcon.classList.toggle('bi-eye-slash', isHidden);
-    });
-  }
+{% block scripts %}
+<script>
+  window.SIIAP_DASHBOARD_URL = {{ url_for('pages_user.dashboard') | tojson }};
 </script>
+<script type="module" src="{{ url_for('static', filename='js/auth/login.js') }}?v={{ static_version }}"></script>
 {% endblock %}

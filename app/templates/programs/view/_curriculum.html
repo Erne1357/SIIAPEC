@@ -1,10 +1,11 @@
 {# app/templates/programs/_curriculum.html #}
+{% from '_macros.html' import data_table_open, data_table_close, empty_state %}
 {% if program.show_curriculum %}
 <section id="plan-estudios" class="py-4 bg-light rounded-3 my-4">
-  <div class="text-center mb-4" data-aos="fade-up">
+  <div class="text-center mb-4" data-reveal>
     <h2 class="h3 fw-bold mb-3">Plan de Estudios</h2>
     <div class="divider-center mb-3"></div>
-    <p class="lead mx-auto" style="max-width: 800px;">
+    <p class="lead program-lead">
       Explora la estructura académica de nuestro programa, diseñada para brindarte una formación integral y especializada.
     </p>
   </div>
@@ -22,19 +23,19 @@
       {% endif %}
       {% if valid_semesters %}
         <!-- Mapa Curricular por Semestres -->
-        <div class="accordion accordion-flush" id="curriculumAccordion" data-aos="fade-up">
+        <div class="accordion accordion-flush" id="curriculumAccordion" data-reveal>
           {% for semester in valid_semesters %}
           {% set sem_num = semester.semester if (semester.semester and semester.semester|int > 0) else loop.index %}
           {% set sem_uid = loop.index %}
           <div class="accordion-item mb-3 border rounded overflow-hidden shadow-sm">
             <h2 class="accordion-header" id="heading-semester-{{ sem_uid }}">
-              <button class="accordion-button {% if loop.index > 1 %}collapsed{% endif %} fw-bold bg-primary text-white"
+              <button class="accordion-button {% if loop.index > 1 %}collapsed{% endif %} fw-bold"
                       type="button"
                       data-bs-toggle="collapse"
                       data-bs-target="#collapse-semester-{{ sem_uid }}"
                       aria-expanded="{{ 'true' if loop.index == 1 else 'false' }}"
                       aria-controls="collapse-semester-{{ sem_uid }}">
-                <i class="bi bi-calendar-check me-2"></i>
+                <i class="bi bi-calendar-check me-2" aria-hidden="true"></i>
                 Semestre {{ sem_num }}
                 <span class="badge bg-light text-dark ms-2">{{ semester.courses | length if semester.courses else 0 }} materia{{ 's' if (semester.courses | length if semester.courses else 0) != 1 else '' }}</span>
               </button>
@@ -44,20 +45,20 @@
                  data-bs-parent="#curriculumAccordion">
               <div class="accordion-body p-0">
                 {% if semester.courses %}
-                <div class="table-responsive">
-                  <table class="table table-hover mb-0">
+                {{ data_table_open('Materias del semestre ' ~ sem_num ~ ' del plan de estudios',
+                                   table_class='table-hover curriculum-table') }}
                     <thead class="table-light">
                       <tr>
-                        <th style="width: 15%">Código</th>
-                        <th style="width: 55%">Materia</th>
-                        <th style="width: 15%" class="text-center">Créditos</th>
-                        <th style="width: 15%" class="text-center">Tipo</th>
+                        <th scope="col" class="w-px-100">Código</th>
+                        <th scope="col">Materia</th>
+                        <th scope="col" class="text-center w-px-90">Créditos</th>
+                        <th scope="col" class="text-center w-px-120">Tipo</th>
                       </tr>
                     </thead>
                     <tbody>
                       {% for course in semester.courses %}
                       <tr>
-                        <td class="font-monospace text-muted">{{ course.code or 'N/A' }}</td>
+                        <td class="font-monospace text-muted">{{ course.code or 'N/D' }}</td>
                         <td class="fw-semibold">{{ course.name }}</td>
                         <td class="text-center">
                           <span class="badge bg-info">{{ course.credits or '0' }}</span>
@@ -66,7 +67,7 @@
                           {% if course.type == 'obligatoria' %}
                             <span class="badge bg-primary">Obligatoria</span>
                           {% elif course.type == 'optativa' %}
-                            <span class="badge bg-warning text-dark">Optativa</span>
+                            <span class="badge bg-warning">Optativa</span>
                           {% elif course.type == 'electiva' %}
                             <span class="badge bg-secondary">Electiva</span>
                           {% else %}
@@ -76,13 +77,14 @@
                       </tr>
                       {% endfor %}
                     </tbody>
-                  </table>
-                </div>
+                {{ data_table_close() }}
                 {% else %}
-                <div class="p-4 text-center text-muted">
-                  <i class="bi bi-inbox fs-1"></i>
-                  <p class="mb-0 mt-2">No hay materias en este semestre</p>
-                </div>
+                {{ empty_state(
+                     icon='inbox',
+                     title='Semestre sin materias',
+                     description='Todavía no se cargaron las materias de este semestre.',
+                     compact=true
+                   ) }}
                 {% endif %}
               </div>
             </div>
@@ -99,23 +101,27 @@
         {% endfor %}
         
         {% if total_credits.value > 0 %}
-        <div class="alert alert-success mt-4 text-center" data-aos="fade-up">
-          <i class="bi bi-award-fill me-2"></i>
-          <strong>Total de Créditos del Programa:</strong> {{ total_credits.value }} créditos
-        </div>
+        <p class="curriculum-total" data-reveal>
+          <i class="bi bi-award-fill" aria-hidden="true"></i>
+          <strong>Total de créditos del programa:</strong> {{ total_credits.value }} créditos
+        </p>
         {% endif %}
       {% else %}
-        <div class="alert alert-info text-center">
-          <i class="bi bi-info-circle me-2"></i>
-          El plan de estudios para este programa aún no está disponible.
-        </div>
+        {{ empty_state(
+             icon='journal-x',
+             title='Plan de estudios no disponible',
+             description='Aún no se publica el mapa curricular de este programa. Escríbenos y te lo enviamos por correo.',
+             action_label='Solicitar plan de estudios',
+             action_url='mailto:' ~ (program.contact_email or 'posgrado@itcj.edu.mx') ~ '?subject=Plan%20de%20estudios%20' ~ (program.name|urlencode),
+             compact=true
+           ) }}
       {% endif %}
     </div>
   </div>
 
   <!-- Líneas de Investigación -->
   {% if program.show_research_lines %}
-  <div class="mt-4" data-aos="fade-up">
+  <div class="mt-4" data-reveal>
     <h3 class="h4 fw-bold text-center mb-3">Líneas de Investigación</h3>
     <div class="row g-3 justify-content-center">
       {% if program.research_lines %}
@@ -133,9 +139,12 @@
         {% endfor %}
       {% else %}
         <div class="col-md-8">
-          <div class="alert alert-info text-center">
-            Las líneas de investigación para este programa aún no están definidas.
-          </div>
+          {{ empty_state(
+               icon='diagram-3',
+               title='Líneas de investigación en definición',
+               description='El comité académico aún no publica las líneas de investigación de este programa.',
+               compact=true
+             ) }}
         </div>
       {% endif %}
     </div>

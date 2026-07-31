@@ -1,45 +1,45 @@
 {# app/templates/programs/_program_info.html #}
 <section id="programa" class="py-4 bg-light rounded-3 my-4">
-  <div class="text-center mb-4" data-aos="fade-up">
+  <div class="text-center mb-4" data-reveal>
     <h2 class="h3 fw-bold mb-3">Acerca del Programa</h2>
     <div class="divider-center mb-3"></div>
-    <p class="lead mx-auto" style="max-width: 800px;">
+    <p class="lead program-lead">
       {{ program.introduction_text or program.description }}
     </p>
   </div>
 
   <div class="row g-3 mt-3">
-    <div class="col-md-3" data-aos="fade-up" data-aos-delay="100">
+    <div class="col-md-3" data-reveal data-reveal-delay="100">
       <div class="bg-white p-3 rounded shadow-sm text-center h-100">
         <div class="icon-circle bg-primary-light mb-3 mx-auto">
-          <i class="bi bi-book-fill text-primary"></i>
+          <i class="bi bi-book-fill text-primary" aria-hidden="true"></i>
         </div>
         <h3 class="h5 fw-bold">Duración</h3>
         <p class="mb-0">{{ program.duration_display }}</p>
       </div>
     </div>
-    <div class="col-md-3" data-aos="fade-up" data-aos-delay="200">
+    <div class="col-md-3" data-reveal data-reveal-delay="200">
       <div class="bg-white p-3 rounded shadow-sm text-center h-100">
         <div class="icon-circle bg-primary-light mb-3 mx-auto">
-          <i class="bi bi-award-fill text-primary"></i>
+          <i class="bi bi-award-fill text-primary" aria-hidden="true"></i>
         </div>
         <h3 class="h5 fw-bold">Reconocimiento</h3>
         <p class="mb-0">{{ program.recognition_text or 'Programa reconocido por su excelencia académica' }}</p>
       </div>
     </div>
-    <div class="col-md-3" data-aos="fade-up" data-aos-delay="300">
+    <div class="col-md-3" data-reveal data-reveal-delay="300">
       <div class="bg-white p-3 rounded shadow-sm text-center h-100">
         <div class="icon-circle bg-primary-light mb-3 mx-auto">
-          <i class="bi bi-clock text-primary"></i>
+          <i class="bi bi-clock text-primary" aria-hidden="true"></i>
         </div>
         <h3 class="h5 fw-bold">Modalidad</h3>
         <p class="mb-0">{{ program.modality or 'Presencial' }}{% if program.schedule_info %}<br><small>{{ program.schedule_info }}</small>{% endif %}</p>
       </div>
     </div>
-    <div class="col-md-3" data-aos="fade-up" data-aos-delay="400">
+    <div class="col-md-3" data-reveal data-reveal-delay="400">
       <div class="bg-white p-3 rounded shadow-sm text-center h-100">
         <div class="icon-circle bg-primary-light mb-3 mx-auto">
-          <i class="bi bi-people-fill text-primary"></i>
+          <i class="bi bi-people-fill text-primary" aria-hidden="true"></i>
         </div>
         <h3 class="h5 fw-bold">Becas</h3>
         <p class="mb-0">{{ program.scholarship_info or 'Posibilidad de becas para estudiantes' }}</p>
@@ -48,12 +48,12 @@
   </div>
 
   {% if program.show_objectives and program.objectives %}
-  <div class="bg-white p-4 rounded shadow-sm mt-4" data-aos="fade-up">
+  <div class="bg-white p-4 rounded shadow-sm mt-4" data-reveal>
     <h3 class="h4 fw-bold mb-3">Objetivos del Programa</h3>
     <ul class="list-unstyled mb-0">
       {% for objective in program.objectives %}
       <li {% if not loop.last %}class="mb-2"{% endif %}>
-        <i class="bi bi-check-circle-fill text-primary me-2"></i> {{ objective }}
+        <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i> {{ objective }}
       </li>
       {% endfor %}
     </ul>

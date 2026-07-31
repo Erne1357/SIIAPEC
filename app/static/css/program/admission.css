@@ -1,18 +1,90 @@
-/* Reduce padding del botón acordeón para que parezca link */
+/* ──────────────────────────────────────────────────────────────
+   app/static/css/program/admission.css
+   Panel de admisión del aspirante.
+   ────────────────────────────────────────────────────────────── */
+
+/* Reduce el relleno del botón acordeón para que se lea como enlace */
 .accordion-button {
   padding-left: 0;
 }
-.accordion-button::after {   /* ícono del accordion ↓ */
-  margin-left: .25rem;
+
+.accordion-button::after {
+  margin-left: var(--space-1);
 }
 
-/* Evita que <tr class="collapse"> afecte al 'table-hover' */
-#archiveTable tbody tr.collapse td {
-  background-color: transparent !important;
+/* Evita que <tr class="collapse"> afecte al 'table-hover'.
+   Antes era #archiveTable: el id se repetía una vez por paso. */
+.archive-table tbody tr.collapse td {
+  background-color: transparent;
 }
 
-/* Ícono rota al abrir */
-#archiveTable a[aria-expanded="true"] i {
+/* El chevron gira al desplegar la descripción del documento */
+.archive-table a[aria-expanded="true"] i {
   transform: rotate(180deg);
-  transition: transform .2s;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+/* Observaciones del revisor: texto largo dentro de una celda estrecha */
+.comment-container {
+  max-width: 200px;
+}
+
+.comment-text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: var(--lh-normal);
+}
+
+/* Detalle de la fila desplegable (descripción, prórroga, observaciones).
+   Panel plano: no es una tarjeta dentro de otra. */
+.archive-detail {
+  background-color: var(--bg-surface-sunken);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.archive-detail__title {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-brand-primary);
+  margin-bottom: var(--space-2);
+}
+
+.archive-detail__box {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  margin-top: var(--space-1);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+/* Documentos de aceptación: filas planas, no tarjetas anidadas */
+.acceptance-doc {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface);
+  height: 100%;
+}
+
+.acceptance-doc--ready {
+  border-color: var(--border-success-subtle);
+}
+
+.acceptance-doc--conditional {
+  border-color: var(--border-warning-subtle);
+  background-color: var(--color-warning-100);
+}
+
+.acceptance-doc__title {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
 }

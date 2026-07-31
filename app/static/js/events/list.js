@@ -27,6 +27,7 @@
     const searchEvents             = document.getElementById('searchEvents');
     const btnShowMyRegistrations   = document.getElementById('btnShowMyRegistrations');
     const myRegistrationsBody      = document.getElementById('myRegistrationsBody');
+    const resultsCount             = document.getElementById('eventsResultsCount');
 
     // ── Helpers ────────────────────────────────────────────────────────
 
@@ -81,53 +82,51 @@
         return map[type] || 'bi-calendar-event';
     }
 
+    /* Tipos de portada soportados por components/_event-cover.css. Un tipo
+       desconocido cae en la variante 'default'. El JS NO conoce colores. */
+    const COVER_TYPES = ['interview', 'defense', 'workshop', 'seminar', 'conference', 'info_session'];
+
     /**
-     * Returns a CSS gradient string for the event type fallback cover.
+     * Returns the .event-cover--* modifier for the given event type.
      * @param {string} type
      * @returns {string}
      */
-    function getEventGradient(type) {
-        const map = {
-            interview:    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            defense:      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-            workshop:     'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-            seminar:      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-            conference:   'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-            info_session: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
-        };
-        return map[type] || 'linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%)';
+    function eventCoverClass(type) {
+        const key = COVER_TYPES.indexOf(type) === -1 ? 'default' : type;
+        return 'event-cover--' + key.replace(/_/g, '-');
     }
 
     /**
-     * Returns the Spanish label and badge color for event type.
+     * Returns the Spanish label and the soft surface utility for an event type.
+     * The chip is a CATEGORY, not a state: it never uses .status-badge--*.
      * @param {string} type
-     * @returns {{ label: string, color: string }}
+     * @returns {{ label: string, soft: string }}
      */
     function eventTypeMeta(type) {
         const map = {
-            interview:    { label: 'Entrevista',          color: 'primary'   },
-            defense:      { label: 'Defensa',             color: 'danger'    },
-            workshop:     { label: 'Taller',              color: 'success'   },
-            seminar:      { label: 'Seminario',           color: 'info'      },
-            conference:   { label: 'Conferencia',         color: 'warning'   },
-            info_session: { label: 'Sesión Informativa',  color: 'secondary' },
+            interview:    { label: 'Entrevista',          soft: 'bg-primary-soft' },
+            defense:      { label: 'Defensa',             soft: 'bg-danger-soft'  },
+            workshop:     { label: 'Taller',              soft: 'bg-success-soft' },
+            seminar:      { label: 'Seminario',           soft: 'bg-info-soft'    },
+            conference:   { label: 'Conferencia',         soft: 'bg-warning-soft' },
+            info_session: { label: 'Sesión Informativa',  soft: 'bg-primary-soft' },
         };
-        return map[type] || { label: type, color: 'secondary' };
+        return map[type] || { label: type || 'Evento', soft: 'bg-primary-soft' };
     }
 
     /**
-     * Formats a date for compact display (e.g. "lun. 12 ene. · 10:00").
+     * Builds a machine-readable <time> element for an event date.
+     * Uses the shared SIIAP date helpers so the server and the client render
+     * exactly the same string.
      * @param {string} iso
-     * @returns {string}
+     * @param {string} [fallback]
+     * @returns {string} HTML
      */
-    function formatDateShort(iso) {
-        if (!iso) return 'Fecha por definir';
-        try {
-            const d = new Date(iso);
-            const datePart = d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
-            const timePart = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-            return `${datePart} · ${timePart}`;
-        } catch { return iso; }
+    function timeTag(iso, fallback) {
+        const parsed = window.SIIAP?.parseDate ? SIIAP.parseDate(iso) : null;
+        if (!parsed) return escapeHtml(fallback || 'Fecha por definir');
+        const text = SIIAP.formatDateTime(iso, 'short');
+        return `<time datetime="${escapeHtml(parsed.toISOString())}">${escapeHtml(text)}</time>`;
     }
 
     // ── Data loading ───────────────────────────────────────────────────
@@ -137,6 +136,7 @@
      * then renders all sections.
      */
     async function loadEvents() {
+        setEventsBusy(true);
         try {
             const [eventsData, regsData, invsData] = await Promise.all([
                 apiRequest(`${API}/events/public`),
@@ -156,12 +156,35 @@
             console.error('[list.js] Error loading events:', err);
             eventsContainer.innerHTML = `
                 <div class="col-12">
-                    <div class="alert alert-danger">
-                        <i class="bi bi-exclamation-circle me-2"></i>
-                        Error al cargar los eventos: ${err.message}
+                    <div class="empty-state empty-state--error">
+                        <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+                        <h2 class="empty-state__title">No se pudieron cargar los eventos</h2>
+                        <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
+                        <p class="empty-state__error-detail">${escapeHtml(err.message)}</p>
+                        <div class="empty-state__actions">
+                            <button type="button" class="btn btn-outline-primary" id="btnRetryEvents">Reintentar</button>
+                        </div>
                     </div>
                 </div>`;
+            announceResults('No se pudieron cargar los eventos.');
+        } finally {
+            setEventsBusy(false);
         }
+    }
+
+    /** Marca el grid como ocupado mientras se recargan los datos. */
+    function setEventsBusy(busy, message) {
+        if (!eventsContainer) return;
+        if (window.SIIAP?.setBusy) {
+            SIIAP.setBusy(eventsContainer, busy, message ? { message } : undefined);
+        } else {
+            eventsContainer.setAttribute('aria-busy', busy ? 'true' : 'false');
+        }
+    }
+
+    /** Escribe el resultado del filtrado en la región viva de la página. */
+    function announceResults(message) {
+        if (resultsCount) resultsCount.textContent = message;
     }
 
     // ── Hero ───────────────────────────────────────────────────────────
@@ -185,15 +208,15 @@
 
         heroStats.innerHTML = `
             <span class="hero-stat">
-                <i class="bi bi-calendar-week"></i>
+                <i class="bi bi-calendar-week" aria-hidden="true"></i>
                 Próximos <strong>${upcoming.length}</strong>
             </span>
             <span class="hero-stat">
-                <i class="bi bi-envelope"></i>
+                <i class="bi bi-envelope" aria-hidden="true"></i>
                 Invitaciones <strong>${pendingInvs.length}</strong>
             </span>
             <span class="hero-stat">
-                <i class="bi bi-check2-circle"></i>
+                <i class="bi bi-check2-circle" aria-hidden="true"></i>
                 Inscrito en <strong>${registeredCount}</strong>
             </span>`;
     }
@@ -210,37 +233,37 @@
 
         if (!visible.length) {
             pendingSection.classList.add('d-none');
-            btnScrollInvitations.style.display = 'none';
+            btnScrollInvitations.classList.add('d-none');
             return;
         }
 
         const pendingOnly = invitations.filter(i => i.status === 'pending');
         pendingSection.classList.remove('d-none');
         pendingCount.textContent = pendingOnly.length;
-        btnScrollInvitations.style.display = '';
+        btnScrollInvitations.classList.remove('d-none');
 
         pendingList.innerHTML = visible.map(inv => {
             const isPending  = inv.status === 'pending';
-            const isRejected = inv.status === 'rejected';
             const isPrivate  = inv.visibility === 'private';
+            const title      = inv.event_title || inv.title || 'Evento';
 
             const statusBadge = isPending
-                ? `<span class="badge bg-warning text-dark">Pendiente</span>`
-                : `<span class="badge bg-secondary">Rechazaste</span>`;
+                ? SIIAP.statusBadge('pending', 'Pendiente')
+                : SIIAP.statusBadge('rejected', 'Rechazaste');
 
             const privateBadge = isPrivate
-                ? `<span class="badge bg-dark ms-1"><i class="bi bi-lock-fill me-1"></i>Privado</span>`
+                ? `<span class="badge bg-dark"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Privado</span>`
                 : '';
 
             const actionButtons = isPending
-                ? `<button class="btn btn-success btn-sm btn-inv-accept" data-inv-id="${inv.id}">
-                        <i class="bi bi-check-lg me-1"></i>Aceptar
+                ? `<button type="button" class="btn btn-success btn-sm btn-inv-accept" data-inv-id="${inv.id}">
+                        <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Aceptar
                    </button>
-                   <button class="btn btn-outline-danger btn-sm btn-inv-reject" data-inv-id="${inv.id}">
-                        <i class="bi bi-x-lg me-1"></i>Rechazar
+                   <button type="button" class="btn btn-outline-danger btn-sm btn-inv-reject" data-inv-id="${inv.id}">
+                        <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Rechazar
                    </button>`
-                : `<button class="btn btn-outline-success btn-sm btn-inv-reconsider" data-inv-id="${inv.id}">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reconsiderar
+                : `<button type="button" class="btn btn-outline-success btn-sm btn-inv-reconsider" data-inv-id="${inv.id}">
+                        <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Reconsiderar
                    </button>`;
 
             return `
@@ -249,12 +272,12 @@
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             ${statusBadge}${privateBadge}
                         </div>
-                        <p class="fw-semibold mb-0">${escapeHtml(inv.event_title || inv.title || 'Evento')}</p>
-                        ${inv.event_date ? `<small class="text-muted"><i class="bi bi-calendar3 me-1"></i>${formatDateShort(inv.event_date)}</small>` : ''}
+                        <p class="fw-semibold mb-0">${escapeHtml(title)}</p>
+                        ${inv.event_date ? `<p class="card-meta mb-0"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>${timeTag(inv.event_date)}</p>` : ''}
                         <div class="d-flex gap-2 flex-wrap mt-auto pt-1">
                             ${actionButtons}
                             <a href="/events/${inv.event_id}" class="btn btn-outline-secondary btn-sm">
-                                <i class="bi bi-eye me-1"></i>Ver detalle
+                                <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver detalle
                             </a>
                         </div>
                     </div>
@@ -311,7 +334,19 @@
             return true;
         });
 
-        renderEvents(filtered);
+        const filtersActive = Boolean(typeVal || capacityVal || dateVal || onlyRegistered || query);
+        renderEvents(filtered, filtersActive);
+    }
+
+    /** Restaura los filtros a su estado inicial y vuelve a pintar el grid. */
+    function clearFilters() {
+        filterType.value       = '';
+        filterCapacity.value   = '';
+        filterDate.value       = '';
+        filterRegistered.checked = false;
+        searchEvents.value     = '';
+        applyFiltersAndRender();
+        searchEvents.focus();
     }
 
     // ── Render principal ───────────────────────────────────────────────
@@ -320,20 +355,33 @@
      * Renders the main events grid.
      * @param {Array} events
      */
-    function renderEvents(events) {
+    function renderEvents(events, filtersActive) {
         if (!events.length) {
+            const description = filtersActive
+                ? 'Ningún evento coincide con los filtros actuales.'
+                : 'Vuelve pronto para ver nuevas convocatorias.';
+            const actions = filtersActive
+                ? `<div class="empty-state__actions">
+                       <button type="button" class="btn btn-outline-primary" id="btnClearFilters">Limpiar filtros</button>
+                   </div>`
+                : '';
             eventsContainer.innerHTML = `
                 <div class="col-12">
-                    <div class="events-empty-state">
-                        <i class="bi bi-calendar-x"></i>
-                        <h5>No hay eventos disponibles</h5>
-                        <p class="text-muted mb-0">No hay eventos que coincidan con los filtros actuales.<br>Vuelve pronto para ver nuevas convocatorias.</p>
+                    <div class="empty-state">
+                        <div class="empty-state__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
+                        <h2 class="empty-state__title">No hay eventos disponibles</h2>
+                        <p class="empty-state__description">${description}</p>
+                        ${actions}
                     </div>
                 </div>`;
+            announceResults('Ningún evento coincide con los filtros.');
             return;
         }
 
         eventsContainer.innerHTML = events.map(ev => renderEventCard(ev)).join('');
+        announceResults(events.length === 1
+            ? '1 evento encontrado.'
+            : `${events.length} eventos encontrados.`);
 
         // Lanzar lazy-load de covers e inicializar hosts visibles
         initLazyCovers();
@@ -356,43 +404,41 @@
         const hasInvitation = isPendingInvitation || isAcceptedInvitation;
         const isFull        = ev.capacity_type === 'multiple' && ev.current_registrations >= ev.max_capacity;
 
-        // Portada
-        const gradient      = getEventGradient(ev.type);
+        // Portada — el color por tipo lo aporta components/_event-cover.css
         const icon          = getEventIcon(ev.type);
-        const coverStyle    = `background: ${gradient};`;
         const coverUrl      = buildCoverUrl(ev.id, ev.cover_path);
         const ribbonHtml = isPendingInvitation
-            ? '<span class="cover-invitation-ribbon ribbon-pending"><i class="bi bi-envelope-paper-fill me-1"></i>Te invitaron</span>'
+            ? '<span class="cover-invitation-ribbon ribbon-pending"><i class="bi bi-envelope-paper-fill me-1" aria-hidden="true"></i>Te invitaron</span>'
             : isAcceptedInvitation
-            ? '<span class="cover-invitation-ribbon ribbon-accepted"><i class="bi bi-envelope-check-fill me-1"></i>Invitación aceptada</span>'
+            ? '<span class="cover-invitation-ribbon ribbon-accepted"><i class="bi bi-envelope-check-fill me-1" aria-hidden="true"></i>Invitación aceptada</span>'
             : '';
         const coverHtml     = `
-            <div class="event-card-cover fallback" style="${coverStyle}"
-                 data-event-id="${ev.id}" data-cover-url="${coverUrl}">
-                <i class="bi ${icon}"></i>
+            <div class="event-card-cover event-cover ${eventCoverClass(ev.type)}"
+                 data-event-id="${ev.id}" data-cover-url="${escapeHtml(coverUrl)}">
+                <i class="bi ${icon} event-cover__icon" aria-hidden="true"></i>
                 ${ribbonHtml}
             </div>`;
 
-        // Badges
+        // Chips de categoría (no son estados: nunca .status-badge--*)
         const programBadge = ev.program_name
-            ? `<span class="badge bg-primary">${escapeHtml(ev.program_name)}</span>`
+            ? `<span class="badge bg-primary-soft">${escapeHtml(ev.program_name)}</span>`
             : `<span class="badge bg-secondary">Abierto a todos</span>`;
-        const typeBadge   = `<span class="badge bg-${typeMeta.color}">${typeMeta.label}</span>`;
+        const typeBadge   = `<span class="badge ${typeMeta.soft}">${escapeHtml(typeMeta.label)}</span>`;
         const privateBadge = ev.visibility === 'private'
-            ? `<span class="badge bg-dark"><i class="bi bi-lock-fill me-1"></i>Privado</span>`
+            ? `<span class="badge bg-dark"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Privado</span>`
             : '';
         const previewBadge = ev.is_preview
-            ? `<span class="badge bg-info"><i class="bi bi-eye me-1"></i>Vista previa</span>`
+            ? `<span class="badge bg-info-soft"><i class="bi bi-eye me-1" aria-hidden="true"></i>Vista previa</span>`
             : '';
         const creatorBadge = ev.is_creator
-            ? `<span class="badge bg-warning text-dark"><i class="bi bi-person-fill-gear me-1"></i>Tú lo creaste</span>`
+            ? `<span class="badge bg-warning-soft"><i class="bi bi-person-fill-gear me-1" aria-hidden="true"></i>Tú lo creaste</span>`
             : '';
 
         // Meta (fecha, lugar)
         const dateLine = ev.event_date
-            ? `<div class="card-meta"><i class="bi bi-calendar3"></i> ${formatDateShort(ev.event_date)}</div>`
+            ? `<p class="card-meta mb-0"><i class="bi bi-calendar3" aria-hidden="true"></i> ${timeTag(ev.event_date)}</p>`
             : '';
-        const locationLine = `<div class="card-meta"><i class="bi bi-geo-alt"></i> ${escapeHtml(ev.location || 'Lugar por definir')}</div>`;
+        const locationLine = `<p class="card-meta mb-0"><i class="bi bi-geo-alt" aria-hidden="true"></i> ${escapeHtml(ev.location || 'Lugar por definir')}</p>`;
 
         // Chips de ponentes (placeholder — se llenará por lazy load)
         const hostsPlaceholder = `<div class="host-chips" id="host-chips-${ev.id}"></div>`;
@@ -404,46 +450,49 @@
             const fillClass = pct >= 90 ? 'fill-danger' : pct >= 60 ? 'fill-warn' : 'fill-ok';
             capacityHtml = `
                 <div>
-                    <div class="d-flex justify-content-between mb-1">
-                        <small class="text-muted" style="font-size:0.78rem;">Inscritos</small>
-                        <small class="fw-semibold" style="font-size:0.78rem;">${ev.current_registrations} / ${ev.max_capacity}</small>
+                    <div class="d-flex justify-content-between mb-1 capacity-legend">
+                        <span>Inscritos</span>
+                        <span class="fw-semibold">${ev.current_registrations} / ${ev.max_capacity}</span>
                     </div>
-                    <div class="card-capacity-bar">
-                        <div class="card-capacity-bar-fill ${fillClass}" style="width:${pct}%;"></div>
+                    <div class="card-capacity-bar" role="img"
+                         aria-label="${ev.current_registrations} de ${ev.max_capacity} lugares ocupados">
+                        <div class="card-capacity-bar-fill ${fillClass}" style="--progress:${pct}"></div>
                     </div>
                 </div>`;
         }
 
         // Footer: estado + acciones
         const statusBadge = isRegistered
-            ? `<span class="badge bg-success-subtle text-success border border-success-subtle">
-                    <i class="bi bi-check-circle me-1"></i>Inscrito
-               </span>`
+            ? SIIAP.statusBadge('enrolled', 'Inscrito', 'sm')
             : isFull
-            ? `<span class="badge bg-danger-subtle text-danger border border-danger-subtle">
-                    <i class="bi bi-x-circle me-1"></i>Cupo lleno
-               </span>`
+            ? SIIAP.statusBadge('rejected', 'Cupo lleno', 'sm')
             : '';
 
         let actionBtn = '';
         if (isRegistered && myReg && myReg.status !== 'attended') {
-            actionBtn = `<button class="btn btn-outline-danger btn-sm btn-unregister" data-event-id="${ev.id}">
-                            <i class="bi bi-person-dash"></i>
+            actionBtn = `<button type="button" class="btn btn-outline-danger btn-sm tap-target btn-unregister"
+                                 data-event-id="${ev.id}"
+                                 aria-label="Cancelar mi registro en ${escapeHtml(ev.title)}"
+                                 title="Cancelar registro">
+                            <i class="bi bi-person-dash" aria-hidden="true"></i>
                          </button>`;
         } else if (!isRegistered && !isFull) {
             const label = isPendingInvitation
-                ? '<i class="bi bi-check2-circle me-1"></i>Aceptar y registrarme'
-                : '<i class="bi bi-person-plus me-1"></i>Registrarme';
+                ? '<i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Aceptar y registrarme'
+                : '<i class="bi bi-person-plus me-1" aria-hidden="true"></i>Registrarme';
             const btnClass = isPendingInvitation ? 'btn btn-success' : 'btn btn-primary';
-            actionBtn = `<button class="${btnClass} btn-sm btn-register" data-event-id="${ev.id}">
+            actionBtn = `<button type="button" class="${btnClass} btn-sm btn-register" data-event-id="${ev.id}">
                             ${label}
                          </button>`;
         }
 
         // Botón rechazar visible solo cuando hay invitación pendiente y no está registrado
         const rejectBtn = isPendingInvitation && !isRegistered
-            ? `<button class="btn btn-outline-danger btn-sm btn-inv-reject-card" data-event-id="${ev.id}" title="Rechazar invitación">
-                    <i class="bi bi-x-lg"></i>
+            ? `<button type="button" class="btn btn-outline-danger btn-sm tap-target btn-inv-reject-card"
+                       data-event-id="${ev.id}"
+                       aria-label="Rechazar la invitación a ${escapeHtml(ev.title)}"
+                       title="Rechazar invitación">
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
                </button>`
             : '';
 
@@ -460,7 +509,7 @@
                         <div class="d-flex flex-wrap gap-1 mb-1">
                             ${typeBadge}${programBadge}${privateBadge}${previewBadge}${creatorBadge}
                         </div>
-                        <h5 class="card-title">${escapeHtml(ev.title)}</h5>
+                        <h2 class="card-title">${escapeHtml(ev.title)}</h2>
                         ${dateLine}
                         ${locationLine}
                         ${hostsPlaceholder}
@@ -471,7 +520,8 @@
                         <div class="footer-status">${statusBadge}</div>
                         <div class="footer-actions">
                             <a href="/events/${ev.id}" class="btn btn-outline-primary btn-sm">
-                                <i class="bi bi-eye me-1"></i>Ver detalle
+                                <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver detalle
+                                <span class="visually-hidden">de ${escapeHtml(ev.title)}</span>
                             </a>
                             ${rejectBtn}
                             ${actionBtn}
@@ -517,15 +567,15 @@
     }
 
     /**
-     * Applies a background-image URL to a cover element, removing the fallback style.
+     * Applies the real cover photo through the --event-cover-src custom
+     * property. El color plano del tipo queda debajo como respaldo y el icono
+     * se oculta solo via .event-cover--has-image.
      * @param {HTMLElement} el
      * @param {string} url
      */
     function applyCover(el, url) {
-        el.style.background = `url('${url}') center/cover no-repeat`;
-        el.classList.remove('fallback');
-        const icon = el.querySelector('i');
-        if (icon) icon.remove();
+        el.style.setProperty('--event-cover-src', `url('${url}')`);
+        el.classList.add('event-cover--has-image');
     }
 
     // ── Hosts: vienen pre-computados en hosts_summary del endpoint /public ──
@@ -564,11 +614,11 @@
             const initials = (h.name || '?').charAt(0).toUpperCase();
             const src = buildHostPhotoUrl(eventId, h);
             return src
-                ? `<img class="h-avatar" src="${escapeHtml(src)}" alt="${escapeHtml(h.name || '')}" title="${escapeHtml(h.name || '')}">`
-                : `<span class="h-avatar d-flex align-items-center justify-content-center" style="background:var(--bs-secondary); color:white; font-size:0.7rem; font-weight:600;">${escapeHtml(initials)}</span>`;
+                ? `<img class="h-avatar" src="${escapeHtml(src)}" alt="${escapeHtml(h.name || '')}" title="${escapeHtml(h.name || '')}" loading="lazy">`
+                : `<span class="h-avatar h-avatar--initials" aria-hidden="true" title="${escapeHtml(h.name || '')}">${escapeHtml(initials)}</span>`;
         }).join('');
 
-        const extraHtml = extra > 0 ? `<span class="host-extra">+${extra}</span>` : '';
+        const extraHtml = extra > 0 ? `<span class="host-extra" aria-hidden="true">+${extra}</span>` : '';
 
         el.innerHTML = `
             <div class="host-avatars">${avatarsHtml}${extraHtml}</div>
@@ -588,33 +638,39 @@
     function renderMyRegistrationsModal() {
         if (!myRegistrations.length) {
             myRegistrationsBody.innerHTML = `
-                <div class="text-center py-4 text-muted">
-                    <i class="bi bi-calendar-x fs-3 d-block mb-2"></i>
-                    No tienes registros en ningún evento.
+                <div class="empty-state empty-state--compact">
+                    <div class="empty-state__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
+                    <h3 class="empty-state__title">Sin registros</h3>
+                    <p class="empty-state__description">No tienes registros en ningún evento.</p>
                 </div>`;
             return;
         }
+
+        /* Estados reales del registro -> modificadores del componente compartido. */
+        const REG_STATUS = {
+            registered: { key: 'enrolled',  label: 'Registrado'   },
+            attended:   { key: 'approved',  label: 'Asististe'    },
+            no_show:    { key: 'deferred',  label: 'No asististe' },
+            cancelled:  { key: 'rejected',  label: 'Cancelado'    },
+        };
 
         myRegistrationsBody.innerHTML = `
             <div class="list-group list-group-flush">
                 ${myRegistrations.map(r => {
                     const ev = allEvents.find(e => e.id === r.event_id) || {};
-                    const statusMap = {
-                        registered: { label: 'Registrado', color: 'info' },
-                        attended:   { label: 'Asististe', color: 'success' },
-                        no_show:    { label: 'No asististe', color: 'warning' },
-                        cancelled:  { label: 'Cancelado', color: 'secondary' },
-                    };
-                    const s = statusMap[r.status] || { label: r.status, color: 'secondary' };
+                    const s = REG_STATUS[r.status] || { key: 'pending', label: SIIAP.statusLabel(r.status) };
+                    const title = ev.title || r.event_title || 'Evento';
                     return `
-                        <div class="list-group-item reg-item d-flex justify-content-between align-items-center">
+                        <div class="list-group-item reg-item d-flex justify-content-between align-items-center gap-2">
                             <div>
-                                <p class="mb-0 fw-semibold">${escapeHtml(ev.title || r.event_title || 'Evento')}</p>
-                                ${ev.event_date ? `<small class="text-muted">${formatDateShort(ev.event_date)}</small>` : ''}
+                                <p class="mb-0 fw-semibold">${escapeHtml(title)}</p>
+                                ${ev.event_date ? `<p class="card-meta mb-0">${timeTag(ev.event_date)}</p>` : ''}
                             </div>
                             <div class="d-flex align-items-center gap-2">
-                                <span class="badge bg-${s.color}">${s.label}</span>
-                                <a href="/events/${r.event_id}" class="btn btn-outline-primary btn-sm">Ver</a>
+                                ${SIIAP.statusBadge(s.key, s.label, 'sm')}
+                                <a href="/events/${r.event_id}" class="btn btn-outline-primary btn-sm">
+                                    Ver<span class="visually-hidden"> ${escapeHtml(title)}</span>
+                                </a>
                             </div>
                         </div>`;
                 }).join('')}
@@ -731,6 +787,12 @@
     // ── Event delegation ───────────────────────────────────────────────
 
     eventsContainer?.addEventListener('click', e => {
+        const btnClear = e.target.closest('#btnClearFilters');
+        if (btnClear) { clearFilters(); return; }
+
+        const btnRetryEvents = e.target.closest('#btnRetryEvents');
+        if (btnRetryEvents) { loadEvents(); return; }
+
         const btnReg = e.target.closest('.btn-register');
         if (btnReg) { registerToEvent(parseInt(btnReg.dataset.eventId, 10)); return; }
 

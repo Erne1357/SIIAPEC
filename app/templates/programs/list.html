@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_macros.html' import empty_state %}
 
 {% block title %}Programas de Posgrado{% endblock %}
 
@@ -8,12 +9,8 @@
 
 {% block content %}
 <div class="container program-container">
-  <header class="programs-hero" data-aos="fade-up">
+  <header class="programs-hero" data-reveal>
     <div class="programs-hero__content">
-      <span class="programs-hero__eyebrow">
-        <i class="bi bi-mortarboard-fill"></i>
-        ITCJ · TECNM
-      </span>
       <h1 class="programs-hero__title">
         Forma parte del posgrado de excelencia<br>
         del Tecnológico Nacional de México
@@ -29,23 +26,25 @@
   </header>
 
   {% if programs %}
-    <div class="row g-4" data-aos="fade-up" data-aos-delay="100">
+    <div class="row g-4">
       {% for p in programs %}
-        <div class="col-md-6 col-lg-4 mb-4" data-aos="fade-up" data-aos-delay="{{ loop.index * 50 }}">
+        <div class="col-md-6 col-lg-4" data-reveal data-reveal-delay="{{ loop.index0 * 50 }}">
           <div class="card program-card">
-            <!-- Imagen con overlay y badge -->
+            {# Imagen decorativa: el nombre del programa ya lo aporta el encabezado #}
             <div class="position-relative overflow-hidden">
               {% if p.image_filename %}
               <img
                 src="{{ url_for('static', filename='assets/images/' ~ p.image_filename) }}?v={{ static_version }}"
-                alt="{{ p.name }}"
-                class="program-image w-100"
+                alt=""
+                class="program-image"
+                width="640" height="360"
                 loading="lazy" decoding="async">
               {% else %}
               <img
-                src="{{ url_for('static', filename='assets/images/default-program.webp') }}?v={{ static_version }}"
-                alt="{{ p.name }}"
-                class="program-image w-100"
+                src="{{ url_for('static', filename='assets/images/default.jpg') }}?v={{ static_version }}"
+                alt=""
+                class="program-image"
+                width="640" height="360"
                 loading="lazy" decoding="async">
               {% endif %}
 
@@ -57,20 +56,20 @@
                 <span class="program-badge badge-especialidad">{{ p.program_level or 'Especialidad' }}</span>
               {% endif %}
             </div>
-            
+
             <div class="card-body program-card-body">
-              <h5 class="card-title">{{ p.name }}</h5>
-              
-              <div class="program-meta">
-                <i class="bi bi-calendar3 program-icon"></i>
+              <h2 class="card-title h5">{{ p.name }}</h2>
+
+              <p class="program-meta">
+                <i class="bi bi-calendar3 program-icon" aria-hidden="true"></i>
                 <span>{{ p.duration_display }}</span>
-              </div>
-              
-              <div class="program-meta">
-                <i class="bi bi-mortarboard-fill program-icon"></i>
+              </p>
+
+              <p class="program-meta">
+                <i class="bi bi-mortarboard-fill program-icon" aria-hidden="true"></i>
                 <span>{{ p.program_level or 'Posgrado' }}</span>
-              </div>
-              
+              </p>
+
               <p class="card-text flex-grow-1">
                 {{ p.description[:120] }}{% if p.description|length > 120 %}...{% endif %}
               </p>
@@ -79,14 +78,15 @@
                 <a
                   href="{{ url_for('program.view_program', slug = p.slug) }}"
                   class="btn btn-primary btn-ver-mas flex-grow-1">
-                  Ver detalles <i class="bi bi-arrow-right ms-1"></i>
+                  Ver detalles <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
                 </a>
                 {% if has_perm('academic_periods.api.create') or p.coordinator_id == current_user.id %}
                 <a
                   href="{{ url_for('pages_admin.pages_settings.config_program', slug=p.slug) }}"
-                  class="btn btn-outline-secondary"
-                  title="Configurar programa">
-                  <i class="bi bi-gear-fill"></i>
+                  class="btn btn-outline-secondary tap-target"
+                  aria-label="Configurar {{ p.name }}"
+                  title="Configurar {{ p.name }}">
+                  <i class="bi bi-gear-fill" aria-hidden="true"></i>
                 </a>
                 {% endif %}
               </div>
@@ -96,15 +96,13 @@
       {% endfor %}
     </div>
   {% else %}
-    <div class="alert alert-info text-center" data-aos="fade-up">
-      <i class="bi bi-info-circle-fill me-2"></i>
-      No hay programas disponibles en este momento.
-    </div>
+    {{ empty_state(
+        icon='mortarboard',
+        title='Aún no hay programas publicados',
+        description='Por el momento no hay programas de posgrado disponibles para consulta. Escríbenos y te avisamos en cuanto se publique la convocatoria.',
+        action_label='Escribir a Posgrado',
+        action_url='mailto:posgrado@itcj.edu.mx'
+    ) }}
   {% endif %}
 </div>
-{% endblock %}
-
-{% block scripts %}
-{{ super() }}
-<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
 {% endblock %}

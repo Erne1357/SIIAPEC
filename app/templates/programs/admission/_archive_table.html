@@ -1,296 +1,37 @@
-<div class="table-responsive">
-  {% if step.name == 'Entrevista' or step.name == 'Defensa de Protocolo' %}
-  <div class="interview-info">
+{# app/templates/programs/admission/_archive_table.html
+   Tabla de documentos de UN paso. Requiere `step`, `subs`, `all_extensions`
+   y `current_user` en el contexto. Todo el markup de fila vive en
+   _archive_rows.html: aquí sólo se abre la tabla. #}
+{% from '_macros.html' import data_table_open, data_table_close, empty_state %}
+{% from 'programs/admission/_archive_rows.html' import render_archive_row, archive_table_head %}
+
+{% if step.name == 'Entrevista' or step.name == 'Defensa de Protocolo' %}
+  <div class="interview-info" role="status" aria-live="polite" aria-busy="true">
+    <div class="skeleton skeleton-card skeleton-card--sm"></div>
   </div>
-  {%else%}
-  <table class="table table-hover align-middle" id="archiveTable">
-    <thead class="table-light">
-      <tr>
-        <th style="width:32px;"></th>
-        <th>Documento</th>
-        <th class="d-none d-md-table-cell" style="width:160px;">Plantilla</th>
-        <th style="width:140px;">Estado</th>
-        <th style="width:180px;">Acciones</th>
-        <th class="d-none d-lg-table-cell" style="width:200px;">Observaciones</th>
-        <th class="d-none d-lg-table-cell" style="width:130px;">Revisado</th>
-      </tr>
-    </thead>
-
+{% else %}
+  {% set is_informative = step.program_steps and step.program_steps[0].sequence == 0 %}
+  {{ data_table_open('Documentos requeridos del paso ' ~ step.name,
+                     id='archiveTable-' ~ step.id,
+                     table_class='table-hover align-middle archive-table') }}
+    {{ archive_table_head() }}
     <tbody>
-      {% for arch in step.archives %}
-      {% set sub = subs.get(arch.id) %}
-      {% set row_id = "row-" ~ arch.id %}
-
-      <!-- Fila principal -->
-      <tr>
-        <td><i class="bi bi-file-earmark-text text-secondary"></i></td>
-        <td>
-          <a class="text-decoration-none" data-bs-toggle="collapse" href="#{{ row_id }}" role="button">
-            {{ arch.name }}
-            <i class="bi bi-chevron-down small ms-1"></i>
-          </a>
-        </td>
-
-        <!-- Plantilla -->
-        <td class="d-none d-md-table-cell">
-          {% if arch.is_downloadable and arch.file_path %}
-          <a class="btn btn-link btn-sm" href="{{ url_for('api_archives.download_template', archive_id=arch.id) }}"
-            target="_blank">
-            <i class="bi bi-download me-1"></i>Descargar
-          </a>
-          {% else %}
-          <span class="text-muted">—</span>
-          {% endif %}
-        </td>
-
-        <!-- Estado mejorado -->
-        <td>
-          <div class="d-flex align-items-center gap-1">
-            {% if not sub %}
-              {% if arch.id in all_extensions %}
-                {% set ext = all_extensions[arch.id] %}
-                {% if ext.status == 'pending' %}
-                <span class="badge bg-warning text-dark">Prórroga Pendiente</span>
-                {% elif ext.status == 'granted' %}
-                <span class="badge bg-info">En Prórroga</span>
-                {% elif ext.status == 'rejected' %}
-                <span class="badge bg-danger">Prórroga Rechazada</span>
-                {% elif ext.status == 'cancelled' %}
-                <span class="badge bg-secondary">Prórroga Cancelada</span>
-                {% endif %}
-              {% else %}
-              <span class="badge bg-secondary">Pendiente</span>
-              {% endif %}
-            {% elif sub.status == 'approved' %}
-            <span class="badge bg-success">Aprobado</span>
-            {% elif sub.status == 'rejected' %}
-            <span class="badge bg-danger">Rechazado</span>
-            {% else %}
-            <span class="badge bg-warning text-dark">En Revisión</span>
-            {% endif %}
-            
-            <!-- Indicador de quién subió el archivo -->
-            {% if sub and sub.uploaded_by and sub.uploaded_by != current_user.id %}
-            <i class="bi bi-person-vcard-fill text-primary"
-               title="Archivo subido por coordinador"
-               data-bs-toggle="tooltip"></i>
-            {% elif sub %}
-            <i class="bi bi-person text-muted"
-               title="Archivo subido por ti"
-               data-bs-toggle="tooltip"></i>
-            {% endif %}
-          </div>
-        </td>
-
-        <!-- Acciones mejoradas -->
-        <td>
-          <div class="btn-group-vertical btn-group-sm d-md-none w-100" role="group">
-            <!-- Versión móvil: botones apilados -->
-            {% set is_informative = step.program_steps and step.program_steps[0].sequence == 0 %}
-            {% if arch.is_uploadable and not is_informative %}
-              {% if sub and sub.file_path %}
-              <a class="btn btn-outline-primary btn-sm"
-                 title="Ver documento"
-                 href="{{ url_for('api_files.user_doc',
-                                 user_id=current_user.id,
-                                 phase='admission',
-                                 filename=sub.file_path.split('/')[-1]) }}"
-                 target="_blank">
-                <i class="bi bi-eye me-1"></i>Ver Documento
-              </a>
-              {% endif %}
-
-              <button class="btn btn-outline-success btn-sm"
-                      title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo"
-                      data-bs-toggle="modal"
-                      data-bs-target="#uploadModal"
-                      data-archive="{{ arch.id }}"
-                      data-step="{{ step.id }}"
-                      data-archive-name="{{ arch.name }}"
-                      data-has-existing="{{ 'true' if sub and sub.file_path else 'false' }}"
-                      data-existing-filename="{{ sub.file_path.split('/')[-1] if sub and sub.file_path else '' }}"
-                      data-existing-date="{{ sub.upload_date.strftime('%d/%m/%Y %H:%M') if sub else '' }}">
-                <i class="bi bi-upload me-1"></i>
-                {% if sub %}Reemplazar{% else %}Subir{% endif %}
-              </button>
-
-              {% if arch.allow_extension_request %}
-              <button class="btn btn-outline-info btn-sm btn-request-extension" 
-                      data-archive-id="{{ arch.id }}"
-                      data-archive-name="{{ arch.name }}"
-                      title="Solicitar prórroga">
-                <i class="bi bi-clock me-1"></i>Prórroga
-              </button>
-              {% endif %}
-
-              {% if sub and sub.uploaded_by == current_user.id %}
-              <button class="btn btn-outline-danger btn-sm" 
-                      title="Eliminar archivo" 
-                      data-delete-submission="{{ sub.id }}"
-                      data-step="{{ step.id }}">
-                <i class="bi bi-trash me-1"></i>Eliminar
-              </button>
-              {% endif %}
-            {% elif is_informative %}
-            <span class="text-info small">
-              <i class="bi bi-info-circle-fill me-1"></i>Solo informativo
-            </span>
-            {% else %}
-            <span class="text-muted small">
-              <i class="bi bi-slash-circle"></i> Sin acciones
-            </span>
-            {% endif %}
-          </div>
-
-          <!-- Versión desktop: botones horizontales -->
-          <div class="btn-group btn-group-sm d-none d-md-flex" role="group">
-            {% if arch.is_uploadable and not is_informative %}
-              {% if sub and sub.file_path %}
-              <a class="btn btn-outline-primary"
-                 title="Ver documento"
-                 href="{{ url_for('api_files.user_doc',
-                                 user_id=current_user.id,
-                                 phase='admission',
-                                 filename=sub.file_path.split('/')[-1]) }}"
-                 target="_blank">
-                <i class="bi bi-eye"></i>
-              </a>
-              {% endif %}
-
-              <button class="btn btn-outline-success"
-                      title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo"
-                      data-bs-toggle="modal"
-                      data-bs-target="#uploadModal"
-                      data-archive="{{ arch.id }}"
-                      data-step="{{ step.id }}"
-                      data-archive-name="{{ arch.name }}"
-                      data-has-existing="{{ 'true' if sub and sub.file_path else 'false' }}"
-                      data-existing-filename="{{ sub.file_path.split('/')[-1] if sub and sub.file_path else '' }}"
-                      data-existing-date="{{ sub.upload_date.strftime('%d/%m/%Y %H:%M') if sub else '' }}">
-                <i class="bi bi-upload"></i>
-              </button>
-
-              {% if arch.allow_extension_request %}
-              <button class="btn btn-outline-info btn-request-extension" 
-                      data-archive-id="{{arch.id}}"
-                      data-archive-name="{{ arch.name }}"
-                      title="Solicitar prórroga">
-                <i class="bi bi-clock"></i>
-              </button>
-              {% endif %}
-
-              {% if sub and sub.uploaded_by == current_user.id %}
-              <button class="btn btn-outline-danger" 
-                      title="Eliminar archivo" 
-                      data-delete-submission="{{ sub.id }}"
-                      data-step="{{ step.id }}">
-                <i class="bi bi-trash"></i>
-              </button>
-              {% endif %}
-            {% elif is_informative %}
-            <span class="text-info small">
-              <i class="bi bi-info-circle-fill"></i> Informativo
-            </span>
-            {% else %}
-            <span class="text-muted small">
-              <i class="bi bi-slash-circle"></i> Sin acciones
-            </span>
-            {% endif %}
-          </div>
-        </td>
-
-        <!-- Observaciones mejoradas -->
-        <td class="d-none d-lg-table-cell">
-          {% if sub and sub.reviewer_comment %}
-          <div class="comment-container" style="max-width: 200px;">
-            <div class="comment-text small" 
-                 style="white-space: normal; word-wrap: break-word; line-height: 1.3;">
-              {{ sub.reviewer_comment }}
-            </div>
-          </div>
-          {% else %}
-          <span class="text-muted">—</span>
-          {% endif %}
-        </td>
-
-        <!-- Fecha de revisión -->
-        <td class="d-none d-lg-table-cell">
-          {% if sub and sub.review_date %}
-          <span class="small">{{ sub.review_date.strftime('%d/%m/%Y') }}</span>
-          {% else %}
-          <span class="text-muted">—</span>
-          {% endif %}
-        </td>
-      </tr>
-
-      <!-- Fila descripción colapsable mejorada -->
-      <tr id="{{ row_id }}" class="collapse">
-        <td></td>
-        <td colspan="6" class="px-3 py-2">
-          <div class="card card-body bg-light border-0 shadow-sm">
-            <h6 class="card-title text-primary mb-2">
-              <i class="bi bi-info-circle-fill me-1"></i>Descripción del documento
-            </h6>
-            <p class="card-text small mb-2">
-              {{ arch.description or 'Sin descripción disponible.' }}
-            </p>
-            
-            <!-- Información adicional en móvil -->
-            <div class="d-lg-none">
-              {% if arch.is_downloadable and arch.file_path %}
-              <div class="mb-2">
-                <strong>Plantilla:</strong> 
-                <a href="{{ url_for('api_archives.download_template', archive_id=arch.id) }}" 
-                   target="_blank" class="btn btn-sm btn-outline-primary">
-                  <i class="bi bi-download me-1"></i>Descargar
-                </a>
-              </div>
-              {% endif %}
-              
-              {% if arch.id in all_extensions %}
-              <div class="mb-2">
-                <strong>Estado de prórroga:</strong>
-                {% set ext = all_extensions[arch.id] %}
-                <div class="bg-white p-2 rounded border small mt-1">
-                  <div><strong>Estado:</strong> 
-                    {% if ext.status == 'pending' %}
-                    <span class="badge bg-warning text-dark">Pendiente</span>
-                    {% elif ext.status == 'granted' %}
-                    <span class="badge bg-success">Otorgada</span>
-                    {% elif ext.status == 'rejected' %}
-                    <span class="badge bg-danger">Rechazada</span>
-                    {% endif %}
-                  </div>
-                  <div><strong>Razón:</strong> {{ ext.reason }}</div>
-                  {% if ext.granted_until %}
-                  <div><strong>Válida hasta:</strong> {{ ext.granted_until.strftime('%d/%m/%Y %H:%M') }}</div>
-                  {% endif %}
-                </div>
-              </div>
-              {% endif %}
-              
-              {% if sub and sub.reviewer_comment %}
-              <div class="mb-2">
-                <strong>Observaciones del revisor:</strong>
-                <div class="bg-white p-2 rounded border small mt-1" 
-                     style="white-space: normal; word-wrap: break-word;">
-                  {{ sub.reviewer_comment }}
-                </div>
-              </div>
-              {% endif %}
-              
-              {% if sub and sub.review_date %}
-              <div class="mb-0">
-                <strong>Fecha de revisión:</strong> 
-                <span class="text-muted">{{ sub.review_date.strftime('%d/%m/%Y a las %H:%M') }}</span>
-              </div>
-              {% endif %}
-            </div>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
+      {% if step.archives %}
+        {% for arch in step.archives %}
+          {{ render_archive_row(arch, step, subs, all_extensions, current_user, is_informative) }}
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="7">
+            {{ empty_state(
+                 icon='folder2-open',
+                 title='Sin documentos en este paso',
+                 description='Este paso no requiere que subas ningún archivo.',
+                 variant='inline'
+               ) }}
+          </td>
+        </tr>
+      {% endif %}
     </tbody>
-  </table>
-  {% endif %}
-</div>
+  {{ data_table_close() }}
+{% endif %}

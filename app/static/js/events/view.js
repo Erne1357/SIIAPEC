@@ -18,6 +18,7 @@
     const errorMessage   = document.getElementById('errorMessage');
     const eventContent   = document.getElementById('eventContent');
     const breadcrumbTitle = document.getElementById('breadcrumbTitle');
+    const viewContainer  = document.getElementById('eventViewContainer');
 
     // ── Helpers ──────────────────────────────────────────────
 
@@ -30,10 +31,20 @@
         return meta ? meta.getAttribute('content') : '';
     }
 
+    function setBusy(busy, message) {
+        if (!viewContainer) return;
+        if (window.SIIAP?.setBusy) {
+            SIIAP.setBusy(viewContainer, busy, message ? { message } : undefined);
+        } else {
+            viewContainer.setAttribute('aria-busy', busy ? 'true' : 'false');
+        }
+    }
+
     function showLoading() {
         loadingState.classList.remove('d-none');
         errorState.classList.add('d-none');
         eventContent.classList.add('d-none');
+        setBusy(true);
     }
 
     function showError(msg) {
@@ -41,81 +52,92 @@
         errorMessage.textContent = msg || 'Error inesperado.';
         errorState.classList.remove('d-none');
         eventContent.classList.add('d-none');
+        setBusy(false);
     }
 
     function showContent() {
         loadingState.classList.add('d-none');
         errorState.classList.add('d-none');
         eventContent.classList.remove('d-none');
+        setBusy(false);
     }
 
     /**
-     * Formats a date-time string for display in Spanish.
-     * @param {string} iso - ISO date-time string.
-     * @param {object} opts - Intl.DateTimeFormat options override.
+     * Fecha completa en español ('31 de julio de 2026 a las 14:30').
+     * Delega en el helper compartido para no divergir del filtro de Jinja.
+     * @param {string} iso
+     * @param {'long'|'short'|'numeric'} [style]
      * @returns {string}
      */
-    function formatDate(iso, opts = {}) {
-        if (!iso) return '—';
-        const defaults = {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        };
-        try {
-            return new Date(iso).toLocaleDateString('es-MX', { ...defaults, ...opts });
-        } catch {
-            return iso;
-        }
+    function formatDate(iso, style) {
+        return SIIAP.formatDateTime(iso, style || 'long');
     }
 
     /**
-     * Formats only the time portion.
+     * Hora en formato 24 h.
      * @param {string} iso
      * @returns {string}
      */
     function formatTime(iso) {
-        if (!iso) return '—';
-        try {
-            return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-        } catch {
-            return iso;
-        }
+        return SIIAP.formatTime(iso, '—');
     }
 
     /**
-     * Returns the Spanish label and badge color for event type.
+     * Devuelve un <time datetime> legible por máquinas.
+     * @param {string} iso
+     * @param {'long'|'short'|'numeric'} [style]
+     * @returns {string} HTML
+     */
+    function timeTag(iso, style) {
+        const parsed = SIIAP.parseDate(iso);
+        if (!parsed) return '—';
+        return `<time datetime="${escapeHtml(parsed.toISOString())}">${escapeHtml(formatDate(iso, style))}</time>`;
+    }
+
+    /* Tipos con portada propia en components/_event-cover.css. */
+    const COVER_TYPES = ['interview', 'defense', 'workshop', 'seminar', 'conference', 'info_session'];
+
+    /**
+     * Modificador .event-cover--* para el tipo de evento. El JS no conoce colores.
      * @param {string} type
-     * @returns {{ label: string, color: string }}
+     * @returns {string}
+     */
+    function eventCoverClass(type) {
+        const key = COVER_TYPES.indexOf(type) === -1 ? 'default' : type;
+        return 'event-cover--' + key.replace(/_/g, '-');
+    }
+
+    /**
+     * Etiqueta en español y superficie suave del chip de tipo de evento.
+     * El tipo es una CATEGORÍA, no un estado: nunca usa .status-badge--*.
+     * @param {string} type
+     * @returns {{ label: string, soft: string }}
      */
     function eventTypeMeta(type) {
         const map = {
-            interview:    { label: 'Entrevista',          color: 'primary' },
-            defense:      { label: 'Defensa',             color: 'danger'  },
-            workshop:     { label: 'Taller',              color: 'success' },
-            seminar:      { label: 'Seminario',           color: 'info'    },
-            conference:   { label: 'Conferencia',         color: 'warning' },
-            info_session: { label: 'Sesión Informativa',  color: 'secondary' },
+            interview:    { label: 'Entrevista',          soft: 'bg-primary-soft' },
+            defense:      { label: 'Defensa',             soft: 'bg-danger-soft'  },
+            workshop:     { label: 'Taller',              soft: 'bg-success-soft' },
+            seminar:      { label: 'Seminario',           soft: 'bg-info-soft'    },
+            conference:   { label: 'Conferencia',         soft: 'bg-warning-soft' },
+            info_session: { label: 'Sesión Informativa',  soft: 'bg-primary-soft' },
         };
-        return map[type] || { label: type, color: 'secondary' };
+        return map[type] || { label: type || 'Evento', soft: 'bg-primary-soft' };
     }
 
     /**
-     * Returns the Spanish label and badge color for event status.
+     * Estado de publicación del evento -> modificador del componente compartido.
      * @param {string} status
-     * @returns {{ label: string, color: string }}
+     * @returns {{ label: string, key: string }}
      */
     function statusMeta(status) {
         const map = {
-            draft:      { label: 'Borrador',    color: 'secondary' },
-            published:  { label: 'Publicado',   color: 'success'   },
-            cancelled:  { label: 'Cancelado',   color: 'danger'    },
-            completed:  { label: 'Completado',  color: 'info'      },
+            draft:      { label: 'Borrador',   key: 'pending'      },
+            published:  { label: 'Publicado',  key: 'approved'     },
+            cancelled:  { label: 'Cancelado',  key: 'rejected'     },
+            completed:  { label: 'Completado', key: 'enrolled'     },
         };
-        return map[status] || { label: status, color: 'secondary' };
+        return map[status] || { label: SIIAP.statusLabel(status), key: 'pending' };
     }
 
     // ── API request helper ───────────────────────────────────
@@ -150,7 +172,30 @@
     /**
      * Fetches event detail from the public API and triggers render.
      */
+    /* Cache de /images: hero y galería comparten la MISMA respuesta, así que
+       el detalle solo hace una petición por carga en vez de dos. */
+    let imagesPromise = null;
+
+    /**
+     * Fetches (once per load) the cover + gallery payload.
+     * @param {number} evId
+     * @returns {Promise<{cover: object|null, gallery: Array}>}
+     */
+    function fetchEventImages(evId) {
+        if (!imagesPromise) {
+            imagesPromise = apiRequest(`${API}/events/${evId}/images`)
+                .then(data => ({
+                    cover:   data.cover   || data.data?.cover   || null,
+                    gallery: data.gallery || data.data?.gallery || [],
+                }))
+                .catch(() => ({ cover: null, gallery: [] }));
+        }
+        return imagesPromise;
+    }
+
     async function loadEventDetail() {
+        imagesPromise = null;
+        setBusy(true, 'Cargando información del evento…');
         try {
             const data = await apiRequest(`${API}/events/public/${eventId}`);
             eventData       = data.event;
@@ -187,34 +232,35 @@
             loadHeroCover(heroEl, eventData);
         }
 
-        // Badges
+        // Chips: categoría (tipo, programa) + estado real de publicación
         const heroBadges = document.getElementById('heroBadges');
         const programBadge = eventData.program_name
-            ? `<span class="badge bg-primary-subtle text-primary-emphasis event-type-badge">${escapeHtml(eventData.program_name)}</span>`
-            : `<span class="badge bg-secondary-subtle text-secondary-emphasis event-type-badge">Abierto a todos</span>`;
+            ? `<span class="badge bg-primary-soft">${escapeHtml(eventData.program_name)}</span>`
+            : `<span class="badge bg-secondary">Abierto a todos</span>`;
         const privateBadge = eventData.visibility === 'private'
-            ? `<span class="badge bg-warning text-dark event-type-badge"><i class="bi bi-lock-fill me-1"></i>Privado</span>`
+            ? `<span class="badge bg-dark"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Privado</span>`
             : '';
         heroBadges.innerHTML = `
             ${programBadge}
-            <span class="badge bg-${typeMeta.color} event-type-badge">${typeMeta.label}</span>
-            <span class="badge bg-${statMeta.color} event-type-badge">${statMeta.label}</span>
+            <span class="badge ${typeMeta.soft}">${escapeHtml(typeMeta.label)}</span>
+            ${SIIAP.statusBadge(statMeta.key, statMeta.label, 'sm')}
             ${privateBadge}
         `;
 
-        // Title + breadcrumb
+        // Title + breadcrumb (ya vienen renderizados por el servidor)
         document.getElementById('heroTitle').textContent = eventData.title;
         breadcrumbTitle.textContent = eventData.title;
+        document.title = `${eventData.title} - SIIAP`;
 
         // Meta row
         const heroMeta = document.getElementById('heroMeta');
         const datePart = eventData.event_date
-            ? `<span><i class="bi bi-calendar3 me-1"></i>${formatDate(eventData.event_date)}</span>`
+            ? `<span><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>${timeTag(eventData.event_date)}</span>`
             : '';
         const endPart = eventData.event_end_date
-            ? `<span><i class="bi bi-calendar-check me-1"></i>${formatDate(eventData.event_end_date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>`
+            ? `<span><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>${timeTag(eventData.event_end_date)}</span>`
             : '';
-        const locationPart = `<span><i class="bi bi-geo-alt me-1"></i>${escapeHtml(eventData.location || 'Por definir')}</span>`;
+        const locationPart = `<span><i class="bi bi-geo-alt me-1" aria-hidden="true"></i>${escapeHtml(eventData.location || 'Por definir')}</span>`;
         heroMeta.innerHTML = [datePart, endPart, locationPart].filter(Boolean).join('');
 
         // Invitation banner
@@ -222,43 +268,24 @@
     }
 
     /**
-     * Fetches and applies the cover image to the hero element.
-     * Falls back to a gradient based on event type.
+     * Applies the type cover class and, if there is a real photo, the
+     * --event-cover-src custom property. El JS nunca inyecta colores.
      * @param {HTMLElement} heroEl
-     * @param {object} eventData
+     * @param {object} ev
      */
     async function loadHeroCover(heroEl, ev) {
-        const gradient = getEventGradient(ev.type);
-        heroEl.style.background = gradient;
-        try {
-            const data = await apiRequest(`${API}/events/${ev.id}/images`);
-            // Backend retorna { ok, cover: {...}|null, gallery: [...] }
-            const cover = data.cover || data.data?.cover;
-            if (cover?.path) {
-                const filename = cover.path.split('/').pop();
-                const url = `/files/event/${ev.id}/cover/${filename}`;
-                heroEl.style.background = `url('${url}') center/cover no-repeat`;
-            }
-        } catch {
-            // Keep gradient fallback
-        }
-    }
+        COVER_TYPES.concat('default').forEach(t => {
+            heroEl.classList.remove('event-cover--' + t.replace(/_/g, '-'));
+        });
+        heroEl.classList.add('event-cover', eventCoverClass(ev.type));
 
-    /**
-     * Returns a CSS gradient string for the event type fallback cover.
-     * @param {string} type
-     * @returns {string}
-     */
-    function getEventGradient(type) {
-        const map = {
-            interview:    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            defense:      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-            workshop:     'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-            seminar:      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-            conference:   'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-            info_session: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
-        };
-        return map[type] || 'linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%)';
+        const { cover } = await fetchEventImages(ev.id);
+        if (cover?.path) {
+            const filename = cover.path.split('/').pop();
+            const url = `/files/event/${ev.id}/cover/${filename}`;
+            heroEl.style.setProperty('--event-cover-src', `url('${url}')`);
+            heroEl.classList.add('event-cover--has-image');
+        }
     }
 
     /**
@@ -273,21 +300,21 @@
         if (eventData.visibility === 'private' && invStatus === 'pending') {
             bannerEl.innerHTML = `
                 <div class="hero-invitation-banner">
-                    <i class="bi bi-lock-fill"></i>
+                    <i class="bi bi-lock-fill" aria-hidden="true"></i>
                     Evento privado — te invitaron
                 </div>`;
         } else if (invStatus === 'accepted') {
             bannerEl.innerHTML = `
                 <div class="hero-invitation-banner accepted">
-                    <i class="bi bi-check-circle-fill"></i>
+                    <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
                     Has aceptado la invitación
                 </div>`;
         } else if (invStatus === 'rejected') {
             bannerEl.innerHTML = `
                 <div class="hero-invitation-banner rejected">
-                    <i class="bi bi-x-circle-fill"></i>
+                    <i class="bi bi-x-circle-fill" aria-hidden="true"></i>
                     Rechazaste la invitación
-                    <button class="btn btn-sm btn-outline-light ms-2 py-0 px-2" id="btnReconsider">
+                    <button type="button" class="btn btn-sm btn-outline-light ms-2" id="btnReconsider">
                         Reconsiderar
                     </button>
                 </div>`;
@@ -315,15 +342,18 @@
                 const initials = (h.name || '?').charAt(0).toUpperCase();
                 const photoUrl = resolveHostPhotoUrl(evId, h);
                 const photoHtml = photoUrl
-                    ? `<img class="host-photo" src="${escapeHtml(photoUrl)}" alt="${escapeHtml(h.name || '')}">`
-                    : `<div class="host-photo-placeholder">${escapeHtml(initials)}</div>`;
+                    ? `<img class="host-photo" src="${escapeHtml(photoUrl)}" alt="" loading="lazy">`
+                    : `<div class="host-photo-placeholder" aria-hidden="true">${escapeHtml(initials)}</div>`;
                 const hostPayload = { ...h, photo_url: photoUrl };
+                const name = h.name || 'Ponente';
                 return `
-                    <div class="host-card" data-host-json="${escapeHtml(JSON.stringify(hostPayload))}">
+                    <button type="button" class="host-card"
+                            aria-label="Ver la semblanza de ${escapeHtml(name)}"
+                            data-host-json="${escapeHtml(JSON.stringify(hostPayload))}">
                         ${photoHtml}
-                        <div class="host-name">${escapeHtml(h.name || 'Ponente')}</div>
-                        <div class="host-role">${escapeHtml(h.role_label || '')}</div>
-                    </div>`;
+                        <span class="host-name d-block">${escapeHtml(name)}</span>
+                        <span class="host-role d-block">${escapeHtml(h.role_label || '')}</span>
+                    </button>`;
             }).join('');
 
             card.classList.remove('d-none');
@@ -375,22 +405,24 @@
      */
     async function loadGallery(evId) {
         try {
-            const data = await apiRequest(`${API}/events/${evId}/images`);
-            // Backend returns { ok, cover, gallery: [...] }
-            const gallery = data.gallery || data.data?.gallery || [];
+            const { gallery } = await fetchEventImages(evId);
             if (!gallery.length) return;
 
             const card = document.getElementById('galleryCard');
             const grid = document.getElementById('publicGallery');
             if (!card || !grid) return;
 
-            grid.innerHTML = gallery.map(img => {
+            grid.innerHTML = gallery.map((img, index) => {
                 const filename = (img.path || '').split('/').pop();
                 const url = `/files/event/${evId}/gallery/${filename}`;
+                const caption = img.caption || `Imagen ${index + 1} del evento`;
                 return `
-                <div class="event-public-gallery-item" data-img-url="${escapeHtml(url)}">
-                    <img src="${escapeHtml(url)}" alt="${escapeHtml(img.caption || 'Imagen del evento')}" loading="lazy">
-                </div>`;
+                <button type="button" class="event-public-gallery-item"
+                        data-img-url="${escapeHtml(url)}"
+                        data-caption="${escapeHtml(caption)}"
+                        aria-label="Ampliar: ${escapeHtml(caption)}">
+                    <img src="${escapeHtml(url)}" alt="${escapeHtml(caption)}" loading="lazy">
+                </button>`;
             }).join('');
 
             card.classList.remove('d-none');
@@ -398,7 +430,7 @@
             grid.addEventListener('click', e => {
                 const item = e.target.closest('.event-public-gallery-item');
                 if (!item) return;
-                openImageLightbox(item.dataset.imgUrl);
+                openImageLightbox(item.dataset.imgUrl, item.dataset.caption);
             });
         } catch (err) {
             console.warn('[view.js] Could not load gallery:', err.message);
@@ -408,12 +440,22 @@
     /**
      * Opens the native <dialog> lightbox with the given image URL.
      * @param {string} url
+     * @param {string} [caption] Texto alternativo real de la imagen.
      */
-    function openImageLightbox(url) {
+    function openImageLightbox(url, caption) {
         const dialog = document.getElementById('eventLightbox');
-        const img    = document.getElementById('lightboxImg');
-        if (!dialog || !img) return;
+        if (!dialog) return;
+
+        // El <img> se crea aquí, no en la plantilla: así nunca existe en el DOM
+        // sin src. Se reutiliza en aperturas sucesivas.
+        let img = document.getElementById('lightboxImg');
+        if (!img) {
+            img = document.createElement('img');
+            img.id = 'lightboxImg';
+            dialog.appendChild(img);
+        }
         img.src = url;
+        img.alt = caption || 'Imagen del evento';
         dialog.showModal();
     }
 
@@ -484,20 +526,20 @@
         })();
 
         const items = [
-            { label: 'Tipo',         value: eventTypeMeta(eventData.type).label },
-            { label: 'Estado',       value: statusMeta(eventData.status).label },
-            { label: 'Capacidad',    value: capacityLabel },
-            { label: 'Inicio',       value: formatDate(eventData.event_date) },
-            { label: 'Fin',          value: eventData.event_end_date ? formatDate(eventData.event_end_date) : '—' },
-            { label: 'Ubicación',    value: eventData.location || 'Por definir' },
-            { label: 'Programa',     value: eventData.program_name || 'Todos' },
+            { label: 'Tipo',      value: escapeHtml(eventTypeMeta(eventData.type).label) },
+            { label: 'Estado',    value: escapeHtml(statusMeta(eventData.status).label) },
+            { label: 'Capacidad', value: escapeHtml(capacityLabel) },
+            { label: 'Inicio',    value: timeTag(eventData.event_date) },
+            { label: 'Fin',       value: eventData.event_end_date ? timeTag(eventData.event_end_date) : '—' },
+            { label: 'Ubicación', value: escapeHtml(eventData.location || 'Por definir') },
+            { label: 'Programa',  value: escapeHtml(eventData.program_name || 'Todos') },
         ];
 
         list.innerHTML = items.map(i => `
-            <li class="list-group-item">
-                <span class="detail-label">${i.label}</span>
-                <span class="detail-value">${i.value}</span>
-            </li>`).join('');
+            <div class="list-group-item">
+                <dt class="detail-label">${i.label}</dt>
+                <dd class="detail-value">${i.value}</dd>
+            </div>`).join('');
     }
 
     // ── Render: description ───────────────────────────────────
@@ -531,25 +573,25 @@
         // Main action block: appointment card or informational notice
         if (myAppt) {
             block.innerHTML = `
-                <div class="appointment-card p-4 mb-4 shadow-sm">
+                <div class="appointment-card p-4 mb-4">
                     <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start gap-3">
                         <div>
                             <p class="text-muted small mb-1">
-                                <i class="bi bi-calendar-heart-fill me-1"></i>Tu Cita
+                                <i class="bi bi-calendar-heart-fill me-1" aria-hidden="true"></i>Tu Cita
                             </p>
-                            <div class="appointment-time">${formatTime(myAppt.starts_at)}</div>
-                            <div class="appointment-date">${formatDate(myAppt.starts_at)}</div>
-                            <div class="appointment-date mt-1">
-                                <i class="bi bi-clock me-1"></i>
-                                Hasta las ${formatTime(myAppt.ends_at)}
-                            </div>
+                            <p class="appointment-time mb-0">${escapeHtml(formatTime(myAppt.starts_at))}</p>
+                            <p class="appointment-date mb-0">${timeTag(myAppt.starts_at)}</p>
+                            <p class="appointment-date mt-1 mb-0">
+                                <i class="bi bi-clock me-1" aria-hidden="true"></i>
+                                Hasta las ${escapeHtml(formatTime(myAppt.ends_at))}
+                            </p>
                         </div>
                         <div class="d-flex flex-column gap-2">
-                            <button class="btn btn-outline-warning btn-sm" id="btnChangeRequest">
-                                <i class="bi bi-arrow-left-right me-1"></i>Solicitar Cambio
+                            <button type="button" class="btn btn-outline-warning btn-sm" id="btnChangeRequest">
+                                <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Solicitar Cambio
                             </button>
-                            <button class="btn btn-outline-danger btn-sm" id="btnCancelAppt">
-                                <i class="bi bi-x-lg me-1"></i>Cancelar Cita
+                            <button type="button" class="btn btn-outline-danger btn-sm" id="btnCancelAppt">
+                                <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Cancelar Cita
                             </button>
                         </div>
                     </div>
@@ -561,7 +603,7 @@
         } else {
             block.innerHTML = `
                 <div class="info-notice d-flex align-items-center gap-3 mb-4">
-                    <i class="bi bi-info-circle-fill notice-icon"></i>
+                    <i class="bi bi-info-circle-fill notice-icon" aria-hidden="true"></i>
                     <div>
                         <strong>Sin cita asignada aún</strong>
                         <p class="mb-0 mt-1 text-muted small">
@@ -574,7 +616,7 @@
         // Quick actions for single — no register button, just contextual info
         quickBody.innerHTML = `
             <p class="text-muted small mb-0">
-                <i class="bi bi-shield-fill-check me-1"></i>
+                <i class="bi bi-shield-fill-check me-1" aria-hidden="true"></i>
                 Las citas son asignadas por el coordinador del programa.
             </p>`;
 
@@ -607,15 +649,16 @@
                         <small class="text-muted">Cupo</small>
                         <small class="fw-semibold">${eventData.current_registrations} / ${eventData.max_capacity}</small>
                     </div>
-                    <div class="capacity-bar">
-                        <div class="capacity-bar-fill ${fillClass}" style="width:${pct}%"></div>
+                    <div class="capacity-bar" role="img"
+                         aria-label="${eventData.current_registrations} de ${eventData.max_capacity} lugares ocupados">
+                        <div class="capacity-bar-fill ${fillClass}" style="--progress:${pct}"></div>
                     </div>
                 </div>`;
         } else {
             capacityHtml = `
                 <div class="mb-3">
-                    <span class="badge bg-success">
-                        <i class="bi bi-infinity me-1"></i>Sin límite de cupos
+                    <span class="badge bg-success-soft">
+                        <i class="bi bi-infinity me-1" aria-hidden="true"></i>Sin límite de cupos
                     </span>
                     <span class="ms-2 text-muted small">${eventData.current_registrations} inscrito(s)</span>
                 </div>`;
@@ -624,9 +667,9 @@
         block.innerHTML = `
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white border-bottom">
-                    <h5 class="mb-0">
-                        <i class="bi bi-people-fill me-2 text-primary"></i>Inscripción
-                    </h5>
+                    <h2 class="h5 mb-0">
+                        <i class="bi bi-people-fill me-2 text-primary" aria-hidden="true"></i>Inscripción
+                    </h2>
                 </div>
                 <div class="card-body">
                     ${capacityHtml}
@@ -640,32 +683,32 @@
             const attended = myReg.status === 'attended';
             regStatus.innerHTML = `
                 <div class="alert alert-success d-flex align-items-center gap-2 mb-3">
-                    <i class="bi bi-check-circle-fill fs-5"></i>
+                    <i class="bi bi-check-circle-fill fs-5" aria-hidden="true"></i>
                     <div>
                         <strong>Estás inscrito</strong>
-                        <div class="small text-muted mt-1">
-                            Registrado el ${formatDate(myReg.registered_at, { year: 'numeric', month: 'long', day: 'numeric' })}
-                        </div>
-                        ${attended ? '<span class="badge bg-success mt-1">Asististe</span>' : ''}
+                        <p class="small text-muted mt-1 mb-0">
+                            Registrado el ${timeTag(myReg.registered_at)}
+                        </p>
+                        ${attended ? `<p class="mt-2 mb-0">${SIIAP.statusBadge('approved', 'Asististe', 'sm')}</p>` : ''}
                     </div>
                 </div>
                 ${!attended ? `
-                    <button class="btn btn-outline-danger w-100" id="btnUnregister">
-                        <i class="bi bi-person-dash me-1"></i>Cancelar Registro
+                    <button type="button" class="btn btn-outline-danger w-100" id="btnUnregister">
+                        <i class="bi bi-person-dash me-1" aria-hidden="true"></i>Cancelar Registro
                     </button>` : ''}`;
 
             document.getElementById('btnUnregister')?.addEventListener('click', unregisterFromEvent);
         } else if (isFull) {
             regStatus.innerHTML = `
                 <div class="alert alert-warning d-flex align-items-center gap-2">
-                    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                    <i class="bi bi-exclamation-triangle-fill fs-5" aria-hidden="true"></i>
                     <div><strong>Cupo lleno</strong><br>
                     <span class="small">No hay lugares disponibles en este momento.</span></div>
                 </div>`;
         } else {
             regStatus.innerHTML = `
-                <button class="btn btn-primary w-100" id="btnRegister">
-                    <i class="bi bi-person-plus-fill me-1"></i>Registrarme al evento
+                <button type="button" class="btn btn-primary w-100" id="btnRegister">
+                    <i class="bi bi-person-plus-fill me-1" aria-hidden="true"></i>Registrarme al evento
                 </button>`;
             document.getElementById('btnRegister')?.addEventListener('click', registerToEvent);
         }
@@ -673,7 +716,7 @@
         // Quick actions column
         quickBody.innerHTML = `
             <p class="text-muted small mb-0">
-                <i class="bi bi-calendar3 me-1"></i>
+                <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>
                 ${isUnlimited
                     ? 'Sin restricción de cupo.'
                     : isFull
@@ -688,9 +731,10 @@
         const container = document.getElementById('timelineContent');
         if (!windows.length) {
             container.innerHTML = `
-                <div class="p-4 text-center text-muted">
-                    <i class="bi bi-calendar-x fs-1 mb-2"></i>
-                    <p class="mb-0">No hay ventanas de horario configuradas aún.</p>
+                <div class="empty-state empty-state--compact">
+                    <div class="empty-state__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
+                    <h3 class="empty-state__title">Sin horarios publicados</h3>
+                    <p class="empty-state__description">No hay ventanas de horario configuradas aún.</p>
                 </div>`;
             return;
         }
@@ -704,24 +748,24 @@
                     const icon   = isMine ? 'bi-star-fill' : slot.status === 'free' ? 'bi-circle-fill' : 'bi-record-circle';
                     const label  = isMine ? 'Mi cita' : slot.status === 'free' ? 'Libre' : 'Ocupado';
                     return `
-                        <span class="slot-pill ${cls}" title="${formatTime(slot.starts_at)} – ${formatTime(slot.ends_at)}">
-                            <i class="bi ${icon}"></i>
-                            ${formatTime(slot.starts_at)}
-                            <span class="slot-label-sm">${label}</span>
+                        <span class="slot-pill ${cls}" title="${escapeHtml(label)}: ${formatTime(slot.starts_at)} – ${formatTime(slot.ends_at)}">
+                            <i class="bi ${icon}" aria-hidden="true"></i>
+                            ${escapeHtml(formatTime(slot.starts_at))}
+                            <span class="slot-label-sm">${escapeHtml(label)}</span>
                         </span>`;
                 }).join('')
-                : `<span class="text-muted small">Sin slots en esta ventana</span>`;
+                : `<span class="text-muted small">Sin horarios en esta ventana</span>`;
 
             const windowDate = win.date
-                ? new Date(win.date).toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+                ? `<time datetime="${escapeHtml(win.date)}">${escapeHtml(SIIAP.formatDate(win.date, 'long'))}</time>`
                 : '—';
 
             return `
                 <div class="timeline-window">
-                    <div class="timeline-window-header">
-                        <i class="bi bi-calendar-day me-2 text-primary"></i>${windowDate}
-                        <span class="text-muted fw-normal ms-2 small">${win.start_time || ''} – ${win.end_time || ''}</span>
-                    </div>
+                    <p class="timeline-window-header">
+                        <i class="bi bi-calendar-day me-2 text-primary" aria-hidden="true"></i>${windowDate}
+                        <span class="text-muted fw-normal ms-2 small">${escapeHtml(win.start_time || '')} – ${escapeHtml(win.end_time || '')}</span>
+                    </p>
                     <div class="slots-grid">${slotsHtml}</div>
                 </div>`;
         }).join('');
@@ -776,14 +820,17 @@
     }
 
     function openChangeRequestModal() {
-        document.getElementById('changeReason').value      = '';
+        const reasonEl = document.getElementById('changeReason');
+        reasonEl.value = '';
+        reasonEl.removeAttribute('aria-invalid');
         document.getElementById('changeSuggestions').value = '';
         const modal = new bootstrap.Modal(document.getElementById('changeRequestModal'));
         modal.show();
     }
 
     async function submitChangeRequest() {
-        const reason      = document.getElementById('changeReason').value.trim();
+        const reasonEl    = document.getElementById('changeReason');
+        const reason      = reasonEl.value.trim();
         const suggestions = document.getElementById('changeSuggestions').value.trim();
 
         if (!myAppt?.id) {
@@ -792,9 +839,12 @@
         }
 
         if (!reason) {
+            reasonEl.setAttribute('aria-invalid', 'true');
+            reasonEl.focus();
             flash('warning', 'Por favor indica el motivo del cambio.');
             return;
         }
+        reasonEl.removeAttribute('aria-invalid');
 
         const modal = bootstrap.Modal.getInstance(document.getElementById('changeRequestModal'));
 

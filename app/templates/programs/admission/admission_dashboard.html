@@ -1,4 +1,7 @@
 {% extends 'base.html' %}
+{% from '_macros.html' import stepper, data_table_open, data_table_close %}
+{% from 'programs/admission/_archive_rows.html' import render_archive_row, archive_table_head %}
+
 {% block title %}Admisión – {{ program.name }}{% endblock %}
 
 {% block styles %}
@@ -8,6 +11,29 @@
 {% block content %}
 <div class="container py-4">
 
+  <h1 class="h3 mb-2">Proceso de admisión</h1>
+  <p class="text-secondary mb-4">{{ program.name }}</p>
+
+  {# ── Dónde está el aspirante dentro del proceso completo ── #}
+  {% set admission_stages = [
+       {'label': 'Documentos'},
+       {'label': 'Entrevista'},
+       {'label': 'Deliberación'},
+       {'label': 'Resultado'}
+     ] %}
+  {% set stage_map = {
+       'in_progress': 1,
+       'interview_completed': 3,
+       'deliberation': 3,
+       'accepted': 4,
+       'rejected': 4,
+       'deferred': 4,
+       'enrolled': 4
+     } %}
+  <div class="mb-4">
+    {{ stepper(admission_stages, current=stage_map.get(admission_status, 1)) }}
+  </div>
+
   {# ── Banner de estado cuando el proceso ya pasó la etapa de documentos ── #}
   {% if admission_status in ['interview_completed', 'deliberation', 'accepted', 'rejected'] %}
 
@@ -15,9 +41,9 @@
     {% if admission_status == 'interview_completed' %}
     <div class="alert alert-info shadow-sm" role="alert">
       <div class="d-flex align-items-start gap-3">
-        <i class="bi bi-hourglass-split fs-2 flex-shrink-0"></i>
+        <i class="bi bi-hourglass-split fs-2 flex-shrink-0" aria-hidden="true"></i>
         <div>
-          <h5 class="alert-heading mb-1">Entrevista completada — En espera de deliberación</h5>
+          <h2 class="h5 alert-heading mb-1">Entrevista completada — En espera de deliberación</h2>
           <p class="mb-0">Tu entrevista ha sido registrada como completada. Los coordinadores del programa
             comenzarán el proceso de deliberación en breve. Te notificaremos cuando haya una decisión.</p>
         </div>
@@ -27,11 +53,11 @@
     {% elif admission_status == 'deliberation' %}
     <div class="alert alert-warning shadow-sm" role="alert">
       <div class="d-flex align-items-start gap-3">
-        <i class="bi bi-chat-square-dots fs-2 flex-shrink-0"></i>
+        <i class="bi bi-chat-square-dots fs-2 flex-shrink-0" aria-hidden="true"></i>
         <div>
-          <h5 class="alert-heading mb-1">Tu expediente está en deliberación</h5>
+          <h2 class="h5 alert-heading mb-1">Tu expediente está en deliberación</h2>
           <p class="mb-0">El comité de admisión está evaluando tu expediente.
-            {% if deliberation_started_at %}Proceso iniciado el {{ deliberation_started_at.strftime('%d/%m/%Y') }}.{% endif %}
+            {% if deliberation_started_at %}Proceso iniciado el {{ deliberation_started_at|fecha_es }}.{% endif %}
             Te notificaremos cuando haya una resolución.</p>
         </div>
       </div>
@@ -46,81 +72,79 @@
     {% set both_docs_ready = (letter and letter.status == 'uploaded') and (schedule and schedule.status == 'uploaded') %}
 
     <div class="card border-success shadow-sm mb-3">
-      <div class="card-header bg-success text-white d-flex align-items-center gap-2">
-        <i class="bi bi-trophy-fill fs-5"></i>
-        <strong>¡Felicidades! Has sido aceptado al programa</strong>
-        {% if decision_at %}<span class="ms-auto small opacity-75">Decisión: {{ decision_at.strftime('%d/%m/%Y') }}</span>{% endif %}
+      {# bg-success con texto blanco da 3.49:1 y falla AA: se usa la superficie
+         suave de la marca (success-100 / success-700 = 5.63:1). #}
+      <div class="card-header bg-success-soft d-flex align-items-center gap-2 flex-wrap">
+        <i class="bi bi-trophy-fill fs-5" aria-hidden="true"></i>
+        <h2 class="h6 mb-0 fw-bold">¡Felicidades! Has sido aceptado al programa</h2>
+        {% if decision_at %}<span class="ms-auto small">Decisión: {{ decision_at|fecha_es('numeric') }}</span>{% endif %}
       </div>
       <div class="card-body">
         {% if decision_notes %}
-        <div class="alert alert-success border-success mb-3 py-2">
-          <i class="bi bi-chat-quote me-1"></i><strong>Notas del comité:</strong> {{ decision_notes }}
+        <div class="alert alert-success mb-3 py-2">
+          <i class="bi bi-chat-quote me-1" aria-hidden="true"></i><strong>Notas del comité:</strong> {{ decision_notes }}
         </div>
         {% endif %}
 
         {# — Documentos para descargar — #}
-        <h6 class="fw-bold mb-2"><i class="bi bi-file-earmark-arrow-down me-1"></i>Documentos de aceptación</h6>
+        <h3 class="h6 fw-bold mb-2">
+          <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Documentos de aceptación
+        </h3>
         <div class="row g-2 mb-3">
           <div class="col-sm-6">
-            <div class="card h-100 {% if letter %}border-success{% else %}border-secondary{% endif %}">
-              <div class="card-body py-2 px-3">
-                <div class="d-flex align-items-center gap-2">
-                  <i class="bi bi-file-earmark-text fs-4 {% if letter %}text-success{% else %}text-muted{% endif %}"></i>
-                  <div class="flex-grow-1">
-                    <div class="small fw-bold">Carta de aceptación</div>
-                    {% if letter %}
-                    <a href="/files/doc/{{ letter.file_path }}" target="_blank" class="btn btn-sm btn-outline-success mt-1">
-                      <i class="bi bi-download me-1"></i>Descargar
-                    </a>
-                    {% else %}
-                    <span class="small text-muted fst-italic">Próximamente disponible</span>
-                    {% endif %}
-                  </div>
-                </div>
+            <div class="acceptance-doc{% if letter %} acceptance-doc--ready{% endif %}">
+              <i class="bi bi-file-earmark-text fs-4 {% if letter %}text-success-strong{% else %}text-muted{% endif %}" aria-hidden="true"></i>
+              <div class="flex-grow-1">
+                <p class="acceptance-doc__title">Carta de aceptación</p>
+                {% if letter %}
+                <a href="/files/doc/{{ letter.file_path }}" target="_blank" rel="noopener"
+                   class="btn btn-sm btn-outline-success mt-1">
+                  <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar
+                  <span class="visually-hidden">carta de aceptación (se abre en una pestaña nueva)</span>
+                </a>
+                {% else %}
+                <span class="small text-muted fst-italic">Próximamente disponible</span>
+                {% endif %}
               </div>
             </div>
           </div>
           <div class="col-sm-6">
-            <div class="card h-100 {% if schedule %}border-success{% else %}border-secondary{% endif %}">
-              <div class="card-body py-2 px-3">
-                <div class="d-flex align-items-center gap-2">
-                  <i class="bi bi-calendar3 fs-4 {% if schedule %}text-success{% else %}text-muted{% endif %}"></i>
-                  <div class="flex-grow-1">
-                    <div class="small fw-bold">Tira de materias</div>
-                    {% if schedule %}
-                    <a href="/files/doc/{{ schedule.file_path }}" target="_blank" class="btn btn-sm btn-outline-success mt-1">
-                      <i class="bi bi-download me-1"></i>Descargar
-                    </a>
-                    {% else %}
-                    <span class="small text-muted fst-italic">Próximamente disponible</span>
-                    {% endif %}
-                  </div>
-                </div>
+            <div class="acceptance-doc{% if schedule %} acceptance-doc--ready{% endif %}">
+              <i class="bi bi-calendar3 fs-4 {% if schedule %}text-success-strong{% else %}text-muted{% endif %}" aria-hidden="true"></i>
+              <div class="flex-grow-1">
+                <p class="acceptance-doc__title">Tira de materias</p>
+                {% if schedule %}
+                <a href="/files/doc/{{ schedule.file_path }}" target="_blank" rel="noopener"
+                   class="btn btn-sm btn-outline-success mt-1">
+                  <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar
+                  <span class="visually-hidden">tira de materias (se abre en una pestaña nueva)</span>
+                </a>
+                {% else %}
+                <span class="small text-muted fst-italic">Próximamente disponible</span>
+                {% endif %}
               </div>
             </div>
           </div>
           {% if dictamen and dictamen.file_path %}
           <div class="col-12">
-            <div class="card h-100 border-warning">
-              <div class="card-body py-2 px-3">
-                <div class="d-flex align-items-center gap-2">
-                  <i class="bi bi-file-earmark-medical fs-4 text-warning"></i>
-                  <div class="flex-grow-1">
-                    <div class="small fw-bold">
-                      Dictamen de Aceptación
-                      <span class="badge bg-warning text-dark ms-1">Aceptación condicionada</span>
-                    </div>
-                    <div class="small text-muted">
-                      Tu admisión es condicionada. Revisa el dictamen para conocer las condiciones que debes cumplir.
-                      {% if dictamen.review_notes %}
-                      <br><em>{{ dictamen.review_notes }}</em>
-                      {% endif %}
-                    </div>
-                    <a href="/files/doc/{{ dictamen.file_path }}" target="_blank" class="btn btn-sm btn-outline-warning mt-1">
-                      <i class="bi bi-download me-1"></i>Descargar dictamen
-                    </a>
-                  </div>
-                </div>
+            <div class="acceptance-doc acceptance-doc--conditional">
+              <i class="bi bi-file-earmark-medical fs-4 text-warning-strong" aria-hidden="true"></i>
+              <div class="flex-grow-1">
+                <p class="acceptance-doc__title">
+                  Dictamen de aceptación
+                  <span class="badge bg-warning ms-1">Aceptación condicionada</span>
+                </p>
+                <p class="small mb-2">
+                  Tu admisión es condicionada. Revisa el dictamen para conocer las condiciones que debes cumplir.
+                  {% if dictamen.review_notes %}
+                  <br><em>{{ dictamen.review_notes }}</em>
+                  {% endif %}
+                </p>
+                <a href="/files/doc/{{ dictamen.file_path }}" target="_blank" rel="noopener"
+                   class="btn btn-sm btn-outline-warning">
+                  <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar dictamen
+                  <span class="visually-hidden">(se abre en una pestaña nueva)</span>
+                </a>
               </div>
             </div>
           </div>
@@ -130,18 +154,23 @@
         {% if both_docs_ready %}
         {# — Instrucciones para Servicios Escolares — #}
         <div class="alert alert-info mb-3">
-          <h6 class="alert-heading fw-bold"><i class="bi bi-info-circle-fill me-1"></i>Próximos pasos — Servicios Escolares</h6>
+          <h3 class="h6 alert-heading fw-bold">
+            <i class="bi bi-info-circle-fill me-1" aria-hidden="true"></i>Próximos pasos — Servicios Escolares
+          </h3>
           <ol class="mb-0 ps-3 small">
             <li>Descarga tu <strong>carta de aceptación</strong> y <strong>tira de materias</strong> desde arriba.</li>
             <li>
               Reúne los siguientes documentos (original y copia) para Servicios Escolares:
               <ul class="mt-1 mb-2 ps-3">
-                <li>Solicitud de Admisión con fotografía.</li>
-                <li>Carta de Aceptación.</li>
-                <li>Comprobante Dominio Idioma Inglés.</li>
-                <li>Curriculum.</li>
-                <li>Acta de Nacimiento.</li>
-                <li>CURP (<a href="https://www.gob.mx/curp/" target="_blank">Descargar</a>).</li>
+                <li>Solicitud de admisión con fotografía.</li>
+                <li>Carta de aceptación.</li>
+                <li>Comprobante de dominio del idioma inglés.</li>
+                <li>Currículum.</li>
+                <li>Acta de nacimiento.</li>
+                <li>
+                  CURP
+                  (<a href="https://www.gob.mx/curp/" target="_blank" rel="noopener">Descargar<span class="visually-hidden"> la CURP en gob.mx (se abre en una pestaña nueva)</span></a>).
+                </li>
                 <li>Título de licenciatura.</li>
                 <li>Cédula profesional de licenciatura.</li>
                 <li>Certificado de licenciatura.</li>
@@ -154,23 +183,25 @@
           </ol>
         </div>
 
-        {# — Sección para subir carta de asignación de número de control — #}
-        <h6 class="fw-bold mb-2"><i class="bi bi-upload me-1"></i>Carta de asignación de número de control</h6>
+        {# — Subida de la carta de asignación de número de control — #}
+        <h3 class="h6 fw-bold mb-2">
+          <i class="bi bi-upload me-1" aria-hidden="true"></i>Carta de asignación de número de control
+        </h3>
         {% if receipt and receipt.status == 'approved' %}
         <div class="alert alert-success py-2">
-          <i class="bi bi-check-circle-fill me-2"></i>
+          <i class="bi bi-check-circle-fill me-2" aria-hidden="true"></i>
           <strong>Documento aprobado.</strong> Tu número de control ha sido asignado por el coordinador.
           {% if receipt.review_notes %}<br><span class="small">Notas: {{ receipt.review_notes }}</span>{% endif %}
         </div>
         {% elif receipt and receipt.status == 'uploaded' %}
         <div class="alert alert-warning py-2">
-          <i class="bi bi-hourglass-split me-2"></i>
+          <i class="bi bi-hourglass-split me-2" aria-hidden="true"></i>
           Tu documento está siendo revisado por el coordinador. Te notificaremos cuando haya una respuesta.
         </div>
         {% else %}
         {% if receipt and receipt.status == 'rejected' %}
         <div class="alert alert-danger py-2 mb-3">
-          <i class="bi bi-x-circle-fill me-2"></i>
+          <i class="bi bi-x-circle-fill me-2" aria-hidden="true"></i>
           <strong>Documento rechazado.</strong>
           {% if receipt.review_notes %} Motivo: {{ receipt.review_notes }}{% endif %}
           <br><span class="small">Por favor sube una versión corregida.</span>
@@ -179,18 +210,22 @@
         <p class="text-muted small mb-2">Una vez que Servicios Escolares te entregue la carta, súbela aquí.</p>
         {% endif %}
         <div>
-          <input type="file" class="form-control mb-2 receipt-upload-input" id="receiptFileInput" accept=".pdf">
-          <div class="form-text mb-2">Solo PDF. Tamaño máximo: 3 MB.</div>
-          <button class="btn btn-primary btn-sm" id="receiptUploadBtn">
-            <i class="bi bi-upload me-1"></i>Subir carta
+          <label class="form-label" for="receiptFileInput">
+            Carta de asignación de número de control (PDF)
+          </label>
+          <input type="file" class="form-control mb-2 receipt-upload-input" id="receiptFileInput"
+                 accept=".pdf" aria-describedby="receiptFileHelp">
+          <div class="form-text mb-2" id="receiptFileHelp">Solo PDF. Tamaño máximo: 3 MB.</div>
+          <button type="button" class="btn btn-primary btn-sm" id="receiptUploadBtn">
+            <i class="bi bi-upload me-1" aria-hidden="true"></i>Subir carta
           </button>
-          <div id="receiptUploadStatus" class="mt-2"></div>
+          <div id="receiptUploadStatus" class="mt-2" role="status" aria-live="polite" aria-atomic="true"></div>
         </div>
         {% endif %}
 
         {% else %}
         <div class="alert alert-secondary py-2">
-          <i class="bi bi-clock me-2"></i>
+          <i class="bi bi-clock me-2" aria-hidden="true"></i>
           Cuando el coordinador cargue tus documentos de aceptación, podrás descargarlos y ver los próximos pasos de inscripción.
         </div>
         {% endif %}
@@ -201,22 +236,20 @@
       {% if rejection_type == 'partial' %}
       <div class="alert alert-warning shadow-sm" role="alert">
         <div class="d-flex align-items-start gap-3">
-          <i class="bi bi-exclamation-triangle-fill fs-2 flex-shrink-0"></i>
+          <i class="bi bi-exclamation-triangle-fill fs-2 flex-shrink-0" aria-hidden="true"></i>
           <div>
-            <h5 class="alert-heading mb-1">Se requieren correcciones en tu expediente</h5>
-            {% if decision_at %}<p class="mb-1 text-muted small">Notificado el {{ decision_at.strftime('%d/%m/%Y') }}</p>{% endif %}
+            <h2 class="h5 alert-heading mb-1">Se requieren correcciones en tu expediente</h2>
+            {% if decision_at %}<p class="mb-1 small">Notificado el {{ decision_at|fecha_es }}</p>{% endif %}
             {% if correction_required %}
-              {# Intentar detectar si es JSON estructurado (tiene archive_name) o texto plano #}
+              {# Detectar si es JSON estructurado (trae archive_name) o texto plano #}
               {% if '"archive_name"' in correction_required %}
                 {% set corr_str = correction_required %}
-                {# Extraer archive_name del JSON con una búsqueda simple de texto #}
                 {% set start = corr_str.find('"archive_name": "') + 17 %}
                 {% set end = corr_str.find('"', start) %}
                 {% set doc_name = corr_str[start:end] if start > 17 else '' %}
                 {% if doc_name %}
-                <p class="mb-1"><i class="bi bi-file-earmark-x-fill text-warning me-1"></i><strong>Documento a corregir:</strong> {{ doc_name }}</p>
+                <p class="mb-1"><i class="bi bi-file-earmark-x-fill me-1" aria-hidden="true"></i><strong>Documento a corregir:</strong> {{ doc_name }}</p>
                 {% endif %}
-                {# Extraer notes #}
                 {% set ns = corr_str.find('"notes": "') + 10 %}
                 {% set ne = corr_str.find('"', ns) %}
                 {% set notes_text = corr_str[ns:ne] if ns > 10 else '' %}
@@ -231,17 +264,17 @@
             <p class="mb-1"><strong>Notas del comité:</strong> {{ decision_notes }}</p>
             {% endif %}
             <hr class="my-2">
-            <p class="mb-0 small text-muted">Un coordinador habilitará tu expediente para que puedas realizar las correcciones. Espera la notificación.</p>
+            <p class="mb-0 small">Un coordinador habilitará tu expediente para que puedas realizar las correcciones. Espera la notificación.</p>
           </div>
         </div>
       </div>
       {% else %}
       <div class="alert alert-danger shadow-sm" role="alert">
         <div class="d-flex align-items-start gap-3">
-          <i class="bi bi-x-circle-fill fs-2 flex-shrink-0"></i>
+          <i class="bi bi-x-circle-fill fs-2 flex-shrink-0" aria-hidden="true"></i>
           <div>
-            <h5 class="alert-heading mb-1">Tu solicitud no fue aceptada</h5>
-            {% if decision_at %}<p class="mb-1 text-muted small">Decisión tomada el {{ decision_at.strftime('%d/%m/%Y') }}</p>{% endif %}
+            <h2 class="h5 alert-heading mb-1">Tu solicitud no fue aceptada</h2>
+            {% if decision_at %}<p class="mb-1 small">Decisión tomada el {{ decision_at|fecha_es }}</p>{% endif %}
             {% if decision_notes %}
             <p class="mb-0"><strong>Motivo:</strong> {{ decision_notes }}</p>
             {% else %}
@@ -258,131 +291,107 @@
   {% else %}
   {# ── Vista normal de documentos ── #}
 
-  <!-- Info/intro -->
   <div class="alert alert-info shadow-sm mb-4" role="alert">
-    <h5 class="mb-2">Proceso de Admisión</h5>
+    <h2 class="h5 mb-2">Sube tus documentos</h2>
     <p class="mb-0">
       Sube los documentos requeridos en cada paso. Los siguientes pasos
       se desbloquearán cuando todos los archivos del paso anterior estén aprobados.
       <br>
-      <strong><i>Para ver la descripción de los archivos, haz clic en el nombre del archivo.</i></strong>
+      <strong>Para ver la descripción de un archivo, haz clic en su nombre.</strong>
     </p>
-    <div class="d-flex justify-content-end mb-3">
+    <div class="d-flex justify-content-end mt-3">
       <button type="button" class="btn btn-outline-primary btn-sm" id="btnRequestProgramChange"
         data-program-id="{{ program.id }}" data-program-slug="{{ program.slug }}">
-        <i class="bi bi-arrow-left-right me-1"></i>
-        Cambiar de Programa
+        <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>
+        Cambiar de programa
       </button>
     </div>
   </div>
 
-  <!-- Tabs nav -->
+  <!-- Pestañas de pasos -->
   <ul class="nav nav-tabs mb-3" id="stepTab" role="tablist">
     {% for item in processed_steps %}
-    {% if item.is_combined %}
-    {# Tab combinado #}
+    {% set pane_id = 'pane-' ~ (item.id if item.is_combined else item.step.id) %}
+    {% set tab_id = 'tab-' ~ (item.id if item.is_combined else item.step.id) %}
+    {% set label = item.name if item.is_combined else item.step.name %}
+    {% set seq = item.sequence if item.is_combined else (item.sequence if item.sequence <= 2 else item.sequence - 1) %}
     <li class="nav-item" role="presentation">
-      <button class="nav-link
-                   {% if loop.first %}active{% endif %}
-                   {% if item.state=='approved' %}text-success{% elif item.state=='rejected' %}text-danger{% elif item.state=='review' %}text-warning{% endif %}
-                   {% if item.locked %}disabled{% endif %}" id="tab-{{ item.id }}" data-bs-toggle="tab"
-        data-bs-target="#pane-{{ item.id }}" type="button" role="tab">
-        {{ item.sequence }}. {{ item.name }}
+      <button class="nav-link{% if loop.first %} active{% endif %}{% if item.locked %} disabled{% endif %}"
+              id="{{ tab_id }}" data-bs-toggle="tab" data-bs-target="#{{ pane_id }}"
+              type="button" role="tab" aria-controls="{{ pane_id }}"
+              aria-selected="{{ 'true' if loop.first else 'false' }}"
+              {% if item.locked %}aria-disabled="true" tabindex="-1"{% endif %}>
+        {{ seq }}. {{ label }}
+        {# El estado nunca se comunica sólo con color o icono #}
         {% if item.locked %}
-        <i class="bi bi-lock-fill ms-1"></i>
-        {% elif item.state=='approved' %}
-        <i class="bi bi-check-circle-fill ms-1 text-success"></i>
-        {% elif item.state=='rejected' %}
-        <i class="bi bi-x-circle-fill ms-1 text-danger"></i>
-        {% elif item.state=='pending' %}
-        <i class="bi bi-exclamation-circle-fill ms-1 text-warning"></i>
-        {% elif item.state=='extended' %}
-        <i class="bi bi-clock ms-1 text-warning"></i>
+        <i class="bi bi-lock-fill ms-1" aria-hidden="true"></i>
+        <span class="visually-hidden">(bloqueado: completa el paso anterior)</span>
+        {% elif item.state == 'approved' %}
+        <i class="bi bi-check-circle-fill ms-1 text-success-strong" aria-hidden="true"></i>
+        <span class="visually-hidden">(aprobado)</span>
+        {% elif item.state == 'rejected' %}
+        <i class="bi bi-x-circle-fill ms-1 text-danger-strong" aria-hidden="true"></i>
+        <span class="visually-hidden">(rechazado)</span>
+        {% elif item.state == 'pending' %}
+        <i class="bi bi-exclamation-circle-fill ms-1 text-warning-strong" aria-hidden="true"></i>
+        <span class="visually-hidden">(pendiente)</span>
+        {% elif item.state == 'extended' %}
+        <i class="bi bi-clock ms-1 text-warning-strong" aria-hidden="true"></i>
+        <span class="visually-hidden">(en prórroga)</span>
+        {% elif item.state == 'review' %}
+        <i class="bi bi-eye-fill ms-1 text-warning-strong" aria-hidden="true"></i>
+        <span class="visually-hidden">(en revisión)</span>
         {% endif %}
       </button>
     </li>
-    {% else %}
-    {# Tab normal #}
-    <li class="nav-item" role="presentation">
-      <button class="nav-link
-                   {% if loop.first %}active{% endif %}
-                   {% if item.state=='approved' %}text-success{% elif item.state=='rejected' %}text-danger{% elif item.state=='review' %}text-warning{% endif %}
-                   {% if item.locked %}disabled{% endif %}" id="tab-{{ item.step.id }}" data-bs-toggle="tab"
-        data-bs-target="#pane-{{ item.step.id }}" type="button" role="tab">
-        {% set display_seq = item.sequence if item.sequence <= 2 else (item.sequence - 1) %} {{ display_seq }}. {{
-          item.step.name }} {% if item.locked %} <i class="bi bi-lock-fill ms-1"></i>
-          {% elif item.state=='approved' %}
-          <i class="bi bi-check-circle-fill ms-1 text-success"></i>
-          {% elif item.state=='rejected' %}
-          <i class="bi bi-x-circle-fill ms-1 text-danger"></i>
-          {% elif item.state=='pending' %}
-          <i class="bi bi-exclamation-circle-fill ms-1 text-warning"></i>
-          {% elif item.state=='extended' %}
-          <i class="bi bi-clock ms-1 text-warning"></i>
-          {% endif %}
-      </button>
-    </li>
-    {% endif %}
     {% endfor %}
   </ul>
 
-  {% from 'programs/admission/_archive_rows.html' import render_archive_row %}
-
-  <!-- Tabs content -->
+  <!-- Contenido de las pestañas -->
   <div class="tab-content">
     {% for item in processed_steps %}
     {% if item.is_combined %}
-    {# Tab combinado - tabla única sin divisiones #}
-    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="pane-{{ item.id }}" role="tabpanel">
+    {# Paso combinado: una sola tabla con los archivos de los dos pasos #}
+    <div class="tab-pane fade{% if loop.first %} show active{% endif %}" id="pane-{{ item.id }}"
+         role="tabpanel" aria-labelledby="tab-{{ item.id }}" tabindex="0">
       {% if item.locked %}
-      <div class="alert alert-warning">Completa y aprueba el paso anterior.</div>
+      <div class="alert alert-warning" role="alert">Completa y aprueba el paso anterior.</div>
       {% else %}
-
-      <div class="table-responsive">
         {% if item.step1.name == 'Entrevista' or item.step1.name == 'Defensa de Protocolo/Propuesta' %}
-        <div class="interview-info"></div>
+        <div class="interview-info" role="status" aria-live="polite" aria-busy="true">
+          <div class="skeleton skeleton-card skeleton-card--sm"></div>
+        </div>
         {% else %}
-        <table class="table table-hover align-middle" id="archiveTable">
-          <thead class="table-light">
-            <tr>
-              <th class="w-px-32"></th>
-              <th>Documento</th>
-              <th class="d-none d-md-table-cell w-px-160">Plantilla</th>
-              <th class="w-px-140">Estado</th>
-              <th class="w-px-180">Acciones</th>
-              <th class="d-none d-lg-table-cell w-px-200">Observaciones</th>
-              <th class="d-none d-lg-table-cell w-px-130">Revisado</th>
-            </tr>
-          </thead>
+        {% set informative_1 = item.step1.program_steps and item.step1.program_steps[0].sequence == 0 %}
+        {% set informative_2 = item.step2.program_steps and item.step2.program_steps[0].sequence == 0 %}
+        {{ data_table_open('Documentos requeridos de ' ~ item.name,
+                           id='archiveTable-' ~ item.id,
+                           table_class='table-hover align-middle archive-table') }}
+          {{ archive_table_head() }}
           <tbody>
-            {# Archivos del primer step (Requisitos de Maestrías) #}
             {% for arch in item.step1.archives %}
-            {{ render_archive_row(arch, item.step1, subs, all_extensions, current_user) }}
+              {{ render_archive_row(arch, item.step1, subs, all_extensions, current_user, informative_1) }}
             {% endfor %}
-
-            {# Archivos del segundo step (Documentos Específicos) #}
             {% for arch in item.step2.archives %}
-            {{ render_archive_row(arch, item.step2, subs, all_extensions, current_user) }}
+              {{ render_archive_row(arch, item.step2, subs, all_extensions, current_user, informative_2) }}
             {% endfor %}
           </tbody>
-        </table>
+        {{ data_table_close() }}
         {% endif %}
-      </div>
-
       {% endif %}
     </div>
     {% else %}
-    {# Tab normal #}
-    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="pane-{{ item.step.id }}" role="tabpanel">
+    {# Paso normal #}
+    <div class="tab-pane fade{% if loop.first %} show active{% endif %}" id="pane-{{ item.step.id }}"
+         role="tabpanel" aria-labelledby="tab-{{ item.step.id }}" tabindex="0">
       {% if item.locked %}
-      <div class="alert alert-warning">Completa y aprueba el paso anterior.</div>
+      <div class="alert alert-warning" role="alert">Completa y aprueba el paso anterior.</div>
       {% else %}
       {% set step = item.step %}
       {% include 'programs/admission/_archive_table.html' %}
       {% endif %}
     </div>
     {% endif %}
-
     {% endfor %}
   </div>
 
@@ -398,7 +407,7 @@
   <div class="modal-dialog">
     <form method="POST" enctype="multipart/form-data" class="modal-content" data-admission-upload="true">
       <div class="modal-header">
-        <h5 class="modal-title" id="uploadLabel">Subir Documento</h5>
+        <h2 class="modal-title h5" id="uploadLabel">Subir documento</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
@@ -407,23 +416,26 @@
 
         <div id="existingFileInfo" class="d-none">
           <div class="alert alert-info">
-            <h6><i class="bi bi-info-circle-fill"></i> Archivo Existente</h6>
+            <h3 class="h6">
+              <i class="bi bi-info-circle-fill me-1" aria-hidden="true"></i>Archivo existente
+            </h3>
             <p class="mb-1"><strong>Documento:</strong> <span id="existingArchiveName"></span></p>
             <p class="mb-1"><strong>Archivo actual:</strong> <span id="existingFilename"></span></p>
             <p class="mb-0"><strong>Subido el:</strong> <span id="existingDate"></span></p>
             <hr>
-            <p class="mb-0 small text-warning">
-              <i class="bi bi-exclamation-triangle-fill"></i>
+            <p class="mb-0 small">
+              <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>
               Al subir un nuevo archivo, se reemplazará el anterior de forma permanente.
             </p>
           </div>
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Seleccionar Archivo</label>
-          <input type="file" class="form-control" name="file" required accept=".pdf">
-          <div class="form-text">
-            Formatos permitidos: PDF únicamente. Tamaño máximo: 3MB.
+          <label class="form-label" for="uploadFileInput">Seleccionar archivo</label>
+          <input type="file" class="form-control" id="uploadFileInput" name="file" required
+                 accept=".pdf" aria-describedby="uploadFileHelp">
+          <div class="form-text" id="uploadFileHelp">
+            Formatos permitidos: PDF únicamente. Tamaño máximo: 3 MB.
           </div>
         </div>
       </div>
@@ -442,7 +454,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="extensionLabel">Solicitar Prórroga</h5>
+        <h2 class="modal-title h5" id="extensionLabel">Solicitar prórroga</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form id="extensionForm">
@@ -450,102 +462,108 @@
           <input type="hidden" id="extensionArchiveId">
 
           <div class="alert alert-info">
-            <i class="bi bi-info-circle-fill me-2"></i>
+            <i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>
             Solicitando prórroga para: <strong id="extensionArchiveName"></strong>
           </div>
 
           <div class="mb-3">
-            <label class="form-label">Fecha solicitada (hasta cuándo necesitas)</label>
-            <input type="date" class="form-control" id="extensionRequestedUntil" required>
-            <div class="form-text">Selecciona una fecha realista para completar el documento.</div>
+            <label class="form-label" for="extensionRequestedUntil">Fecha solicitada (hasta cuándo necesitas)</label>
+            <input type="date" class="form-control" id="extensionRequestedUntil" required
+                   aria-describedby="extensionRequestedUntilHelp">
+            <div class="form-text" id="extensionRequestedUntilHelp">
+              Selecciona una fecha realista para completar el documento.
+            </div>
           </div>
 
           <div class="mb-3">
-            <label class="form-label">Motivo de la solicitud</label>
+            <label class="form-label" for="extensionReason">Motivo de la solicitud</label>
             <textarea class="form-control" id="extensionReason" rows="3" required
               placeholder="Explica brevemente por qué necesitas más tiempo..."></textarea>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Solicitar Prórroga</button>
+          <button type="submit" class="btn btn-primary">Solicitar prórroga</button>
         </div>
       </form>
     </div>
   </div>
 </div>
-<div class="modal fade" id="selectProgramModal" tabindex="-1">
+
+<!-- Modal: seleccionar programa destino -->
+<div class="modal fade" id="selectProgramModal" tabindex="-1"
+     aria-labelledby="selectProgramLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title">
-          <i class="bi bi-arrow-left-right me-2"></i>
-          Cambiar de Programa
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="selectProgramLabel">
+          <i class="bi bi-arrow-left-right me-2" aria-hidden="true"></i>
+          Cambiar de programa
+        </h2>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <div class="alert alert-info">
-          <i class="bi bi-info-circle-fill me-2"></i>
+          <i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>
           Selecciona el programa al que deseas cambiar. Se analizarán tus documentos actuales
           y se te mostrará qué se conservará y qué se perderá.
         </div>
 
-        <h6 class="mb-3">Programas Disponibles</h6>
-        <div id="availableProgramsList">
-          <div class="text-center py-3">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Cargando...</span>
-            </div>
-          </div>
+        <h3 class="h6 mb-3">Programas disponibles</h3>
+        <div id="availableProgramsList" role="region" aria-live="polite" aria-busy="true"
+             aria-label="Programas disponibles">
+          <div class="skeleton skeleton-card skeleton-card--sm"></div>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="btnContinueSelection">
-          <i class="bi bi-arrow-right me-1"></i>Continuar
+          <i class="bi bi-arrow-right me-1" aria-hidden="true"></i>Continuar
         </button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal: Análisis de Transferencia -->
-<div class="modal fade" id="analysisModal" tabindex="-1" data-bs-backdrop="static">
+<!-- Modal: análisis de transferencia -->
+<div class="modal fade" id="analysisModal" tabindex="-1" data-bs-backdrop="static"
+     aria-labelledby="analysisLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl">
     <div class="modal-content">
-      <div class="modal-header bg-warning">
-        <h5 class="modal-title">
-          <i class="bi bi-exclamation-triangle-fill me-2"></i>
-          Análisis de Cambio de Programa
-        </h5>
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="analysisLabel">
+          <i class="bi bi-exclamation-triangle-fill text-warning-strong me-2" aria-hidden="true"></i>
+          Análisis de cambio de programa
+        </h2>
+        <button type="button" class="btn-close" id="btnCancelTransferHeader" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body modal-body-scroll">
-        <div id="analysisContent">
-          <!-- Se llenará dinámicamente -->
-        </div>
+        <div id="analysisContent" role="region" aria-live="polite" aria-busy="true"
+             aria-label="Resultado del análisis de cambio de programa"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="btnCancelTransfer">
-          <i class="bi bi-x-lg me-1"></i>Cancelar
+          <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Cancelar
         </button>
         <button type="button" class="btn btn-danger" id="btnConfirmTransfer">
-          <i class="bi bi-check-lg me-1"></i>Confirmar Cambio
+          <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Confirmar cambio
         </button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal: Solicitar Cambio de Horario de Entrevista -->
-<div class="modal fade" id="changeRequestModal" tabindex="-1">
+<!-- Modal: solicitar cambio de horario de entrevista -->
+<div class="modal fade" id="changeRequestModal" tabindex="-1"
+     aria-labelledby="changeRequestLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">
-          <i class="bi bi-arrow-left-right me-2"></i> Solicitar Cambio de Horario
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="changeRequestLabel">
+          <i class="bi bi-arrow-left-right me-2" aria-hidden="true"></i>Solicitar cambio de horario
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form id="changeRequestForm">
         <div class="modal-body">
@@ -553,7 +571,7 @@
 
           <div class="mb-3">
             <label class="form-label" for="changeReqReason">
-              Motivo del cambio <span class="text-danger">*</span>
+              Motivo del cambio <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
             </label>
             <textarea class="form-control" id="changeReqReason" rows="3" required
               placeholder="Explica por qué necesitas cambiar el horario de tu entrevista..."></textarea>
@@ -570,7 +588,7 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" class="btn btn-warning">
-            <i class="bi bi-send-fill me-1"></i> Enviar Solicitud
+            <i class="bi bi-send-fill me-1" aria-hidden="true"></i>Enviar solicitud
           </button>
         </div>
       </form>

@@ -51,6 +51,12 @@
   
   // ==================== CARGAR PROGRAMAS ====================
   async function loadAvailablePrograms() {
+    const list = document.getElementById('availableProgramsList');
+    if (list) {
+      list.setAttribute('aria-busy', 'true');
+      list.innerHTML = '<div class="skeleton skeleton-card skeleton-card--sm"></div>';
+    }
+
     try {
       const res = await fetch('/api/v1/programs', {
         credentials: 'same-origin'
@@ -63,18 +69,19 @@
       
       const container = document.getElementById('availableProgramsList');
       container.innerHTML = '';
-      
+
+      let shown = 0;
       programs.forEach(prog => {
-        
         // No mostrar el programa actual
         if (prog.id === currentFromProgram.id) return;
-        
+        shown += 1;
+
         const card = document.createElement('div');
         card.className = 'program-option card mb-2';
         card.innerHTML = `
           <div class="card-body">
             <div class="form-check">
-              <input class="form-check-input" type="radio" name="targetProgram" 
+              <input class="form-check-input" type="radio" name="targetProgram"
                      id="prog-${prog.id}" value="${prog.id}" data-slug="${prog.slug}">
               <label class="form-check-label" for="prog-${prog.id}">
                 <strong>${prog.name}</strong>
@@ -85,9 +92,37 @@
         `;
         container.appendChild(card);
       });
-      
+
+      if (!shown) {
+        container.innerHTML = `
+          <div class="empty-state empty-state--compact">
+            <div class="empty-state__icon"><i class="bi bi-inbox" aria-hidden="true"></i></div>
+            <h4 class="empty-state__title">No hay otros programas disponibles</h4>
+            <p class="empty-state__description">Por ahora no existe otro programa al que puedas cambiarte.</p>
+          </div>
+        `;
+      }
+
+      container.setAttribute('aria-busy', 'false');
+      if (window.SIIAP && SIIAP.announce) {
+        SIIAP.announce(shown === 1
+          ? '1 programa disponible para cambio'
+          : `${shown} programas disponibles para cambio`);
+      }
+
     } catch (err) {
       console.error('Error loading programs:', err);
+      const container = document.getElementById('availableProgramsList');
+      if (container) {
+        container.setAttribute('aria-busy', 'false');
+        container.innerHTML = `
+          <div class="empty-state empty-state--compact empty-state--error">
+            <div class="empty-state__icon"><i class="bi bi-wifi-off" aria-hidden="true"></i></div>
+            <h4 class="empty-state__title">No pudimos cargar los programas</h4>
+            <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
+          </div>
+        `;
+      }
       flash('Error al cargar programas disponibles', 'danger');
     }
   }
@@ -125,29 +160,31 @@
       });
     }
     
-    // Botón "Cancelar" en modal de análisis
-    const btnCancelTransfer = document.getElementById('btnCancelTransfer');
-    if (btnCancelTransfer) {
-      btnCancelTransfer.addEventListener('click', () => {
-        bootstrap.Modal.getInstance(document.getElementById('analysisModal')).hide();
+    // Botones de cierre del modal de análisis (pie y cabecera).
+    // El modal usa data-bs-backdrop="static", así que necesita salidas explícitas.
+    ['btnCancelTransfer', 'btnCancelTransferHeader'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        const modalEl = document.getElementById('analysisModal');
+        const inst = bootstrap.Modal.getInstance(modalEl);
+        if (inst) inst.hide();
       });
-    }
+    });
   }
   
   // ==================== ANALIZAR TRANSFERENCIA ====================
   async function analyzeTransfer() {
     const analysisModal = new bootstrap.Modal(document.getElementById('analysisModal'));
     
-    // Mostrar loading en el modal
-    document.getElementById('analysisContent').innerHTML = `
-      <div class="text-center py-5">
-        <div class="spinner-border text-primary" role="status">
-          <span class="visually-hidden">Analizando...</span>
-        </div>
-        <p class="mt-3">Analizando cambio de programa...</p>
-      </div>
+    // Estado de carga anunciado
+    const analysisContainer = document.getElementById('analysisContent');
+    analysisContainer.setAttribute('aria-busy', 'true');
+    analysisContainer.innerHTML = `
+      <p class="mb-3">Analizando el cambio de programa…</p>
+      <div class="skeleton skeleton-card skeleton-card--md"></div>
     `;
-    
+
     analysisModal.show();
     
     try {
@@ -175,10 +212,11 @@
       
     } catch (err) {
       console.error('Analysis error:', err);
-      document.getElementById('analysisContent').innerHTML = `
-        <div class="alert alert-danger">
-          <i class="bi bi-exclamation-triangle-fill me-2"></i>
-          Error al analizar el cambio: ${err.message}
+      analysisContainer.setAttribute('aria-busy', 'false');
+      analysisContainer.innerHTML = `
+        <div class="alert alert-danger" role="alert">
+          <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
+          No pudimos analizar el cambio de programa. Inténtalo de nuevo más tarde.
         </div>
       `;
       document.getElementById('btnConfirmTransfer').disabled = true;
@@ -194,7 +232,7 @@
     // 1. Resumen general
     html += `
       <div class="alert alert-info mb-4">
-        <h6 class="mb-2"><i class="bi bi-info-circle-fill me-2"></i>Resumen del Cambio</h6>
+        <h4 class="h6 mb-2"><i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>Resumen del cambio</h4>
         <ul class="mb-0 small">
           <li><strong>${analysis.reusable_docs.length}</strong> documento(s) se conservarán</li>
           <li><strong>${analysis.incompatible_docs.length}</strong> documento(s) se eliminarán</li>
@@ -202,39 +240,41 @@
         </ul>
       </div>
     `;
-    
+
     // 2. Documentos que se conservan
     if (analysis.reusable_docs.length > 0) {
       html += `
         <div class="mb-4">
-          <h6 class="text-success">
-            <i class="bi bi-check-circle-fill me-2"></i>
-            Documentos que se Conservarán (${analysis.reusable_docs.length})
-          </h6>
-          <div class="table-responsive">
-            <table class="table table-sm table-hover">
+          <h4 class="h6 text-success-strong">
+            <i class="bi bi-check-circle-fill me-2" aria-hidden="true"></i>
+            Documentos que se conservarán (${analysis.reusable_docs.length})
+          </h4>
+          <div class="siiap-table-wrapper">
+            <table class="table siiap-table table-sm table-hover mb-0">
+              <caption class="visually-hidden">Documentos que se conservarán al cambiar de programa</caption>
               <thead class="table-light">
                 <tr>
-                  <th>Documento</th>
-                  <th>Estado</th>
-                  <th>Paso Actual</th>
-                  <th>Paso Nuevo</th>
+                  <th scope="col">Documento</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col">Paso actual</th>
+                  <th scope="col">Paso nuevo</th>
                 </tr>
               </thead>
               <tbody>
       `;
-      
+
       analysis.reusable_docs.forEach(doc => {
-        const statusBadge = doc.status === 'approved' 
-          ? '<span class="badge bg-success">Aprobado</span>'
+        // Mismo componente que emite Jinja: nunca `badge bg-*` para un estado.
+        const statusBadge = doc.status === 'approved'
+          ? SIIAP.statusBadge('approved')
           : doc.status === 'rejected'
-          ? '<span class="badge bg-danger">Rechazado</span>'
-          : '<span class="badge bg-warning text-dark">En Revisión</span>';
-        
-        const matchType = doc.is_same_file 
-          ? '<i class="bi bi-equals text-success" title="Archivo idéntico"></i>'
-          : '<i class="bi bi-arrow-left-right text-info" title="Archivo equivalente"></i>';
-        
+          ? SIIAP.statusBadge('rejected')
+          : SIIAP.statusBadge('review');
+
+        const matchType = doc.is_same_file
+          ? '<i class="bi bi-equals text-success-strong" aria-hidden="true"></i><span class="visually-hidden">Archivo idéntico</span>'
+          : '<i class="bi bi-arrow-left-right text-info-strong" aria-hidden="true"></i><span class="visually-hidden">Archivo equivalente</span>';
+
         html += `
           <tr>
             <td>
@@ -247,15 +287,15 @@
           </tr>
         `;
       });
-      
+
       html += `
               </tbody>
             </table>
           </div>
-          <p class="small text-muted mb-0">
-            <i class="bi bi-info-circle-fill me-1"></i>
-            Estos documentos serán reutilizados en el nuevo programa. 
-            Los aprobados volverán a estado "Pendiente" para nueva revisión.
+          <p class="small text-muted mb-0 mt-2">
+            <i class="bi bi-info-circle-fill me-1" aria-hidden="true"></i>
+            Estos documentos serán reutilizados en el nuevo programa.
+            Los aprobados volverán al estado «Pendiente» para una nueva revisión.
           </p>
         </div>
       `;
@@ -265,13 +305,13 @@
     if (analysis.incompatible_docs.length > 0) {
       html += `
         <div class="mb-4">
-          <h6 class="text-danger">
-            <i class="bi bi-x-circle-fill me-2"></i>
-            Documentos que se Eliminarán (${analysis.incompatible_docs.length})
-          </h6>
-          <div class="alert alert-warning">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            <strong>Atención:</strong> Estos archivos NO son compatibles con el nuevo programa 
+          <h4 class="h6 text-danger-strong">
+            <i class="bi bi-x-circle-fill me-2" aria-hidden="true"></i>
+            Documentos que se eliminarán (${analysis.incompatible_docs.length})
+          </h4>
+          <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
+            <strong>Atención:</strong> estos archivos no son compatibles con el nuevo programa
             y serán <strong>eliminados permanentemente</strong>.
           </div>
           <ul class="list-group">
@@ -285,7 +325,7 @@
               <div class="small text-muted">Paso: ${doc.step_name}</div>
               <div class="small text-muted">ID: ${doc.archive_id}</div>
             </div>
-            <i class="bi bi-trash text-danger"></i>
+            <i class="bi bi-trash text-danger" aria-hidden="true"></i>
           </li>
         `;
       });
@@ -300,12 +340,12 @@
     if (analysis.missing_docs.length > 0) {
       html += `
         <div class="mb-4">
-          <h6 class="text-primary">
-            <i class="bi bi-file-earmark-medical-fill me-2"></i>
-            Documentos Nuevos Requeridos (${analysis.missing_docs.length})
-          </h6>
-          <div class="alert alert-info">
-            <i class="bi bi-info-circle-fill me-2"></i>
+          <h4 class="h6 text-brand-primary">
+            <i class="bi bi-file-earmark-medical-fill me-2" aria-hidden="true"></i>
+            Documentos nuevos requeridos (${analysis.missing_docs.length})
+          </h4>
+          <div class="alert alert-info" role="alert">
+            <i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>
             Deberás subir estos documentos después del cambio.
           </div>
           <ul class="list-group">
@@ -331,40 +371,41 @@
     if (analysis.interview_status.has_interview) {
       const willCancel = analysis.interview_status.will_cancel;
       html += `
-        <div class="alert ${willCancel ? 'alert-danger' : 'alert-success'} mb-4">
-          <h6 class="mb-2">
-            <i class="bi bi-calendar3 me-2"></i>
-            Estado de Entrevista
-          </h6>
-          ${willCancel 
+        <div class="alert ${willCancel ? 'alert-danger' : 'alert-success'} mb-4" role="alert">
+          <h4 class="h6 mb-2">
+            <i class="bi bi-calendar3 me-2" aria-hidden="true"></i>
+            Estado de la entrevista
+          </h4>
+          ${willCancel
             ? `<p class="mb-0">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
                 <strong>Tu entrevista será cancelada.</strong><br>
                 Motivo: ${analysis.interview_status.reason}
               </p>`
             : `<p class="mb-0">
-                <i class="bi bi-check-circle-fill me-2"></i>
+                <i class="bi bi-check-circle-fill me-2" aria-hidden="true"></i>
                 Tu entrevista se mantendrá activa en el nuevo programa.
               </p>`
           }
         </div>
       `;
     }
-    
+
     // 6. Campo de razón
     html += `
       <div class="mb-3">
-        <label class="form-label">
+        <label class="form-label" for="transferReason">
           <strong>Razón del cambio</strong> <span class="text-muted">(opcional)</span>
         </label>
-        <textarea class="form-control" id="transferReason" rows="3" 
+        <textarea class="form-control" id="transferReason" rows="3"
                   placeholder="Explica brevemente por qué deseas cambiar de programa..."></textarea>
       </div>
     `;
-    
+
     html += '</div>';
-    
+
     container.innerHTML = html;
+    container.setAttribute('aria-busy', 'false');
     document.getElementById('btnConfirmTransfer').disabled = false;
   }
   
@@ -376,7 +417,7 @@
     
     // Deshabilitar botón y mostrar loading
     confirmBtn.disabled = true;
-    confirmBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin me-2"></i>Procesando...';
+    confirmBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin me-2" aria-hidden="true"></i>Procesando...';
     
     try {
       const res = await fetch('/api/v1/program-changes/execute', {

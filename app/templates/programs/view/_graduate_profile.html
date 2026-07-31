@@ -1,14 +1,16 @@
 {# app/templates/programs/_graduate_profile.html #}
+{% from '_macros.html' import empty_state %}
 {% if program.show_graduate_profile %}
 <section id="perfil-egresado" class="py-4 my-4">
-  <div class="text-center mb-4" data-aos="fade-up">
+  <div class="text-center mb-4" data-reveal>
     <h2 class="h3 fw-bold mb-3">Perfil del Egresado</h2>
     <div class="divider-center mb-3"></div>
   </div>
 
   <div class="row justify-content-center">
     <div class="col-lg-10">
-      <div class="card border-0 shadow-sm" data-aos="fade-up">
+      {% if program.graduate_profile_intro or program.graduate_competencies %}
+      <div class="card border-0 shadow-sm" data-reveal>
         <div class="card-body p-4">
           {% if program.graduate_profile_intro %}
           <p class="lead mb-3">{{ program.graduate_profile_intro }}</p>
@@ -18,13 +20,21 @@
           <ul class="list-unstyled mb-0">
             {% for competency in program.graduate_competencies %}
             <li {% if not loop.last %}class="mb-2"{% endif %}>
-              <i class="bi bi-check-circle-fill text-primary me-2"></i> {{ competency }}
+              <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i> {{ competency }}
             </li>
             {% endfor %}
           </ul>
           {% endif %}
         </div>
       </div>
+      {% else %}
+      {{ empty_state(
+           icon='person-badge',
+           title='Perfil de egreso en construcción',
+           description='Este apartado se publicará próximamente. Mientras tanto, el coordinador puede resolverte cualquier duda sobre el perfil profesional.',
+           compact=true
+         ) }}
+      {% endif %}
     </div>
   </div>
 </section>

@@ -1,44 +1,42 @@
 {% extends 'base.html' %}
-{% block title %}Detalle de Evento{% endblock %}
+{% block title %}{{ event.title }}{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/events/view.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4" id="eventViewContainer">
+<div class="container-fluid py-4" id="eventViewContainer" aria-busy="true">
 
   <!-- Breadcrumb -->
-  <nav aria-label="breadcrumb" class="mb-3">
+  <nav aria-label="Ruta de navegación" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item">
         <a href="{{ url_for('pages_events_public.list_events') }}">
-          <i class="bi bi-calendar3 me-1"></i>Eventos
+          <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Eventos
         </a>
       </li>
-      <li class="breadcrumb-item active" aria-current="page" id="breadcrumbTitle">Cargando...</li>
+      <li class="breadcrumb-item active" aria-current="page" id="breadcrumbTitle">{{ event.title }}</li>
     </ol>
   </nav>
 
   <!-- Estado de carga inicial -->
-  <div id="loadingState" class="text-center py-5">
-    <div class="spinner-border text-primary" role="status">
-      <span class="visually-hidden">Cargando...</span>
-    </div>
+  <div id="loadingState" class="text-center py-5" role="status" aria-live="polite">
+    <div class="spinner-border text-primary" aria-hidden="true"></div>
     <p class="text-muted mt-3">Cargando información del evento...</p>
   </div>
 
   <!-- Estado de error -->
-  <div id="errorState" class="d-none">
+  <div id="errorState" class="d-none" role="alert" aria-live="assertive">
     <div class="alert alert-danger d-flex align-items-center gap-3">
-      <i class="bi bi-exclamation-circle fs-4"></i>
+      <i class="bi bi-exclamation-circle fs-4" aria-hidden="true"></i>
       <div>
         <strong>No se pudo cargar el evento.</strong>
         <p class="mb-0 mt-1" id="errorMessage">Error inesperado.</p>
       </div>
     </div>
-    <button class="btn btn-outline-secondary mt-2" id="btnRetry">
-      <i class="bi bi-arrow-clockwise me-1"></i>Reintentar
+    <button type="button" class="btn btn-outline-secondary mt-2" id="btnRetry">
+      <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Reintentar
     </button>
   </div>
 
@@ -46,12 +44,12 @@
   <div id="eventContent" class="d-none">
 
     <!-- ── Hero con imagen full-width ─────────────────────────── -->
-    <div class="event-view-hero" id="eventHeroEl">
+    <div class="event-view-hero event-cover event-cover--default" id="eventHeroEl">
       <!-- Banner invitación / estado (inyectado por JS si aplica) -->
       <div id="heroBannerInvitation"></div>
       <div class="hero-content">
         <div class="hero-badges" id="heroBadges"></div>
-        <h1 id="heroTitle"></h1>
+        <h1 id="heroTitle">{{ event.title }}</h1>
         <div class="hero-meta" id="heroMeta"></div>
       </div>
     </div>
@@ -64,21 +62,21 @@
         <!-- Descripción -->
         <div class="card border-0 shadow-sm mb-4">
           <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0">
-              <i class="bi bi-text-left me-2 text-primary"></i>Descripción
-            </h5>
+            <h2 class="h5 mb-0">
+              <i class="bi bi-text-left me-2 text-primary" aria-hidden="true"></i>Descripción
+            </h2>
           </div>
           <div class="card-body">
-            <p class="mb-0 text-muted" id="eventDescription">Sin descripción disponible.</p>
+            <p class="mb-0 text-muted measure-prose" id="eventDescription">Sin descripción disponible.</p>
           </div>
         </div>
 
         <!-- Sección ponentes (oculta hasta que se cargue) -->
         <div class="card border-0 shadow-sm mb-4 d-none" id="hostsCard">
           <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0">
-              <i class="bi bi-mic-fill me-2 text-primary"></i>Ponentes
-            </h5>
+            <h2 class="h5 mb-0">
+              <i class="bi bi-mic-fill me-2 text-primary" aria-hidden="true"></i>Ponentes
+            </h2>
           </div>
           <div class="card-body">
             <div class="hosts-strip" id="hostsStrip">
@@ -90,9 +88,9 @@
         <!-- Sección galería (oculta hasta que se cargue) -->
         <div class="card border-0 shadow-sm mb-4 d-none" id="galleryCard">
           <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0">
-              <i class="bi bi-images me-2 text-primary"></i>Galería
-            </h5>
+            <h2 class="h5 mb-0">
+              <i class="bi bi-images me-2 text-primary" aria-hidden="true"></i>Galería
+            </h2>
           </div>
           <div class="card-body">
             <div class="event-public-gallery" id="publicGallery">
@@ -108,9 +106,9 @@
         <div id="timelineBlock" class="d-none">
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white border-bottom">
-              <h5 class="mb-0">
-                <i class="bi bi-clock me-2 text-primary"></i>Horarios Disponibles
-              </h5>
+              <h2 class="h5 mb-0">
+                <i class="bi bi-clock me-2 text-primary" aria-hidden="true"></i>Horarios Disponibles
+              </h2>
               <small class="text-muted">Solo lectura — el coordinador asigna los horarios</small>
             </div>
             <div class="card-body p-0" id="timelineContent"></div>
@@ -125,19 +123,19 @@
         <!-- Detalles del evento -->
         <div class="card border-0 shadow-sm mb-4">
           <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0">
-              <i class="bi bi-info-circle me-2 text-primary"></i>Detalles
-            </h5>
+            <h2 class="h5 mb-0">
+              <i class="bi bi-info-circle me-2 text-primary" aria-hidden="true"></i>Detalles
+            </h2>
           </div>
-          <ul class="list-group list-group-flush" id="eventDetailsList"></ul>
+          <dl class="list-group list-group-flush mb-0" id="eventDetailsList"></dl>
         </div>
 
         <!-- Acciones rápidas -->
         <div class="card border-0 shadow-sm mb-4" id="quickActionsCard">
           <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0">
-              <i class="bi bi-lightning-fill me-2 text-primary"></i>Acciones
-            </h5>
+            <h2 class="h5 mb-0">
+              <i class="bi bi-lightning-fill me-2 text-primary" aria-hidden="true"></i>Acciones
+            </h2>
           </div>
           <div class="card-body" id="quickActionsBody"></div>
         </div>
@@ -145,15 +143,17 @@
         <!-- Compartir enlace -->
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0">
-              <i class="bi bi-share me-2 text-primary"></i>Compartir
-            </h5>
+            <h2 class="h5 mb-0">
+              <i class="bi bi-share me-2 text-primary" aria-hidden="true"></i>Compartir
+            </h2>
           </div>
           <div class="card-body">
             <div class="input-group input-group-sm">
-              <input type="text" class="form-control share-url-input" id="shareUrlInput" readonly>
-              <button class="btn btn-outline-secondary" type="button" id="btnCopyUrl" title="Copiar enlace">
-                <i class="bi bi-clipboard"></i>
+              <input type="text" class="form-control share-url-input" id="shareUrlInput" readonly
+                     aria-label="Enlace público del evento">
+              <button class="btn btn-outline-secondary tap-target" type="button" id="btnCopyUrl"
+                      aria-label="Copiar enlace del evento" title="Copiar enlace">
+                <i class="bi bi-clipboard" aria-hidden="true"></i>
               </button>
             </div>
           </div>
@@ -166,11 +166,12 @@
 </div>
 
 <!-- Lightbox nativo -->
-<dialog class="event-lightbox" id="eventLightbox">
-  <button class="lightbox-close" id="lightboxClose" aria-label="Cerrar">
-    <i class="bi bi-x-lg"></i>
+<dialog class="event-lightbox" id="eventLightbox" aria-label="Imagen del evento a tamaño completo">
+  <button type="button" class="lightbox-close tap-target" id="lightboxClose" aria-label="Cerrar la imagen">
+    <i class="bi bi-x-lg" aria-hidden="true"></i>
   </button>
-  <img src="" alt="Imagen del evento" id="lightboxImg">
+  {# La imagen la crea events/view.js al abrir. No se deja un marcador vacío
+     en el markup: sin origen asignado el navegador pinta un hueco roto. #}
 </dialog>
 {% endblock %}
 
@@ -181,17 +182,21 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="changeRequestModalLabel">
-          <i class="bi bi-arrow-left-right me-2"></i>Solicitar Cambio de Cita
+          <i class="bi bi-arrow-left-right me-2" aria-hidden="true"></i>Solicitar Cambio de Cita
         </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <div class="mb-3">
           <label for="changeReason" class="form-label fw-semibold">
-            Motivo del cambio <span class="text-danger">*</span>
+            Motivo del cambio <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
           </label>
           <textarea class="form-control" id="changeReason" rows="3"
+                    required aria-required="true" aria-describedby="changeReasonHelp"
                     placeholder="Explica por qué necesitas cambiar el horario..."></textarea>
+          <div id="changeReasonHelp" class="form-text">
+            Obligatorio. Explica por qué necesitas cambiar el horario.
+          </div>
         </div>
         <div class="mb-3">
           <label for="changeSuggestions" class="form-label fw-semibold">
@@ -201,14 +206,14 @@
                     placeholder="Indica los horarios que te son convenientes..."></textarea>
         </div>
         <div class="alert alert-info small mb-0">
-          <i class="bi bi-info-circle me-1"></i>
+          <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
           Tu solicitud será revisada por el coordinador, quien te notificará la resolución.
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="btnConfirmChangeRequest">
-          <i class="bi bi-send me-1"></i>Enviar Solicitud
+          <i class="bi bi-send me-1" aria-hidden="true"></i>Enviar Solicitud
         </button>
       </div>
     </div>
@@ -221,13 +226,13 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="hostBioModalLabel">Ponente</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <div class="d-flex flex-column align-items-center gap-3 mb-3">
           <div id="hostBioPhotoWrap"></div>
           <div class="text-center">
-            <h5 class="mb-0" id="hostBioName"></h5>
+            <p class="h5 mb-0" id="hostBioName"></p>
             <p class="text-muted small mb-0" id="hostBioRole"></p>
           </div>
         </div>

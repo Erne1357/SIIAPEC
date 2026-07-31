@@ -12,7 +12,7 @@
   <div class="events-hero d-flex flex-column flex-sm-row justify-content-between align-items-start gap-3" id="eventsHero">
     <div>
       <div class="d-flex align-items-center gap-2 mb-2">
-        <i class="bi bi-calendar3 fs-3"></i>
+        <i class="bi bi-calendar3 fs-3" aria-hidden="true"></i>
         <h1 class="h3 mb-0">Eventos</h1>
       </div>
       <div class="d-flex flex-wrap gap-2 mt-2" id="heroStats">
@@ -20,33 +20,36 @@
       </div>
     </div>
     <div class="hero-actions mt-1">
-      <button class="btn-hero" id="btnShowMyRegistrations">
-        <i class="bi bi-list-check me-1"></i>Mis Registros
+      <button type="button" class="btn-hero" id="btnShowMyRegistrations">
+        <i class="bi bi-list-check me-1" aria-hidden="true"></i>Mis Registros
       </button>
-      <a href="#pendingInvitationsSection" class="btn-hero" id="btnScrollInvitations" style="display:none;">
-        <i class="bi bi-envelope me-1"></i>Ver invitaciones
+      <a href="#pendingInvitationsSection" class="btn-hero d-none" id="btnScrollInvitations">
+        <i class="bi bi-envelope me-1" aria-hidden="true"></i>Ver invitaciones
       </a>
     </div>
   </div>
 
   <!-- Sección invitaciones pendientes (pinned, solo si hay) -->
-  <div class="pending-invitations-section d-none" id="pendingInvitationsSection">
-    <div class="section-title">
-      <i class="bi bi-envelope-exclamation-fill"></i>
+  <section class="pending-invitations-section d-none" id="pendingInvitationsSection"
+           aria-labelledby="pendingInvitationsTitle">
+    <h2 class="section-title" id="pendingInvitationsTitle">
+      <i class="bi bi-envelope-exclamation-fill" aria-hidden="true"></i>
       Invitaciones pendientes
-      <span class="badge bg-warning text-dark" id="pendingInvitationsCount">0</span>
-    </div>
+      <span class="badge bg-warning" id="pendingInvitationsCount">0</span>
+      <span class="visually-hidden">invitaciones sin responder</span>
+    </h2>
     <div class="row g-3" id="pendingInvitationsList">
       <!-- Se llena por JS -->
     </div>
-  </div>
+  </section>
 
   <!-- Filtros -->
   <div class="card events-filters-card mb-4">
     <div class="card-body py-3">
       <div class="row g-2">
         <div class="col-sm-6 col-md-3">
-          <select class="form-select form-select-sm" id="filterType">
+          <select class="form-select form-select-sm" id="filterType"
+                  aria-label="Filtrar por tipo de evento">
             <option value="">Todos los tipos</option>
             <option value="interview">Entrevista</option>
             <option value="defense">Defensa</option>
@@ -57,14 +60,16 @@
           </select>
         </div>
         <div class="col-sm-6 col-md-3">
-          <select class="form-select form-select-sm" id="filterCapacity">
+          <select class="form-select form-select-sm" id="filterCapacity"
+                  aria-label="Filtrar por disponibilidad de cupo">
             <option value="">Todos los cupos</option>
             <option value="available">Con cupo disponible</option>
             <option value="full">Sin cupo</option>
           </select>
         </div>
         <div class="col-sm-6 col-md-2">
-          <select class="form-select form-select-sm" id="filterDate">
+          <select class="form-select form-select-sm" id="filterDate"
+                  aria-label="Filtrar por fecha">
             <option value="">Todas las fechas</option>
             <option value="week">Próximos 7 días</option>
             <option value="month">Este mes</option>
@@ -77,17 +82,22 @@
           </div>
         </div>
         <div class="col-md-2">
-          <input type="search" class="form-control form-control-sm" id="searchEvents" placeholder="Buscar eventos...">
+          <input type="search" class="form-control form-control-sm" id="searchEvents"
+                 placeholder="Buscar eventos..."
+                 aria-label="Buscar eventos por título, descripción o lugar">
         </div>
       </div>
     </div>
   </div>
 
+  <!-- Resultado de los filtros: solo para lectores de pantalla -->
+  <p id="eventsResultsCount" class="visually-hidden" role="status" aria-live="polite"></p>
+
   <!-- Grid de eventos -->
-  <div class="row g-4" id="eventsContainer">
+  <div class="row g-4" id="eventsContainer" aria-busy="true">
     <div class="col-12 text-center py-5">
       <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Cargando...</span>
+        <span class="visually-hidden">Cargando eventos disponibles…</span>
       </div>
       <p class="text-muted mt-2">Cargando eventos disponibles...</p>
     </div>
@@ -103,13 +113,15 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="myRegistrationsModalLabel">
-          <i class="bi bi-list-check me-2"></i>Mis Registros
+          <i class="bi bi-list-check me-2" aria-hidden="true"></i>Mis Registros
         </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body" id="myRegistrationsBody">
         <div class="text-center py-4">
-          <div class="spinner-border text-primary" role="status"></div>
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando registros…</span>
+          </div>
           <p class="text-muted mt-2">Cargando registros...</p>
         </div>
       </div>

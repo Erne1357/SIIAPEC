@@ -1,62 +1,80 @@
-{# app/templates/programs/_hero.html #}
+{# app/templates/programs/view/_hero.html #}
 <section id="hero" class="program-hero-section py-4">
     <div class="row align-items-center">
-        <div class="col-lg-6 mb-4 mb-lg-0" data-aos="fade-right">
-            <h1 class="display-5 fw-bold mb-3">{{ program.name }}</h1>
-            <p class="lead mb-4">{{ program.description }}</p>
-            <div class="d-flex flex-column flex-sm-row gap-3">
-                <a href="#admision" class="btn btn-primary">Proceso de Admisión</a>
-                <a href="#plan-estudios" class="btn btn-outline-primary">Plan de Estudios</a>
+        <div class="col-lg-6 mb-4 mb-lg-0" data-reveal="fade-right">
+            <h1 class="program-hero__title">{{ program.name }}</h1>
+            <p class="program-hero__lead">{{ program.description }}</p>
+
+            <div class="program-hero__actions">
+                {# Acción de valor: postularse. Es el único botón sólido del hero. #}
+                <button
+                    type="button"
+                    class="btn btn-primary btn-lg"
+                    data-bs-toggle="modal"
+                    data-bs-target="{{ '#enrollmentModal' if admission_open else '#enrollmentClosedModal' }}">
+                    <i class="bi bi-mortarboard-fill me-2" aria-hidden="true"></i>Postularme
+                </button>
+
+                {# Navegación interna: enlaces, no botones. #}
+                <a href="#admision" class="program-hero__jump">
+                    <i class="bi bi-list-check" aria-hidden="true"></i>Proceso de admisión
+                </a>
+                <a href="#plan-estudios" class="program-hero__jump">
+                    <i class="bi bi-journal-text" aria-hidden="true"></i>Plan de estudios
+                </a>
+
                 {% if has_perm('academic_periods.api.create') or program.coordinator_id == current_user.id %}
-                <a href="{{ url_for('pages_admin.pages_settings.config_program', slug=program.slug) }}" class="btn btn-outline-secondary">
-                    <i class="bi bi-gear-fill me-1"></i>Configurar
+                <a href="{{ url_for('pages_admin.pages_settings.config_program', slug=program.slug) }}"
+                   class="btn btn-outline-secondary">
+                    <i class="bi bi-gear-fill me-1" aria-hidden="true"></i>Configurar
                 </a>
                 {% endif %}
             </div>
         </div>
-        <div class="col-lg-6" data-aos="fade-left">
+        <div class="col-lg-6" data-reveal="fade-left">
             <div class="program-image-container">
                 {% if program.image_filename %}
                 <img src="{{ url_for('static', filename='assets/images/' ~ program.image_filename) }}?v={{ static_version }}"
-                     alt="{{ program.name }}" style="max-height: 400px;"
-                     class="img-fluid rounded-3 shadow-sm">
+                     alt=""
+                     class="program-hero__image"
+                     width="960" height="540"
+                     loading="eager" decoding="async">
                 {% else %}
-                <img src="{{ url_for('static', filename='assets/images/default-program.webp') }}?v={{ static_version }}"
-                     alt="{{ program.name }}" style="max-height: 400px;"
-                     class="img-fluid rounded-3 shadow-sm">
+                <img src="{{ url_for('static', filename='assets/images/default.jpg') }}?v={{ static_version }}"
+                     alt=""
+                     class="program-hero__image"
+                     width="960" height="540"
+                     loading="eager" decoding="async">
                 {% endif %}
             </div>
         </div>
     </div>
 
     {% if program.show_hero_cards %}
-    <div class="row mt-4" data-aos="fade-up" data-aos-delay="200">
-        <div class="col-md-4 mb-3 mb-md-0">
-            <div class="card h-100 shadow-sm hover-card">
-                <div class="card-body text-center p-3">
-                    <h3 class="h5 fw-bold text-primary mb-2">Admisión</h3>
-                    <p class="card-text">Conoce los requisitos y pasos para formar parte de nuestro programa de
-                        excelencia.</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4 mb-3 mb-md-0">
-            <div class="card h-100 shadow-sm hover-card">
-                <div class="card-body text-center p-3">
-                    <h3 class="h5 fw-bold text-primary mb-2">Permanencia</h3>
-                    <p class="card-text">Descubre las opciones y apoyos disponibles durante tu trayectoria académica.
-                    </p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card h-100 shadow-sm hover-card">
-                <div class="card-body text-center p-3">
-                    <h3 class="h5 fw-bold text-primary mb-2">Conclusión</h3>
-                    <p class="card-text">Conoce los pasos para culminar exitosamente tu programa de posgrado.</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    {# Datos concretos del programa. Sustituyen a tres tarjetas con copy
+       genérico que no aportaban ni información ni acción. #}
+    <ul class="program-hero__facts" data-reveal>
+        <li class="program-hero__fact">
+            <i class="bi bi-calendar3" aria-hidden="true"></i>
+            <span>
+                <span class="program-hero__fact-label">Duración</span>
+                <span class="program-hero__fact-value">{{ program.duration_display }}</span>
+            </span>
+        </li>
+        <li class="program-hero__fact">
+            <i class="bi bi-clock" aria-hidden="true"></i>
+            <span>
+                <span class="program-hero__fact-label">Modalidad</span>
+                <span class="program-hero__fact-value">{{ program.modality or 'Presencial' }}</span>
+            </span>
+        </li>
+        <li class="program-hero__fact">
+            <i class="bi bi-award-fill" aria-hidden="true"></i>
+            <span>
+                <span class="program-hero__fact-label">Nivel</span>
+                <span class="program-hero__fact-value">{{ program.program_level or 'Posgrado' }}</span>
+            </span>
+        </li>
+    </ul>
     {% endif %}
 </section>

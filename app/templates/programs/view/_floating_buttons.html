@@ -1,18 +1,18 @@
-{# app/templates/programs/_floating_buttons.html #}
+{# app/templates/programs/view/_floating_buttons.html
+   Ambos botones se renderizan visibles: no dependen de JavaScript. #}
 <div class="floating-back-button">
   <a href="{{ url_for('program.list_programs') }}" class="btn btn-outline-primary btn-back">
-    <i class="bi bi-arrow-left me-2"></i>Regresar
+    <i class="bi bi-arrow-left me-2" aria-hidden="true"></i>Regresar
   </a>
 </div>
 
-
- <!-- Botón flotante para inscripción -->
+{# Refuerzo del CTA del hero: acompaña al aspirante durante todo el scroll #}
 <div class="floating-inscription-button">
   <button
       type="button"
       class="btn btn-primary btn-inscription"
       data-bs-toggle="modal"
       data-bs-target="{{ '#enrollmentModal' if admission_open else '#enrollmentClosedModal' }}">
-    <i class="bi bi-mortarboard-fill me-2"></i>Postularme
+    <i class="bi bi-mortarboard-fill me-2" aria-hidden="true"></i>Postularme
   </button>
 </div>

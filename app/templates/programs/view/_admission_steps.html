@@ -1,4 +1,5 @@
 {# app/templates/programs/_admission_steps.html #}
+{% from '_macros.html' import empty_state %}
 
 {# Diccionario de traducción para nombres de fases #}
 {% set phase_translations = {
@@ -22,10 +23,10 @@
 } %}
 
 <section id="admision" class="py-4 my-4">
-  <div class="text-center mb-4" data-aos="fade-up">
+  <div class="text-center mb-4" data-reveal>
     <h2 class="h3 fw-bold mb-3">Proceso de Inscripción</h2>
     <div class="divider-center mb-3"></div>
-    <p class="lead mx-auto" style="max-width: 800px;">
+    <p class="lead program-lead">
       Conoce los pasos para formar parte de nuestro programa y prepararte para una experiencia académica transformadora.
     </p>
   </div>
@@ -43,7 +44,7 @@
   {# 3) Generar lista de fases ordenadas por id #}
   {% set sorted_phases = phase_groups.keys() | list | sort(attribute='id') %}
 
-  <div class="admission-process" data-aos="fade-up">
+  <div class="admission-process" data-reveal>
     <!-- Navegación de fases horizontal -->
     <ul class="nav nav-pills nav-justified admission-phases-nav mb-4" id="admissionPhasesTab" role="tablist">
       {% for phase in sorted_phases %}
@@ -60,9 +61,9 @@
             <div class="phase-icon">
               {% set phase_key = phase.name|lower %}
               {% if phase_key in phase_icons %}
-                <i class="bi {{ phase_icons[phase_key] }}"></i>
+                <i class="bi {{ phase_icons[phase_key] }}" aria-hidden="true"></i>
               {% else %}
-                <i class="bi bi-clipboard-data"></i>
+                <i class="bi bi-clipboard-data" aria-hidden="true"></i>
               {% endif %}
             </div>
           </div>
@@ -93,7 +94,7 @@
           <!-- Timeline de pasos -->
           <div class="steps-timeline">
             {% for ps in items %}
-            <div class="timeline-item" data-aos="fade-up" data-aos-delay="{{ loop.index * 100 }}">
+            <div class="timeline-item" data-reveal data-reveal-delay="{{ [loop.index0 * 60, 240]|min }}">
               <div class="timeline-dot">
                 <span class="step-number">{{ ps.sequence }}</span>
               </div>
@@ -112,15 +113,16 @@
                     {% for file in ps.step.archives %}
                     <li class="mb-2">
                       {% if file.is_downloadable and file.file_path %}
-                      <a href="/api/v1/archives/{{ file.id }}/template"
+                      <a href="{{ url_for('api_archives.download_template', archive_id=file.id) }}"
                          target="_blank" rel="noopener"
                          class="text-decoration-none document-link">
-                        <i class="bi bi-file-earmark-text me-2"></i>{{ file.name }}
-                        <i class="bi bi-download ms-1"></i>
+                        <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>{{ file.name }}
+                        <i class="bi bi-download ms-1" aria-hidden="true"></i>
+                        <span class="visually-hidden">(descarga la plantilla en una pestaña nueva)</span>
                       </a>
                       {% else %}
                       <span class="text-decoration-none document-link text-muted">
-                        <i class="bi bi-file-earmark-text me-2"></i>{{ file.name }}
+                        <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>{{ file.name }}
                       </span>
                       {% endif %}
                     </li>
@@ -140,8 +142,13 @@
     </div>
   </div>
   {% else %}
-  <div class="alert alert-info text-center">
-    Los pasos para este programa aún no están configurados.
-  </div>
+  {{ empty_state(
+       icon='list-check',
+       title='Proceso de admisión en preparación',
+       description='Los pasos y requisitos de este programa todavía no se publican. Escríbenos y te avisamos en cuanto estén disponibles.',
+       action_label='Consultar al programa',
+       action_url='mailto:' ~ (program.contact_email or 'posgrado@itcj.edu.mx'),
+       compact=true
+     ) }}
   {% endif %}
 </section>

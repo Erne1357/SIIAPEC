@@ -1,43 +1,40 @@
 {# app/templates/programs/_contact.html #}
 {% if program.show_contact_section %}
 <section id="contacto" class="py-4 bg-light rounded-3 my-4">
-  <div class="text-center mb-4" data-aos="fade-up">
+  <div class="text-center mb-4" data-reveal>
     <h2 class="h3 fw-bold mb-3">Contacto</h2>
     <div class="divider-center mb-3"></div>
-    <p class="lead mx-auto" style="max-width: 800px;">
+    <p class="lead program-lead">
       ¿Tienes preguntas sobre nuestro programa? Estamos aquí para ayudarte.
     </p>
   </div>
 
   <div class="row g-4">
     {% if program.show_contact_form %}
-    <div class="col-lg-6" data-aos="fade-right">
+    <div class="col-lg-6" data-reveal="fade-right">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body p-4">
-          <h3 class="h4 fw-bold mb-3">Envíanos un Mensaje</h3>
+          <h3 class="h4 fw-bold mb-3">Escríbenos por correo</h3>
           {% set primary_email = program.contact_email or 'posgrado@itcj.edu.mx' %}
           <p class="mb-3">
-            Para consultas sobre este programa, escríbenos directamente. Recibirás respuesta del coordinador en horario de oficina.
+            Al pulsar el botón se abrirá tu cliente de correo con el asunto ya escrito.
+            Respondemos en horario de oficina.
           </p>
           <a href="mailto:{{ primary_email }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
              class="btn btn-primary w-100">
-            <i class="bi bi-envelope-fill me-2"></i>Escribir a {{ primary_email }}
+            <i class="bi bi-envelope-fill me-2" aria-hidden="true"></i>Escribir a <span class="text-break">{{ primary_email }}</span>
           </a>
           {% if program.contact_email_secondary %}
           <a href="mailto:{{ program.contact_email_secondary }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
              class="btn btn-outline-primary w-100 mt-2">
-            <i class="bi bi-envelope me-2"></i>Correo alterno: {{ program.contact_email_secondary }}
+            <i class="bi bi-envelope me-2" aria-hidden="true"></i>Correo alterno: <span class="text-break">{{ program.contact_email_secondary }}</span>
           </a>
           {% endif %}
-          <p class="small text-muted mt-3 mb-0">
-            <i class="bi bi-info-circle me-1"></i>
-            Tu cliente de correo se abrirá con un mensaje pre-llenado con el asunto sugerido.
-          </p>
         </div>
       </div>
     </div>
     {% endif %}
-    <div class="col-lg-{% if program.show_contact_form %}6{% else %}12{% endif %}" data-aos="fade-left">
+    <div class="col-lg-{% if program.show_contact_form %}6{% else %}12{% endif %}" data-reveal="fade-left">
       <div class="card border-0 shadow-sm mb-3">
         <div class="card-body p-4">
           <h3 class="h4 fw-bold mb-3">Información de Contacto</h3>
@@ -45,7 +42,7 @@
             {% if program.contact_email or program.contact_email_secondary %}
             <li class="d-flex mb-3">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
-                <i class="bi bi-envelope-fill text-primary"></i>
+                <i class="bi bi-envelope-fill text-primary" aria-hidden="true"></i>
               </div>
               <div>
                 <h4 class="h6 fw-bold">Correo Electrónico</h4>
@@ -61,7 +58,7 @@
             {% if program.contact_phone or program.contact_phone_secondary %}
             <li class="d-flex mb-3">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
-                <i class="bi bi-telephone text-primary"></i>
+                <i class="bi bi-telephone text-primary" aria-hidden="true"></i>
               </div>
               <div>
                 <h4 class="h6 fw-bold">Teléfono</h4>
@@ -77,7 +74,7 @@
             {% if program.contact_address %}
             <li class="d-flex mb-3">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
-                <i class="bi bi-geo-alt-fill text-primary"></i>
+                <i class="bi bi-geo-alt-fill text-primary" aria-hidden="true"></i>
               </div>
               <div>
                 <h4 class="h6 fw-bold">Dirección</h4>
@@ -89,7 +86,7 @@
             {% if program.contact_office %}
             <li class="d-flex mb-3">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
-                <i class="bi bi-building text-primary"></i>
+                <i class="bi bi-building text-primary" aria-hidden="true"></i>
               </div>
               <div>
                 <h4 class="h6 fw-bold">Oficina</h4>
@@ -101,7 +98,7 @@
             {% if program.contact_hours %}
             <li class="d-flex">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
-                <i class="bi bi-clock text-primary"></i>
+                <i class="bi bi-clock text-primary" aria-hidden="true"></i>
               </div>
               <div>
                 <h4 class="h6 fw-bold">Horario de Atención</h4>

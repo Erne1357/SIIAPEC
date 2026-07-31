@@ -1,4 +1,9 @@
-/* app/static/css/events/list.css */
+/* app/static/css/events/list.css
+ *
+ * Listado publico de eventos. Solo geometria y composicion propias de esta
+ * pagina: el color de portada por tipo vive en components/_event-cover.css y
+ * los estados vacios en components/_empty-state.css.
+ */
 
 /* ====================================================
    HERO
@@ -7,52 +12,59 @@
 .events-hero {
     background: linear-gradient(135deg,
       var(--color-brand-primary) 0%,
-      var(--color-brand-secondary) 50%,
-      var(--color-brand-accent) 100%);
-    color: white;
+      var(--color-brand-primary-700) 100%);
+    color: var(--text-inverse);
     border-radius: var(--radius-xl);
-    padding: 1.5rem 2rem;
-    margin-bottom: 1.5rem;
+    padding: var(--space-6) var(--space-8);
+    margin-bottom: var(--space-6);
 }
 
 .events-hero h1 {
-    font-weight: 700;
-    letter-spacing: -0.01em;
+    font-family: var(--font-display);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
 }
 
+/* Fondo solido en lugar de velo translucido: el contraste del contador deja
+   de depender del punto del degradado sobre el que caiga (15.5:1 fijo). */
 .events-hero .hero-stat {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    background: rgba(255, 255, 255, 0.18);
-    padding: 0.35rem 0.85rem;
-    border-radius: 2rem;
-    font-size: 0.88rem;
-    backdrop-filter: blur(4px);
+    gap: var(--space-2);
+    background: var(--color-brand-primary-700);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-pill);
+    font-size: var(--fs-sm);
     white-space: nowrap;
 }
 
 .events-hero .hero-actions {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--space-2);
     flex-wrap: wrap;
 }
 
 .events-hero .btn-hero {
-    background: rgba(255, 255, 255, 0.15);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    backdrop-filter: blur(4px);
-    border-radius: 2rem;
-    font-size: 0.88rem;
-    padding: 0.35rem 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--tap-min);
+    background: var(--color-brand-primary-700);
+    color: var(--text-inverse);
+    border: 1px solid var(--text-inverse);
+    border-radius: var(--radius-pill);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    padding: var(--space-2) var(--space-4);
     text-decoration: none;
-    transition: background 0.15s;
+    transition: background-color var(--duration-fast) var(--ease-out),
+                color var(--duration-fast) var(--ease-out);
 }
 
-.events-hero .btn-hero:hover {
-    background: rgba(255, 255, 255, 0.28);
-    color: white;
+.events-hero .btn-hero:hover,
+.events-hero .btn-hero:focus-visible {
+    background: var(--text-inverse);
+    color: var(--color-brand-primary);
 }
 
 /* ====================================================
@@ -60,27 +72,29 @@
    ==================================================== */
 
 .pending-invitations-section {
-    background: var(--bs-warning-bg-subtle);
-    border: 1px solid var(--bs-warning-border-subtle);
-    border-radius: 0.75rem;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.5rem;
+    background: var(--color-warning-100);
+    border: 1px solid var(--border-warning-subtle);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4) var(--space-5);
+    margin-bottom: var(--space-6);
 }
 
 .pending-invitations-section .section-title {
-    font-weight: 600;
-    color: var(--bs-warning-text-emphasis);
-    margin-bottom: 0.75rem;
+    font-family: var(--font-display);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+    color: var(--color-warning-700);   /* 6.87:1 sobre warning-100 */
+    margin-bottom: var(--space-3);
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--space-2);
 }
 
 .invitation-highlight-card {
-    background: white;
-    border: 2px solid var(--bs-warning);
-    border-radius: 0.5rem;
-    padding: 0.875rem 1rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
 }
 
 /* ====================================================
@@ -88,9 +102,9 @@
    ==================================================== */
 
 .events-filters-card {
-    border-radius: 0.75rem;
-    border: 1px solid var(--bs-border-color);
-    margin-bottom: 1.5rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-default);
+    margin-bottom: var(--space-6);
 }
 
 /* ====================================================
@@ -98,47 +112,38 @@
    ==================================================== */
 
 .event-card {
-    border: 1px solid var(--bs-border-color);
-    border-radius: 0.75rem;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
     overflow: hidden;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    transition: transform var(--duration-fast) var(--ease-out),
+                box-shadow var(--duration-fast) var(--ease-out);
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: white;
+    background: var(--bg-surface);
 }
 
 .event-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.09);
+    box-shadow: var(--shadow-4);
 }
 
+/* El estado de invitacion se comunica con el borde Y con la cinta de texto
+   sobre la portada: nunca solo con color (WCAG 1.4.1). Sin halo ni pulso. */
 .event-card.has-invitation {
-    border: 2px solid var(--bs-warning);
-}
-
-.event-card.invitation-pending {
-    border: 2px solid var(--bs-warning);
-    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.18), 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
-    animation: invitation-pulse 2.5s ease-in-out infinite;
-}
-
-@keyframes invitation-pulse {
-    0%, 100% { box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.18), 0 0.5rem 1rem rgba(0, 0, 0, 0.08); }
-    50%      { box-shadow: 0 0 0 8px rgba(255, 193, 7, 0.10), 0 0.5rem 1rem rgba(0, 0, 0, 0.08); }
+    border: 2px solid var(--color-warning);
 }
 
 .event-card.invitation-accepted {
-    border: 2px solid var(--bs-success);
+    border: 2px solid var(--color-success);
 }
 
-/* ── Portada ── */
+/* ── Portada ──
+   El color de fondo por tipo lo aporta .event-cover--{tipo}; aqui solo la
+   geometria de la tarjeta. */
 
 .event-card-cover {
     aspect-ratio: 21 / 9;
-    background-size: cover;
-    background-position: center;
-    background-color: var(--bs-secondary-bg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -146,72 +151,61 @@
     position: relative;
 }
 
-.event-card-cover.fallback {
-    color: white;
-}
-
-.event-card-cover.fallback i {
-    font-size: 2.75rem;
-    opacity: 0.9;
-}
-
 .event-card-cover .cover-invitation-ribbon {
     position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    background: var(--bs-warning);
-    color: var(--bs-warning-text-emphasis);
-    font-size: 0.75rem;
-    font-weight: 600;
-    padding: 0.2rem 0.6rem;
-    border-radius: 2rem;
-    box-shadow: 0 0.15rem 0.4rem rgba(0, 0, 0, 0.15);
+    top: var(--space-2);
+    right: var(--space-2);
+    z-index: var(--z-raised);
+    background: var(--color-warning-100);
+    color: var(--color-warning-700);   /* 6.87:1 */
+    border: 1px solid var(--border-warning-subtle);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-2);
 }
 
 .event-card-cover .cover-invitation-ribbon.ribbon-accepted {
-    background: var(--bs-success);
-    color: #fff;
-}
-
-.event-card-cover .cover-invitation-ribbon.ribbon-pending {
-    animation: ribbon-blink 2s ease-in-out infinite;
-}
-
-@keyframes ribbon-blink {
-    0%, 100% { transform: scale(1);   }
-    50%      { transform: scale(1.06); }
+    background: var(--color-success-100);
+    color: var(--color-success-700);   /* 5.63:1 */
+    border-color: var(--border-success-subtle);
 }
 
 /* ── Body ── */
 
 .event-card .card-body {
     flex: 1;
-    padding: 1rem;
+    padding: var(--space-4);
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: var(--space-2);
 }
 
 .event-card .card-title {
-    font-size: 1rem;
-    font-weight: 700;
+    font-family: var(--font-display);
+    font-size: var(--fs-base);
+    font-weight: var(--fw-bold);
     margin: 0;
-    line-height: 1.3;
+    line-height: var(--lh-tight);
 }
 
-.event-card .card-meta {
-    font-size: 0.82rem;
-    color: var(--bs-secondary-color);
+/* Linea de metadatos (fecha, lugar). Se usa tanto en la tarjeta del grid como
+   en las tarjetas de invitacion y en el panel "Mis registros". */
+.card-meta {
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
 }
 
-.event-card .card-meta i {
-    width: 1rem;
+.card-meta i {
+    width: var(--space-4);
     text-align: center;
+    color: var(--text-faint);
 }
 
 .event-card .card-description {
-    font-size: 0.85rem;
-    color: var(--bs-secondary-color);
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -221,30 +215,40 @@
 
 /* Barra de cupo */
 .card-capacity-bar {
-    height: 6px;
-    border-radius: 50px;
-    background: var(--bs-border-color);
+    height: var(--space-2);
+    border-radius: var(--radius-pill);
+    background: var(--border-default);
     overflow: hidden;
-    margin-top: 0.25rem;
+    margin-top: var(--space-1);
 }
 
+/* --progress lo emite events/list.js. Se escala con transform en vez de
+   animar width: width recalcula el layout en cada fotograma. */
 .card-capacity-bar-fill {
+    width: 100%;
     height: 100%;
-    border-radius: 50px;
-    transition: width 0.5s ease;
+    transform: scaleX(calc(var(--progress, 0) / 100));
+    transform-origin: left center;
+    border-radius: var(--radius-pill);
+    transition: transform var(--duration-slow) var(--ease-out);
 }
 
 .card-capacity-bar-fill.fill-ok     { background: var(--color-success); }
 .card-capacity-bar-fill.fill-warn   { background: var(--color-warning); }
 .card-capacity-bar-fill.fill-danger { background: var(--color-danger); }
 
+.event-card .capacity-legend {
+    font-size: var(--fs-xs);
+    color: var(--text-secondary);
+}
+
 /* ── Chips de ponentes ── */
 
 .host-chips {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    min-height: 1.5rem;
+    gap: var(--space-2);
+    min-height: var(--space-6);
 }
 
 .host-avatars {
@@ -252,13 +256,13 @@
 }
 
 .host-avatars .h-avatar {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: 2px solid white;
+    width: var(--avatar-xs);
+    height: var(--avatar-xs);
+    border-radius: var(--radius-pill);
+    border: 2px solid var(--bg-surface);
     object-fit: cover;
-    background: var(--bs-secondary-bg);
-    margin-left: -8px;
+    background: var(--bg-surface-sunken);
+    margin-left: calc(var(--space-2) * -1);
     flex-shrink: 0;
 }
 
@@ -266,25 +270,36 @@
     margin-left: 0;
 }
 
-.host-extra {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--bs-secondary);
-    color: white;
-    font-size: 0.7rem;
-    font-weight: 600;
+/* Iniciales cuando el ponente no tiene foto */
+.host-avatars .h-avatar--initials {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-left: -8px;
-    border: 2px solid white;
+    background: var(--color-neutral-600);
+    color: var(--text-inverse);   /* 5.21:1 */
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+}
+
+.host-extra {
+    width: var(--avatar-xs);
+    height: var(--avatar-xs);
+    border-radius: var(--radius-pill);
+    background: var(--color-neutral-600);
+    color: var(--text-inverse);   /* 5.21:1 */
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: calc(var(--space-2) * -1);
+    border: 2px solid var(--bg-surface);
     flex-shrink: 0;
 }
 
 .host-chips .host-names {
-    font-size: 0.78rem;
-    color: var(--bs-secondary-color);
+    font-size: var(--fs-xs);
+    color: var(--text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -294,12 +309,12 @@
 
 .event-card .card-footer {
     background: transparent;
-    border-top: 1px solid var(--bs-border-color);
-    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--border-default);
+    padding: var(--space-3) var(--space-4);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: var(--space-2);
 }
 
 .event-card .card-footer .footer-status {
@@ -308,39 +323,16 @@
 
 .event-card .card-footer .footer-actions {
     display: flex;
-    gap: 0.4rem;
+    gap: var(--space-2);
     flex-shrink: 0;
 }
 
 /* ====================================================
-   ESTADO VACÍO
-   ==================================================== */
-
-.events-empty-state {
-    text-align: center;
-    padding: 4rem 1rem;
-    color: var(--bs-secondary-color);
-}
-
-.events-empty-state i {
-    font-size: 3.5rem;
-    opacity: 0.4;
-    margin-bottom: 1rem;
-    display: block;
-}
-
-.events-empty-state h5 {
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    color: var(--bs-body-color);
-}
-
-/* ====================================================
-   PANEL MIS REGISTROS (modal / offcanvas)
+   PANEL MIS REGISTROS (modal)
    ==================================================== */
 
 #myRegistrationsModal .reg-item {
-    border-left: 3px solid var(--bs-primary);
+    padding: var(--space-3) var(--space-4);
 }
 
 /* ====================================================
@@ -349,12 +341,12 @@
 
 @media (max-width: 575.98px) {
     .events-hero {
-        padding: 1.25rem 1.25rem;
+        padding: var(--space-5);
     }
 
     .events-hero .hero-stat {
-        font-size: 0.8rem;
-        padding: 0.3rem 0.65rem;
+        font-size: var(--fs-xs);
+        padding: var(--space-1) var(--space-3);
     }
 
     .event-card .card-footer {

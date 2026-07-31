@@ -3,145 +3,156 @@
    Requiere en context: events_widget = {
      pending_invitations, accepted_invitations, upcoming_events, my_registrations
    }
+
+   Marcado contra components/_events-widget.css. El widget se incrusta en
+   dashboards distintos, asi que NO puede depender de ninguna hoja de pagina
+   ni de estilos de events/list.css o events/view.css.
+
+   Contrato con app/static/js/events/widget.js:
+     - id="eventsWidget" en el contenedor raiz
+     - clase .events-widget-respond en los botones de invitacion
 #}
 {% if events_widget %}
 {% set has_pending = events_widget.pending_invitations|length > 0 %}
 {% set has_accepted = events_widget.accepted_invitations|length > 0 %}
 {% set has_upcoming = events_widget.upcoming_events|length > 0 %}
 {% set has_registered = events_widget.my_registrations|length > 0 %}
+{% set merged_registrations = events_widget.my_registrations + events_widget.accepted_invitations %}
+{% set pending_count = events_widget.pending_invitations|length %}
+{# Etiquetas en español de los tipos de evento (la API devuelve el enum). #}
+{% set EVENT_TYPE_LABELS = {
+  'interview':    'Entrevista',
+  'defense':      'Defensa',
+  'workshop':     'Taller',
+  'seminar':      'Seminario',
+  'conference':   'Conferencia',
+  'info_session': 'Sesión informativa',
+} %}
 
 {% if has_pending or has_accepted or has_upcoming or has_registered %}
-<div class="row mb-4" id="eventsWidget">
-  <div class="col-12">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white border-0 pt-4 pb-3 d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center">
-          <i class="bi bi-calendar-event text-primary fs-4 me-2"></i>
-          <h5 class="mb-0 fw-bold">Eventos</h5>
-          {% if has_pending %}
-          <span class="badge bg-danger ms-2">{{ events_widget.pending_invitations|length }} invitación{{ 'es' if events_widget.pending_invitations|length != 1 else '' }}</span>
+<section class="events-widget mb-4" id="eventsWidget" aria-labelledby="eventsWidgetTitle">
+
+  <div class="events-widget__header">
+    <h2 class="events-widget__title" id="eventsWidgetTitle">
+      <i class="bi bi-calendar-event" aria-hidden="true"></i>
+      Eventos
+      {% if has_pending %}
+      <span class="badge bg-warning">{{ pending_count }} sin responder</span>
+      {% endif %}
+    </h2>
+    <a href="{{ url_for('pages_events_public.list_events') }}" class="btn btn-sm btn-outline-primary">
+      Ver todos<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+    </a>
+  </div>
+
+  <div class="events-widget__body">
+
+    {# — Invitaciones pendientes — #}
+    {% if has_pending %}
+    <section class="events-widget__section events-widget__section--invitations"
+             aria-labelledby="eventsWidgetInvitationsTitle">
+      <h3 class="events-widget__section-title" id="eventsWidgetInvitationsTitle">
+        <i class="bi bi-envelope-paper-fill" aria-hidden="true"></i>Invitaciones pendientes
+      </h3>
+      <ul class="events-widget__list events-widget__list--2col">
+        {% for inv in events_widget.pending_invitations %}
+        <li class="events-widget__item events-widget__item--invitation">
+          <p class="events-widget__item-title">{{ inv.event_title }}</p>
+          {% if inv.event_date or inv.event_location %}
+          <p class="events-widget__meta">
+            {% if inv.event_date %}
+            <span><i class="bi bi-clock" aria-hidden="true"></i>{{ inv.event_date|fechahora_es('short') }}</span>
+            {% endif %}
+            {% if inv.event_location %}
+            <span><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ inv.event_location }}</span>
+            {% endif %}
+          </p>
           {% endif %}
-        </div>
-        <a href="{{ url_for('pages_events_public.list_events') }}" class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-arrow-right me-1"></i>Ver todos
-        </a>
-      </div>
-      <div class="card-body">
-
-        {# — Invitaciones pendientes — #}
-        {% if has_pending %}
-        <h6 class="text-uppercase small fw-bold text-muted mb-2">
-          <i class="bi bi-envelope-paper-fill text-warning me-1"></i>Invitaciones pendientes
-        </h6>
-        <div class="row g-3 mb-3">
-          {% for inv in events_widget.pending_invitations %}
-          <div class="col-md-6">
-            <div class="card border-warning h-100">
-              <div class="card-body py-3">
-                <div class="d-flex align-items-start gap-2 mb-2">
-                  <i class="bi bi-envelope-fill text-warning fs-5 flex-shrink-0 mt-1"></i>
-                  <div class="flex-grow-1">
-                    <h6 class="mb-1 fw-bold">{{ inv.event_title }}</h6>
-                    <div class="small text-muted">
-                      {% if inv.event_date %}
-                        <i class="bi bi-clock me-1"></i>{{ inv.event_date[:10] }}
-                      {% endif %}
-                      {% if inv.event_location %}
-                        &nbsp;·&nbsp;<i class="bi bi-geo-alt me-1"></i>{{ inv.event_location }}
-                      {% endif %}
-                    </div>
-                  </div>
-                </div>
-                <div class="d-flex gap-2">
-                  <button type="button"
-                          class="btn btn-sm btn-success flex-grow-1 events-widget-respond"
-                          data-invitation-id="{{ inv.invitation_id }}"
-                          data-accept="true">
-                    <i class="bi bi-check-lg me-1"></i>Aceptar
-                  </button>
-                  <button type="button"
-                          class="btn btn-sm btn-outline-danger flex-grow-1 events-widget-respond"
-                          data-invitation-id="{{ inv.invitation_id }}"
-                          data-accept="false">
-                    <i class="bi bi-x-lg me-1"></i>Rechazar
-                  </button>
-                  <a href="{{ url_for('pages_events_public.view_event', event_id=inv.event_id) }}"
-                     class="btn btn-sm btn-outline-secondary"
-                     aria-label="Ver evento">
-                    <i class="bi bi-eye"></i>
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-
-        {# — Próximos eventos — #}
-        {% if has_upcoming %}
-        <h6 class="text-uppercase small fw-bold text-muted mb-2">
-          <i class="bi bi-calendar2-week text-primary me-1"></i>Próximos eventos
-        </h6>
-        <div class="row g-3 mb-3">
-          {% for ev in events_widget.upcoming_events %}
-          <div class="col-md-4">
-            <a href="{{ url_for('pages_events_public.view_event', event_id=ev.event_id) }}"
-               class="text-decoration-none">
-              <div class="card h-100 border events-widget-card">
-                <div class="card-body py-3">
-                  <div class="d-flex align-items-center gap-2 mb-2">
-                    <i class="bi bi-calendar-event-fill text-primary"></i>
-                    <span class="badge bg-light text-dark text-uppercase small">{{ ev.event_type }}</span>
-                  </div>
-                  <h6 class="mb-1 fw-bold text-body">{{ ev.event_title }}</h6>
-                  {% if ev.event_date %}
-                  <div class="small text-muted">
-                    <i class="bi bi-clock me-1"></i>{{ ev.event_date[:10] }}
-                  </div>
-                  {% endif %}
-                  {% if ev.event_location %}
-                  <div class="small text-muted text-truncate">
-                    <i class="bi bi-geo-alt me-1"></i>{{ ev.event_location }}
-                  </div>
-                  {% endif %}
-                </div>
-              </div>
+          <div class="events-widget__actions">
+            <button type="button"
+                    class="btn btn-sm btn-success events-widget-respond"
+                    data-invitation-id="{{ inv.invitation_id }}"
+                    data-accept="true">
+              <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Aceptar
+            </button>
+            <button type="button"
+                    class="btn btn-sm btn-outline-danger events-widget-respond"
+                    data-invitation-id="{{ inv.invitation_id }}"
+                    data-accept="false">
+              <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Rechazar
+            </button>
+            <a href="{{ url_for('pages_events_public.view_event', event_id=inv.event_id) }}"
+               class="btn btn-sm btn-outline-secondary events-widget__action--icon tap-target"
+               aria-label="Ver el evento {{ inv.event_title }}"
+               title="Ver evento">
+              <i class="bi bi-eye" aria-hidden="true"></i>
             </a>
           </div>
-          {% endfor %}
-        </div>
-        {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
 
-        {# — Mis registros (incluye accepted invitations) — #}
-        {% set merged_registrations = events_widget.my_registrations + events_widget.accepted_invitations %}
-        {% if merged_registrations %}
-        <h6 class="text-uppercase small fw-bold text-muted mb-2">
-          <i class="bi bi-bookmark-check-fill text-success me-1"></i>Estás inscrito
-        </h6>
-        <div class="d-flex flex-wrap gap-2">
-          {% for reg in merged_registrations %}
-          <a href="{{ url_for('pages_events_public.view_event', event_id=reg.event_id) }}"
-             class="badge text-bg-success-subtle border border-success-subtle text-decoration-none p-2">
-            <i class="bi bi-check2-circle me-1"></i>{{ reg.event_title }}
+    {# — Próximos eventos — #}
+    {% if has_upcoming %}
+    <section class="events-widget__section events-widget__section--upcoming"
+             aria-labelledby="eventsWidgetUpcomingTitle">
+      <h3 class="events-widget__section-title" id="eventsWidgetUpcomingTitle">
+        <i class="bi bi-calendar2-week" aria-hidden="true"></i>Próximos eventos
+      </h3>
+      <div class="events-widget__list events-widget__list--3col">
+        {% for ev in events_widget.upcoming_events %}
+        <a class="events-widget__item"
+           href="{{ url_for('pages_events_public.view_event', event_id=ev.event_id) }}">
+          <p class="events-widget__item-title">{{ ev.event_title }}</p>
+          <p class="events-widget__meta">
+            <span><i class="bi bi-tag" aria-hidden="true"></i>{{ EVENT_TYPE_LABELS.get(ev.event_type, ev.event_type) }}</span>
+            {% if ev.event_date %}
+            <span><i class="bi bi-clock" aria-hidden="true"></i>{{ ev.event_date|fechahora_es('short') }}</span>
+            {% endif %}
+            {% if ev.event_location %}
+            <span><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ ev.event_location }}</span>
+            {% endif %}
+          </p>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {# — Mis registros (incluye invitaciones aceptadas) — #}
+    {% if merged_registrations %}
+    <section class="events-widget__section events-widget__section--registered"
+             aria-labelledby="eventsWidgetRegisteredTitle">
+      <h3 class="events-widget__section-title" id="eventsWidgetRegisteredTitle">
+        <i class="bi bi-bookmark-check-fill" aria-hidden="true"></i>Estás inscrito
+      </h3>
+      <ul class="events-widget__chips">
+        {% for reg in merged_registrations %}
+        <li>
+          <a class="events-widget__badge events-widget__badge--registered"
+             href="{{ url_for('pages_events_public.view_event', event_id=reg.event_id) }}">
+            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+            <span>{{ reg.event_title }}</span>
             {% if reg.event_date %}
-              <span class="text-muted ms-1">· {{ reg.event_date[:10] }}</span>
+            <span class="events-widget__badge-date">{{ reg.event_date|fechahora_es('short') }}</span>
             {% endif %}
           </a>
-          {% endfor %}
-        </div>
-        {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
 
-        {% if not has_pending and not has_upcoming and not merged_registrations %}
-        <div class="text-center text-muted py-3">
-          <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>
-          <small>No hay eventos próximos por ahora.</small>
-        </div>
-        {% endif %}
+    {% if not has_pending and not has_upcoming and not merged_registrations %}
+    <p class="events-widget__empty">
+      <i class="bi bi-calendar-x" aria-hidden="true"></i>
+      No hay eventos próximos por ahora.
+    </p>
+    {% endif %}
 
-      </div>
-    </div>
   </div>
-</div>
+</section>
 {% endif %}
 {% endif %}

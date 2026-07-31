@@ -15,14 +15,14 @@
 
     {# Aviso: sin periodo de admisión abierto #}
     {% if not admission_open %}
-    <section class="py-3 my-3" id="no-period-banner" data-aos="fade-up">
+    <section class="py-3 my-3" id="no-period-banner" data-reveal>
       <div class="empty-state empty-state--compact">
-        <i class="empty-state__icon bi bi-calendar-x"></i>
-        <h3 class="empty-state__title">No hay periodo de admisión abierto</h3>
+        <div class="empty-state__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
+        <h2 class="empty-state__title">No hay periodo de admisión abierto</h2>
         <p class="empty-state__description">
           {% if next_period %}
             El próximo proceso de admisión inicia el
-            <strong>{{ next_period.admission_start_date.strftime('%d de %B de %Y') }}</strong>
+            <strong>{{ next_period.admission_start_date|fecha_es }}</strong>
             (periodo <strong>{{ next_period.name }}</strong>).
           {% else %}
             Aún no hay una fecha confirmada para el próximo periodo.
@@ -34,16 +34,16 @@
         {% if program.coordinator %}
         <div class="empty-state__actions">
           <a href="mailto:{{ program.coordinator.email }}" class="btn btn-primary">
-            <i class="bi bi-envelope-fill me-2"></i>Contactar al coordinador
+            <i class="bi bi-envelope-fill me-2" aria-hidden="true"></i>Contactar al coordinador
           </a>
           {% if program.contact_email %}
           <a href="mailto:{{ program.contact_email }}" class="btn btn-outline-secondary">
-            <i class="bi bi-envelope me-2"></i>Contacto del programa
+            <i class="bi bi-envelope me-2" aria-hidden="true"></i>Contacto del programa
           </a>
           {% endif %}
         </div>
         <p class="text-muted small mt-3 mb-0">
-          <i class="bi bi-person-fill me-1"></i>
+          <i class="bi bi-person-fill me-1" aria-hidden="true"></i>
           <strong>{{ program.coordinator.first_name }} {{ program.coordinator.last_name }}</strong>
           · <span class="text-muted">{{ program.coordinator.email }}</span>
         </p>
@@ -83,10 +83,10 @@
             <form method="POST" action="{{ url_for('program.inscription_program', program_id=program.id) }}">
 
                 <div class="modal-header">
-                    <h5 class="modal-title" id="enrollmentModalLabel">
+                    <h2 class="modal-title h5" id="enrollmentModalLabel">
                         ¿Deseas postularte en el programa?
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
 
                 <div class="modal-body">
@@ -113,10 +113,10 @@
         <div class="modal-content">
 
             <div class="modal-header border-0">
-                <h5 class="modal-title" id="enrollmentClosedModalLabel">
-                    <i class="bi bi-calendar-x text-warning me-2"></i>Inscripciones cerradas
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h2 class="modal-title h5" id="enrollmentClosedModalLabel">
+                    <i class="bi bi-calendar-x text-warning-strong me-2" aria-hidden="true"></i>Inscripciones cerradas
+                </h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
 
             <div class="modal-body">
@@ -124,9 +124,9 @@
                 no está abierto.</p>
                 {% if next_period %}
                 <div class="alert alert-info mb-0">
-                    <i class="bi bi-calendar-check me-2"></i>
+                    <i class="bi bi-calendar-check me-2" aria-hidden="true"></i>
                     El próximo proceso de admisión inicia el
-                    <strong>{{ next_period.admission_start_date.strftime('%d de %B de %Y') }}</strong>
+                    <strong>{{ next_period.admission_start_date|fecha_es }}</strong>
                     (periodo <strong>{{ next_period.name }}</strong>).
                 </div>
                 {% else %}

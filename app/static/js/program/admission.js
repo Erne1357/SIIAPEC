@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const submitBtn = e.target.querySelector('button[type="submit"]');
     const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin"></i> Enviando...';
+    submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin" aria-hidden="true"></i> Enviando...';
     submitBtn.disabled = true;
 
     try {
@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const submitBtn = form.querySelector('button[type="submit"]');
       const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin"></i> Subiendo...';
+      submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin" aria-hidden="true"></i> Subiendo...';
       submitBtn.disabled = true;
 
       try {
@@ -358,13 +358,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (file.size > 3 * 1024 * 1024) {
         feedbackEl.className = 'file-feedback small mt-1 text-danger';
-        feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Archivo: ${file.name} (${sizeMB} MB) - EXCEDE EL LÍMITE`;
+        feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Archivo: ${file.name} (${sizeMB} MB) - EXCEDE EL LÍMITE`;
       } else if (!file.name.toLowerCase().endsWith('.pdf')) {
         feedbackEl.className = 'file-feedback small mt-1 text-danger';
-        feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Solo se permiten archivos PDF`;
+        feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Solo se permiten archivos PDF`;
       } else {
         feedbackEl.className = 'file-feedback small mt-1 text-success';
-        feedbackEl.innerHTML = `<i class="bi bi-check-lg"></i> Archivo: ${file.name} (${sizeMB} MB)`;
+        feedbackEl.innerHTML = `<i class="bi bi-check-lg" aria-hidden="true"></i> Archivo: ${file.name} (${sizeMB} MB)`;
       }
     });
   });
@@ -372,46 +372,71 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==================== CARGAR INFORMACIÓN DE CITA ASIGNADA ====================
   loadInterviewInfo();
 
+  // Pinta el panel de entrevista conservando role/aria-live y apagando aria-busy.
+  // Antes se reasignaba className a secas y el panel se quedaba en blanco
+  // (y anunciándose como "cargando") en cuanto la petición fallaba.
+  function renderInterviewPanel(extraClass, html) {
+    const panel = document.querySelector('.interview-info');
+    if (!panel) return null;
+    panel.className = `interview-info ${extraClass}`.trim();
+    panel.setAttribute('aria-busy', 'false');
+    panel.innerHTML = html;
+    return panel;
+  }
+
   async function loadInterviewInfo() {
+    const panel = document.querySelector('.interview-info');
+    if (!panel) return;
+
     try {
       const res = await fetch('/api/v1/appointments/mine/active', {
         credentials: 'same-origin'
       });
 
-      if (!res.ok) return;
+      if (!res.ok) throw new Error('appointments-request-failed');
 
       const json = await res.json();
       if (json.ok && json.appointments && json.appointments.length > 0) {
+        renderInterviewPanel('', '');
         json.appointments.forEach(appt => showInterviewCard(appt));
       } else if (json.ok && !json.appointments.length) {
-        // Verificar si ya completo su perfil, si no, mostrar alerta de que debe completar perfil, si no, mostrar que es elegible para entrevista
-        const res = await fetch('/api/v1/users/me', {
-          credentials: 'same-origin'
-        });
-        const userInfo = await res.json();
-        if (res.ok && !userInfo.data.user.profile_completed) {
-          const processAlert = document.querySelector('.interview-info');
-          if (processAlert) {
-            processAlert.className = 'alert alert-warning interview-info';
-            processAlert.innerHTML = `
-              <i class="bi bi-person-fill-gear me-2"></i>
-              Completa tu perfil para ser elegible para entrevista.
-              <a href="/user/profile" class="alert-link">Ir a mi perfil</a>
-            `;
-          }
+        // Sin cita asignada: informar si falta completar el perfil.
+        const meRes = await fetch('/api/v1/users/me', { credentials: 'same-origin' });
+        const userInfo = await meRes.json();
+
+        if (meRes.ok && !userInfo.data.user.profile_completed) {
+          renderInterviewPanel('alert alert-warning', `
+            <i class="bi bi-person-fill-gear me-2" aria-hidden="true"></i>
+            Completa tu perfil para ser elegible para entrevista.
+            <a href="/user/profile" class="alert-link">Ir a mi perfil</a>
+          `);
         } else {
-          const processAlert = document.querySelector('.interview-info');
-          if (processAlert) {
-            processAlert.className = 'alert alert-info interview-info';
-            processAlert.innerHTML = `
-              <i class="bi bi-info-circle-fill me-2"></i>
-              Eres elegible para entrevista. Pronto recibirás una notificación con la fecha y hora asignada.
-            `;
-          }
+          renderInterviewPanel('alert alert-info', `
+            <i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>
+            Eres elegible para entrevista. Pronto recibirás una notificación con la fecha y hora asignada.
+          `);
         }
+      } else {
+        throw new Error('unexpected-payload');
       }
     } catch (err) {
-      
+      console.error('Interview info error:', err);
+      renderInterviewPanel('alert alert-danger', `
+        <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
+        No pudimos cargar la información de tu entrevista.
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="retryInterviewInfo">
+          Reintentar
+        </button>
+      `);
+      document.getElementById('retryInterviewInfo')?.addEventListener('click', () => {
+        const p = document.querySelector('.interview-info');
+        if (p) {
+          p.className = 'interview-info';
+          p.setAttribute('aria-busy', 'true');
+          p.innerHTML = '<div class="skeleton skeleton-card skeleton-card--sm"></div>';
+        }
+        loadInterviewInfo();
+      });
     }
   }
 
@@ -433,14 +458,14 @@ document.addEventListener('DOMContentLoaded', () => {
     interviewCard.innerHTML = `
       <div class="row align-items-center">
         <div class="col-12 col-md-8">
-          <h5 class="mb-2">
-            <i class="bi bi-calendar-check me-2"></i>
+          <h3 class="h5 mb-2">
+            <i class="bi bi-calendar-check me-2" aria-hidden="true"></i>
             ${appointment.event_title}
-          </h5>
+          </h3>
           <p class="mb-2">
-            <strong><i class="bi bi-clock me-1"></i> Fecha y hora:</strong> ${dateStr}<br>
-            <strong><i class="bi bi-hourglass-split me-1"></i> Horario:</strong> ${timeStr}<br>
-            <strong><i class="bi bi-geo-alt-fill me-1"></i> Lugar:</strong> ${appointment.location || 'Por confirmar'}
+            <strong><i class="bi bi-clock me-1" aria-hidden="true"></i> Fecha y hora:</strong> ${dateStr}<br>
+            <strong><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i> Horario:</strong> ${timeStr}<br>
+            <strong><i class="bi bi-geo-alt-fill me-1" aria-hidden="true"></i> Lugar:</strong> ${appointment.location || 'Por confirmar'}
           </p>
           ${appointment.notes ? `
             <div class="alert alert-info py-2 mb-0">
@@ -451,20 +476,20 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="col-12 col-md-4 text-md-end mt-3 mt-md-0">
           ${appointment.pending_change_request ? `
             <div class="alert alert-warning py-2 mb-2 text-start">
-              <small><i class="bi bi-clock me-1"></i><strong>Solicitud en revisión</strong><br>
+              <small><i class="bi bi-clock me-1" aria-hidden="true"></i><strong>Solicitud en revisión</strong><br>
               Tu solicitud de cambio está pendiente de respuesta.</small>
             </div>
             <button class="btn btn-outline-secondary btn-sm w-100 w-md-auto btn-request-change"
                     data-appointment-id="${appointment.id}"
                     data-pending-reason="${(appointment.pending_change_request.reason || '').replace(/"/g, '&quot;')}"
                     data-pending-suggestions="${(appointment.pending_change_request.suggestions || '').replace(/"/g, '&quot;')}">
-              <i class="bi bi-pencil-square me-1"></i>
+              <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>
               Editar Solicitud
             </button>
           ` : `
             <button class="btn btn-outline-warning btn-sm w-100 w-md-auto btn-request-change"
                     data-appointment-id="${appointment.id}">
-              <i class="bi bi-arrow-left-right me-1"></i>
+              <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>
               Solicitar Cambio
             </button>
           `}
@@ -564,16 +589,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const stepCard = uploadBtn.closest('.step-card, .card, .accordion-item, [data-step]');
     if (!stepCard) return;
 
-    // Actualizar el badge de estado
-    const statusBadge = stepCard.querySelector('.badge, .status-badge');
-    if (statusBadge) {
-      if (newStatus === 'approved') {
-        statusBadge.className = statusBadge.className.replace(/bg-\w+/, 'bg-success');
-        statusBadge.textContent = 'Aprobado';
-      } else if (newStatus === 'rejected') {
-        statusBadge.className = statusBadge.className.replace(/bg-\w+/, 'bg-danger');
-        statusBadge.textContent = 'Rechazado';
-      }
+    // Actualizar el chip de estado con el componente compartido
+    const statusBadge = stepCard.querySelector('.status-badge');
+    if (statusBadge && (newStatus === 'approved' || newStatus === 'rejected')) {
+      statusBadge.replaceWith(SIIAP.statusBadgeEl(newStatus));
     }
 
     // Mostrar toast informativo
@@ -643,7 +662,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const formData = new FormData();
     formData.append('file', fileInput.files[0]);
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Subiendo...';
+    btn.setAttribute('aria-busy', 'true');
+    btn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin me-1" aria-hidden="true"></i>Subiendo…';
+    statusDiv.innerHTML = '<p class="small mb-0">Subiendo la carta de asignación…</p>';
+
+    const restoreButton = () => {
+      btn.disabled = false;
+      btn.setAttribute('aria-busy', 'false');
+      btn.innerHTML = '<i class="bi bi-upload me-1" aria-hidden="true"></i>Subir carta';
+    };
 
     fetch(`/api/v1/acceptance/user/${cfg.userId}/program/${cfg.programId}/submit-receipt`, {
       method: 'POST',
@@ -653,18 +680,16 @@ document.addEventListener('DOMContentLoaded', () => {
       .then(r => r.json())
       .then(res => {
         if (res.error) {
-          statusDiv.innerHTML = '<div class="alert alert-danger py-1 small">' + (res.error.message || 'Error al subir.') + '</div>';
-          btn.disabled = false;
-          btn.innerHTML = '<i class="bi bi-upload me-1"></i>Subir carta';
+          statusDiv.innerHTML = '<div class="alert alert-danger py-1 small mb-0">' + (res.error.message || 'No se pudo subir el archivo.') + '</div>';
+          restoreButton();
         } else {
-          statusDiv.innerHTML = '<div class="alert alert-success py-1 small">Documento subido. El coordinador lo revisará pronto.</div>';
+          statusDiv.innerHTML = '<div class="alert alert-success py-1 small mb-0">Documento subido. El coordinador lo revisará pronto.</div>';
           setTimeout(() => location.reload(), 2000);
         }
       })
       .catch(() => {
-        statusDiv.innerHTML = '<div class="alert alert-danger py-1 small">Error de red. Intenta de nuevo.</div>';
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-upload me-1"></i>Subir carta';
+        statusDiv.innerHTML = '<div class="alert alert-danger py-1 small mb-0">Error de red. Intenta de nuevo.</div>';
+        restoreButton();
       });
   }
 });
