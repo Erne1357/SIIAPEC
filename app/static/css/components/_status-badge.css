@@ -1,9 +1,14 @@
 /*
- * StatusBadge — badge consistente con icono + texto.
- * Cumple WCAG 1.4.1 (color no es unico diferenciador).
+ * StatusBadge — chip de estado: superficie suave + borde teñido + icono.
+ * Cumple WCAG 1.4.1: el icono es la señal no cromática, nunca el color solo.
+ * Todo consumidor DEBE emitir el <i class="bi ..." aria-hidden="true">.
  *
  * Uso (Jinja): {{ status_badge('accepted') }}
- * Uso (JS): SIIAP.statusBadge('accepted')
+ * Uso (JS):    SIIAP.statusBadge('accepted')
+ *
+ * Los colores viven en las tripletas --status-<estado>-{bg,fg,bd} de
+ * _tokens.css. Este archivo NO debe contener un solo literal de color:
+ * para retematizar, se editan los tokens, no el componente.
  */
 
 .status-badge {
@@ -26,63 +31,140 @@
   line-height: 1;
 }
 
+/* ==========================================================================
+   Estados de admisión (UserProgram.admission_status)
+   ========================================================================== */
+
 .status-badge--in-progress {
-  background: var(--color-info-100);
-  color: var(--color-brand-secondary);
-  border-color: rgba(26, 113, 207, 0.18);
+  background: var(--status-in-progress-bg);
+  color: var(--status-in-progress-fg);
+  border-color: var(--status-in-progress-bd);
 }
 
 .status-badge--interview-completed {
-  background: rgba(110, 63, 191, 0.1);
-  color: #6e3fbf;
-  border-color: rgba(110, 63, 191, 0.2);
+  background: var(--status-interview-completed-bg);
+  color: var(--status-interview-completed-fg);
+  border-color: var(--status-interview-completed-bd);
 }
 
 .status-badge--deliberation {
-  background: var(--color-warning-100);
-  color: #6b4f00;
-  border-color: rgba(184, 134, 0, 0.25);
+  background: var(--status-deliberation-bg);
+  color: var(--status-deliberation-fg);
+  border-color: var(--status-deliberation-bd);
 }
 
 .status-badge--accepted {
-  background: var(--color-success-100);
-  color: #0e6e3a;
-  border-color: rgba(31, 157, 85, 0.25);
+  background: var(--status-accepted-bg);
+  color: var(--status-accepted-fg);
+  border-color: var(--status-accepted-bd);
 }
 
 .status-badge--rejected {
-  background: var(--color-danger-100);
-  color: var(--color-brand-accent-600);
-  border-color: rgba(178, 31, 45, 0.25);
+  background: var(--status-rejected-bg);
+  color: var(--status-rejected-fg);
+  border-color: var(--status-rejected-bd);
 }
 
 .status-badge--deferred {
-  background: var(--color-neutral-200);
-  color: var(--color-neutral-700);
-  border-color: var(--border-strong);
+  background: var(--status-deferred-bg);
+  color: var(--status-deferred-fg);
+  border-color: var(--status-deferred-bd);
 }
 
 .status-badge--enrolled {
-  background: var(--color-brand-primary-100);
-  color: var(--color-brand-primary);
-  border-color: rgba(11, 30, 138, 0.18);
+  background: var(--status-enrolled-bg);
+  color: var(--status-enrolled-fg);
+  border-color: var(--status-enrolled-bd);
 }
+
+/* ==========================================================================
+   Estados de revisión documental (Submission / AcceptanceDocument)
+   ========================================================================== */
 
 .status-badge--pending {
-  background: var(--color-neutral-100);
-  color: var(--color-neutral-600);
+  background: var(--status-pending-bg);
+  color: var(--status-pending-fg);
+  border-color: var(--status-pending-bd);
 }
 
-.status-badge--approved { /* alias de accepted */
-  background: var(--color-success-100);
-  color: #0e6e3a;
-  border-color: rgba(31, 157, 85, 0.25);
+/* "En revisión": el documento ya se subió y espera dictamen. */
+.status-badge--review {
+  background: var(--status-review-bg);
+  color: var(--status-review-fg);
+  border-color: var(--status-review-bd);
+}
+
+/* Alias semántico de accepted, usado por los flujos de documentos. */
+.status-badge--approved {
+  background: var(--status-accepted-bg);
+  color: var(--status-accepted-fg);
+  border-color: var(--status-accepted-bd);
+}
+
+/* ==========================================================================
+   Estados de tarea Celery — SIEMPRE con el prefijo de dominio `task-`.
+   Sin el prefijo, `--pending`, `--success` y `--retry` colisionan con los
+   estados de admisión sobre el mismo nombre de bloque y gana la hoja que
+   se cargue de último. Los consumidores deben emitir
+   `status-badge--task-${status}` (status en minúsculas).
+   ========================================================================== */
+
+.status-badge--task-success {
+  background: var(--status-accepted-bg);
+  color: var(--status-accepted-fg);
+  border-color: var(--status-accepted-bd);
+}
+
+.status-badge--task-failure {
+  background: var(--status-rejected-bg);
+  color: var(--status-rejected-fg);
+  border-color: var(--status-rejected-bd);
+}
+
+.status-badge--task-started {
+  background: var(--status-in-progress-bg);
+  color: var(--status-in-progress-fg);
+  border-color: var(--status-in-progress-bd);
+}
+
+.status-badge--task-retry {
+  background: var(--status-deliberation-bg);
+  color: var(--status-deliberation-fg);
+  border-color: var(--status-deliberation-bd);
+}
+
+.status-badge--task-pending {
+  background: var(--status-pending-bg);
+  color: var(--status-pending-fg);
+  border-color: var(--status-pending-bd);
+}
+
+.status-badge--task-revoked {
+  background: var(--status-deferred-bg);
+  color: var(--status-deferred-fg);
+  border-color: var(--status-deferred-bd);
+}
+
+/* ==========================================================================
+   Modificadores de presentación
+   ========================================================================== */
+
+/* Chip usado como <a>: hereda el color del estado y suprime el subrayado
+   heredado del enlace. El borde y el icono siguen siendo la señal visual. */
+.status-badge--as-link {
+  text-decoration: none;
+}
+
+.status-badge--as-link:hover,
+.status-badge--as-link:focus-visible {
+  filter: brightness(0.97);
+  text-decoration: none;
 }
 
 /* Tamaños alternativos */
 .status-badge--sm {
   padding: 0 var(--space-2);
-  font-size: 0.7rem;
+  font-size: var(--fs-xs);
 }
 
 .status-badge--lg {

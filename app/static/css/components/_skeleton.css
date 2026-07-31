@@ -1,8 +1,37 @@
 /*
- * Skeleton loaders — placeholders animados para mejorar performance percibida
- * mientras se cargan datos asincronos. Aplicar via macro skeleton_table /
- * skeleton_cards o directamente con clases utilitarias.
+ * Skeleton loaders — placeholders animados para mejorar la performance
+ * percibida mientras se cargan datos asincronos.
+ *
+ * Usar SIEMPRE dentro de .skeleton-region para que la carga se anuncie a los
+ * lectores de pantalla (WCAG 4.1.3). Los modificadores --cols-N y --sm/--md/--lg
+ * existen para que ninguna plantilla vuelva a escribir style="--cols: N" ni
+ * style="height: Npx" (regla 7: nada de CSS inline).
  */
+
+/* ==========================================================================
+   Region anunciable
+   Markup: <div class="skeleton-region" role="status" aria-live="polite" aria-busy="true">
+   Al terminar la carga, JS pone aria-busy="false" y los placeholders desaparecen
+   sin necesidad de borrarlos del DOM.
+   ========================================================================== */
+
+.skeleton-region {
+  position: relative;
+}
+
+/* Descendiente, no hijo directo: skeleton_cards() envuelve los .skeleton-card
+   en `.row > .col-*`, así que un selector `>` no los alcanzaba y el esqueleto
+   quedaba superpuesto al contenido real al terminar la carga. */
+.skeleton-region[aria-busy="false"] .skeleton,
+.skeleton-region[aria-busy="false"] .skeleton-table,
+.skeleton-region[aria-busy="false"] .skeleton-row,
+.skeleton-region[aria-busy="false"] > .row:has(.skeleton) {
+  display: none;
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
 
 .skeleton {
   background: linear-gradient(90deg,
@@ -10,12 +39,14 @@
     var(--color-neutral-200) 37%,
     var(--color-neutral-100) 63%);
   background-size: 400% 100%;
-  animation: skeleton-shimmer 1.4s ease infinite;
+  animation: siiap-skeleton-shimmer 1.4s ease infinite;
   border-radius: var(--radius-sm);
   display: block;
 }
 
-@keyframes skeleton-shimmer {
+/* Prefijo siiap- obligatorio: los @keyframes son globales por documento y el
+   proyecto ya tuvo colisiones reales entre hojas distintas. */
+@keyframes siiap-skeleton-shimmer {
   0%   { background-position: 100% 50%; }
   100% { background-position: 0 50%; }
 }
@@ -30,25 +61,51 @@
 .skeleton-text--lg { width: 80%; }
 .skeleton-text--full { width: 100%; }
 
+/* ==========================================================================
+   Avatares — mismas medidas que las utilidades .avatar-* de base.css
+   ========================================================================== */
+
 .skeleton-avatar {
-  width: 40px;
-  height: 40px;
+  width: var(--avatar-sm);
+  height: var(--avatar-sm);
   border-radius: var(--radius-pill);
 }
 
-.skeleton-avatar--sm { width: 32px; height: 32px; }
-.skeleton-avatar--lg { width: 56px; height: 56px; }
+.skeleton-avatar--sm {
+  width: var(--avatar-xs);
+  height: var(--avatar-xs);
+}
+
+.skeleton-avatar--lg {
+  width: var(--avatar-lg);
+  height: var(--avatar-lg);
+}
+
+/* ==========================================================================
+   Tarjetas — la altura vive en una custom property local, no en style inline
+   ========================================================================== */
 
 .skeleton-card {
-  height: 200px;
+  --skeleton-card-h: 12.5rem;   /* 200px, equivalente a --md */
+  height: var(--skeleton-card-h);
   border-radius: var(--radius-md);
 }
 
+.skeleton-card--sm { --skeleton-card-h: 7.5rem; }    /* 120px */
+.skeleton-card--md { --skeleton-card-h: 12.5rem; }   /* 200px */
+.skeleton-card--lg { --skeleton-card-h: 20rem; }     /* 320px */
+
+/* Medidas de un boton estandar: 40px de alto por 128px de ancho.
+   No se tokenizan porque describen el tamano de un .btn, no una escala. */
 .skeleton-button {
   height: 2.5rem;
   width: 8rem;
   border-radius: var(--radius-md);
 }
+
+/* ==========================================================================
+   Tablas
+   ========================================================================== */
 
 .skeleton-table {
   display: flex;
@@ -64,6 +121,16 @@
   border-bottom: 1px solid var(--border-default);
 }
 
+/* Numero de columnas sin style inline. Cubre 2-8, el rango real de las tablas
+   del proyecto; fuera de ese rango el fallback de --cols deja 4. */
+.skeleton-row--cols-2 { --cols: 2; }
+.skeleton-row--cols-3 { --cols: 3; }
+.skeleton-row--cols-4 { --cols: 4; }
+.skeleton-row--cols-5 { --cols: 5; }
+.skeleton-row--cols-6 { --cols: 6; }
+.skeleton-row--cols-7 { --cols: 7; }
+.skeleton-row--cols-8 { --cols: 8; }
+
 .skeleton-row--header {
   background: var(--bg-surface-sunken);
 }
@@ -78,9 +145,19 @@
   align-self: center;
 }
 
+/* ==========================================================================
+   Movimiento reducido
+   El bloque global de _tokens.css ya no apaga las animaciones a 0.01ms: limita
+   la duracion y las iteraciones. Un shimmer detenido a mitad de gradiente se
+   veria como una franja arbitraria, asi que aqui se quita la animacion por
+   completo y se fija un fondo plano. `animation: none` anula el nombre, de modo
+   que el !important global sobre animation-duration queda sin efecto.
+   ========================================================================== */
+
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
     animation: none;
+    background: var(--color-neutral-200);
     opacity: 0.65;
   }
 }

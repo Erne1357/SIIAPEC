@@ -1,0 +1,151 @@
+/*
+ * SIIAP — Componente: AUTH HERO
+ * ============================================================================
+ * Panel institucional de las pantallas sin sesion (login, registro,
+ * recuperacion de contrasena). Extraido de auth/login.css:58-142 y
+ * auth/register.css:52-136, que eran 80 lineas identicas duplicadas.
+ *
+ * Contrato de marcado:
+ *   <aside class="auth-hero">
+ *     <div class="auth-hero__content">
+ *       <h1 class="auth-hero__title">…</h1>
+ *       <p  class="auth-hero__tagline">…</p>
+ *       <ul class="auth-hero__highlights">
+ *         <li class="auth-hero__highlight">
+ *           <i class="bi bi-shield-check" aria-hidden="true"></i>
+ *           <span>…</span>
+ *         </li>
+ *       </ul>
+ *     </div>
+ *   </aside>
+ *
+ * NO existe un elemento "eyebrow"/kicker: el titulo se sostiene solo.
+ *
+ * Las hojas de pagina (auth/login.css, auth/register.css) solo deben
+ * conservar el ancho de su columna en el grid del shell.
+ * ============================================================================
+ */
+
+.auth-hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  padding: var(--space-12) var(--space-8);
+  color: var(--text-inverse);
+  overflow: hidden;
+
+  /* El color plano es la base real: se ve mientras la foto carga y es el
+     unico fondo por debajo de 992px, donde la foto no se descarga. */
+  background-color: var(--color-brand-primary);
+  background-image: url("../../assets/images/fondo2.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Velo de marca sobre la fotografia.
+   Va en un pseudo-elemento con opacity (y no como rgba() en el gradiente)
+   para no reescribir a mano los hex de la marca.
+   Contraste del texto blanco en el peor caso posible (pixel blanco puro de
+   la foto bajo el velo): 9.13:1 en el extremo azul, 5.71:1 en el rojo. */
+.auth-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-base);
+  background-image: linear-gradient(
+    135deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-accent) 100%
+  );
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.auth-hero__content {
+  position: relative;
+  z-index: var(--z-raised);
+}
+
+@media (min-width: 992px) {
+  .auth-hero__content {
+    max-width: 32rem;   /* ~65ch a este tamano de titulo */
+  }
+}
+
+.auth-hero__title {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 3.2vw, 2.75rem);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-inverse);
+}
+
+.auth-hero__tagline {
+  margin: 0 0 var(--space-6);
+  font-size: var(--fs-md);
+  line-height: var(--lh-normal);
+  color: var(--text-inverse);
+}
+
+.auth-hero__highlights {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* El selector de elemento acompana a la clase BEM para que el componente
+   funcione tanto con <li class="auth-hero__highlight"> como con <li> pelado. */
+.auth-hero__highlight,
+.auth-hero__highlights > li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--text-inverse);
+}
+
+.auth-hero__highlight > .bi,
+.auth-hero__highlights > li > .bi {
+  flex-shrink: 0;
+  font-size: var(--fs-md);
+  line-height: var(--lh-tight);
+  color: var(--text-inverse);
+}
+
+/* ── < 992px: banda compacta ────────────────────────────────────────────
+   La fotografia (3.27 MB) NO se descarga: por debajo de este ancho el hero
+   se reduce a una banda de marca y la imagen ni siquiera seria legible.
+   El titulo se conserva —es el unico <h1> de la pagina— y solo se ocultan
+   el parrafo de apoyo y la lista de ventajas. */
+@media (max-width: 991.98px) {
+  .auth-hero {
+    background-image: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .auth-hero__title {
+    margin-bottom: 0;
+    font-size: var(--fs-lg);
+  }
+
+  .auth-hero__tagline,
+  .auth-hero__highlights {
+    display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .auth-hero__title {
+    font-size: var(--fs-md);
+  }
+}

@@ -1,0 +1,251 @@
+/* ==========================================================================
+   SIIAP — Navegación (componente compartido)
+
+   Fuente ÚNICA de verdad para .nav-link, .nav-tabs, .nav-pills y .tab-content.
+   Antes existían 3-5 definiciones en conflicto (base.css 238-273, 718-811,
+   813-847 y menu_colors.css 3-68) que solo se resolvían a base de !important.
+   Aquí NO se usa `!important`: si una hoja de página necesita otra apariencia
+   debe declarar un modificador propio, no ganar la cascada.
+
+   Decisión de diseño (conflicto 5 de la auditoría): la pestaña activa conserva
+   el aspecto que el usuario ve hoy — fondo de marca + texto inverso — porque
+   era la variante de menu_colors.css, la que ganaba con !important.
+   ========================================================================== */
+
+/* ==========================================================================
+   1. NAV-LINK — base común a barra lateral, pestañas y píldoras
+   ========================================================================== */
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--color-neutral-700);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-normal);
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+}
+
+.nav-link:hover {
+  background-color: var(--color-brand-primary-100);  /* 11.06:1 con la marca */
+  color: var(--color-brand-primary);
+  text-decoration: none;
+}
+
+.nav-link.active {
+  background-color: var(--color-brand-primary);
+  color: var(--text-inverse);                        /* 13.40:1 */
+}
+
+.nav-link.active:hover {
+  background-color: var(--color-brand-primary-700);
+  color: var(--text-inverse);
+}
+
+/* El icono nunca se recolorea por separado: hereda del enlace */
+.nav-link .bi {
+  color: inherit;
+}
+
+/* Enlace destructivo de la barra lateral (Cerrar sesión).
+   Especificidad 0,2,0 para no depender del orden de carga. */
+.nav-link.text-danger:hover {
+  background-color: var(--color-danger-100);         /* 5.71:1 con --color-danger */
+  color: var(--color-danger);
+}
+
+/* ==========================================================================
+   2. BARRA LATERAL (escritorio) Y OFFCANVAS (móvil)
+   ========================================================================== */
+
+#sidebar .nav-link,
+.offcanvas-body .nav-link {
+  margin: var(--space-1) var(--space-3);
+}
+
+#sidebar .nav-link .bi,
+.offcanvas-body .nav-link .bi {
+  flex-shrink: 0;
+  width: var(--space-6);
+  font-size: var(--fs-md);
+  text-align: center;
+}
+
+/* Submenú colapsable: el modificador gana por especificidad, no por orden */
+.nav-link.submenu-item {
+  margin: var(--space-1) 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
+}
+
+/* Cerrar sesión del offcanvas: ocupa el ancho y actúa como objetivo táctil */
+.offcanvas-footer .nav-link {
+  justify-content: center;
+  width: 100%;
+  min-height: var(--tap-min);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-weight: var(--fw-semibold);
+}
+
+/* ==========================================================================
+   3. NAV-TABS
+   ========================================================================== */
+
+.nav-tabs {
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.nav-tabs .nav-link {
+  margin: 0 0 -1px;
+  padding: var(--space-3) var(--space-5);
+  min-height: var(--tap-min);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background-color: transparent;
+  color: var(--color-neutral-700);                   /* 8.81:1 sobre blanco */
+}
+
+.nav-tabs .nav-link:hover {
+  background-color: var(--bg-surface-sunken);
+  border-color: var(--border-default) var(--border-default) var(--border-strong);
+  color: var(--color-brand-primary);                 /* 12.37:1 */
+  isolation: isolate;
+}
+
+.nav-tabs .nav-link.active {
+  background-color: var(--color-brand-primary);
+  border-color: var(--color-brand-primary) var(--color-brand-primary) var(--bg-surface);
+  color: var(--text-inverse);                        /* 13.40:1 */
+  font-weight: var(--fw-semibold);
+}
+
+.nav-tabs .nav-link .bi {
+  margin-right: var(--space-2);
+}
+
+/* Pestaña de documentos completada: la paloma es un segundo indicador,
+   el color nunca es el único (WCAG 1.4.1). */
+.nav-tabs .nav-link[data-status="complete"] {
+  position: relative;
+}
+
+.nav-tabs .nav-link[data-status="complete"]::after {
+  content: '\F26B';                                  /* bi-check-lg */
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  font-family: 'bootstrap-icons';
+  font-size: var(--fs-xs);
+  color: var(--color-success);
+}
+
+.nav-tabs .nav-link.active[data-status="complete"]::after {
+  color: var(--text-inverse);
+}
+
+/* ==========================================================================
+   4. NAV-PILLS
+   ========================================================================== */
+
+.nav-pills .nav-link {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  min-height: var(--tap-min);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-neutral-700);
+}
+
+.nav-pills .nav-link:hover {
+  background-color: var(--color-brand-primary-100);
+  border-color: var(--border-brand-subtle);
+  color: var(--color-brand-primary);
+}
+
+.nav-pills .nav-link.active {
+  background-color: var(--color-brand-primary);
+  border-color: var(--color-brand-primary);
+  color: var(--text-inverse);
+}
+
+.nav-pills .nav-link .bi {
+  margin-right: var(--space-2);
+}
+
+/* ==========================================================================
+   5. CONTADORES DENTRO DE PESTAÑAS
+   ========================================================================== */
+
+.nav-tabs .nav-link .badge,
+.nav-pills .nav-link .badge {
+  margin-left: var(--space-2);
+}
+
+/* ==========================================================================
+   6. TAB-CONTENT
+   ========================================================================== */
+
+.tab-content {
+  padding: var(--space-6);
+  border: 1px solid var(--border-default);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background-color: var(--bg-surface);
+}
+
+/* Variante dentro de tarjetas: la tarjeta ya aporta borde y relleno */
+.card .nav-tabs {
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.card .tab-content {
+  padding: var(--space-4);
+  border: none;
+}
+
+/* ==========================================================================
+   7. RESPONSIVE — pestañas desplazables en móvil
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+  .nav-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-tabs .nav-link {
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--fs-sm);
+    white-space: nowrap;
+  }
+
+  .tab-content {
+    padding: var(--space-4);
+  }
+
+  /* Barra de desplazamiento discreta pero visible (no se oculta: es la única
+     pista de que hay más pestañas a la derecha). */
+  .nav-tabs::-webkit-scrollbar {
+    height: var(--space-1);
+  }
+
+  .nav-tabs::-webkit-scrollbar-track {
+    background: var(--bg-surface-sunken);
+  }
+
+  .nav-tabs::-webkit-scrollbar-thumb {
+    background: var(--color-neutral-400);
+    border-radius: var(--radius-pill);
+  }
+}

@@ -1,6 +1,10 @@
 /*
  * RoleBanner — header de bienvenida contextual con identidad de rol explicita.
  * Va al inicio de cada dashboard para que el usuario sepa quien es y que sigue.
+ *
+ * Regla del sistema: nada de bordes de color >1px ni superficies translúcidas
+ * decorativas. La jerarquía se construye con superficie + borde teñido de 1px
+ * + un icono ancla, no con una barra lateral.
  */
 
 .role-banner {
@@ -12,7 +16,7 @@
     var(--color-brand-primary-50) 0%,
     var(--color-brand-primary-100) 100%);
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(11, 30, 138, 0.10);
+  border: 1px solid var(--border-brand-subtle);
   margin-bottom: var(--space-6);
 }
 
@@ -20,14 +24,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 4rem;
-  height: 4rem;
+  width: var(--icon-box-lg);
+  height: var(--icon-box-lg);
   border-radius: var(--radius-pill);
   background: linear-gradient(135deg,
     var(--color-brand-primary) 0%,
-    var(--color-brand-accent) 130%);
+    var(--color-brand-accent) 100%);
   color: var(--text-inverse);
-  font-size: 1.75rem;
+  font-size: var(--fs-xl);
   flex-shrink: 0;
   box-shadow: var(--shadow-2);
 }
@@ -56,22 +60,25 @@
   margin: 0 0 var(--space-2);
 }
 
+/* Superficie opaca con borde de 1px en las cuatro caras.
+   Antes: background translúcido + border-left de 3px (doble antipatrón). */
 .role-banner__next-action {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
   font-size: var(--fs-sm);
-  color: var(--text-primary);
+  color: var(--text-primary);          /* 13.5:1 sobre brand-primary-50 */
   margin: var(--space-2) 0 0;
   padding: var(--space-2) var(--space-3);
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--color-brand-primary-50);
   border-radius: var(--radius-sm);
-  border-left: 3px solid var(--color-brand-primary);
+  border: 1px solid var(--border-brand-subtle);
 }
 
+/* El icono es el ancla visual que sustituye a la barra lateral de color. */
 .role-banner__next-action i {
-  color: var(--color-brand-primary);
-  margin-top: 2px;
+  color: var(--color-brand-primary);   /* 12.3:1 sobre brand-primary-50 */
+  line-height: var(--lh-normal);
   flex-shrink: 0;
 }
 
@@ -85,26 +92,34 @@
 
 .role-banner__progress-bar {
   width: 12rem;
-  height: 0.5rem;
+  height: var(--space-2);
   background: var(--color-neutral-200);
   border-radius: var(--radius-pill);
   overflow: hidden;
 }
 
+/* --progress lo emite el macro role_banner() como número sin unidad (0-100).
+   Se anima con transform, no con width: width provoca recálculo de layout en
+   cada fotograma. El relleno ocupa el 100% y se escala desde la izquierda.
+   El degradado se sustituyó por color plano: al escalar en X un degradado se
+   deforma, y el énfasis de una barra de progreso viene de su longitud. */
 .role-banner__progress-bar > span {
   display: block;
+  width: 100%;
   height: 100%;
-  background: linear-gradient(90deg,
-    var(--color-brand-primary) 0%,
-    var(--color-brand-secondary) 100%);
+  transform: scaleX(calc(var(--progress, 0) / 100));
+  transform-origin: left center;
+  background: var(--color-brand-primary);
   border-radius: var(--radius-pill);
-  transition: width var(--duration-slow) var(--ease-out);
+  transition: transform var(--duration-slow) var(--ease-out);
 }
 
+/* --text-secondary daba 4.30:1 sobre el extremo oscuro del degradado
+   (brand-primary-100) y falla AA a 12px. --text-primary da 12.17:1. */
 .role-banner__progress-label {
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 @media (max-width: 767.98px) {
@@ -115,9 +130,9 @@
     padding: var(--space-4);
   }
   .role-banner__avatar {
-    width: 3rem;
-    height: 3rem;
-    font-size: 1.5rem;
+    width: var(--icon-box-md);
+    height: var(--icon-box-md);
+    font-size: var(--fs-lg);
   }
   .role-banner__progress {
     width: 100%;

@@ -1,0 +1,303 @@
+/*
+ * SIIAP — Componente: EVENTS WIDGET
+ * ============================================================================
+ * Panel de eventos que los dashboards de aspirante y estudiante incluyen via
+ * partials/_events_widget.html. Sustituye a la maranha de .card anidadas +
+ * utilidades sueltas que traia la plantilla (y a .events-widget-card y
+ * .text-bg-success-subtle, dos clases que no existen en ninguna hoja).
+ *
+ * Regla estructural: el widget ES la tarjeta. Sus items NO son tarjetas
+ * anidadas, son filas con un borde de 1px.
+ *
+ * Contrato de marcado:
+ *   <section class="events-widget" id="eventsWidget" aria-labelledby="eventsWidgetTitle">
+ *     <div class="events-widget__header">
+ *       <h2 class="events-widget__title" id="eventsWidgetTitle">
+ *         <i class="bi bi-calendar-event" aria-hidden="true"></i> Eventos
+ *         <span class="badge bg-danger">3</span>            (contador numerico)
+ *       </h2>
+ *       <a class="btn btn-sm btn-outline-primary" href="…">Ver todos</a>
+ *     </div>
+ *     <div class="events-widget__body">
+ *       <section class="events-widget__section">
+ *         <h3 class="events-widget__section-title">
+ *           <i class="bi bi-envelope-paper-fill" aria-hidden="true"></i>
+ *           Invitaciones pendientes
+ *         </h3>
+ *         <ul class="events-widget__list">
+ *           <li class="events-widget__item events-widget__item--invitation">
+ *             <p class="events-widget__item-title">…</p>
+ *             <p class="events-widget__meta">
+ *               <span><i class="bi bi-clock" aria-hidden="true"></i> …</span>
+ *               <span><i class="bi bi-geo-alt" aria-hidden="true"></i> …</span>
+ *             </p>
+ *             <div class="events-widget__actions">…</div>
+ *           </li>
+ *         </ul>
+ *       </section>
+ *     </div>
+ *   </section>
+ * ============================================================================
+ */
+
+.events-widget {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+/* ── Cabecera ─────────────────────────────────────────────────────────── */
+
+.events-widget__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.events-widget__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  color: var(--text-primary);
+}
+
+.events-widget__title > .bi {
+  color: var(--color-brand-primary);
+  font-size: var(--fs-xl);
+  line-height: 1;
+}
+
+/* ── Cuerpo y secciones ───────────────────────────────────────────────── */
+
+.events-widget__body {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-5);
+}
+
+.events-widget__section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.events-widget__section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-secondary);   /* 5.21:1 sobre superficie */
+}
+
+.events-widget__section-title > .bi {
+  font-size: var(--fs-sm);
+  color: var(--text-faint);       /* icono decorativo */
+}
+
+/* Cada seccion puede tener su icono guia sin recolorear el texto */
+.events-widget__section--invitations .events-widget__section-title > .bi {
+  color: var(--color-warning-700);
+}
+.events-widget__section--upcoming .events-widget__section-title > .bi {
+  color: var(--color-brand-primary);
+}
+.events-widget__section--registered .events-widget__section-title > .bi {
+  color: var(--color-success-700);
+}
+
+/* ── Lista de eventos ─────────────────────────────────────────────────── */
+
+.events-widget__list {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .events-widget__list--2col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .events-widget__list--3col {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.events-widget__item {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-height: var(--tap-min);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              background-color var(--duration-fast) var(--ease-out);
+}
+
+/* Cuando el item completo es un enlace */
+a.events-widget__item:hover,
+a.events-widget__item:focus-visible {
+  background: var(--bg-surface-sunken);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.events-widget__item--invitation {
+  background: var(--color-warning-100);
+  border-color: var(--border-warning-subtle);
+}
+
+.events-widget__item-title {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.events-widget__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--text-secondary);   /* 5.21:1 */
+}
+
+.events-widget__meta > * {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.events-widget__meta .bi {
+  flex-shrink: 0;
+  color: var(--text-faint);       /* icono decorativo */
+}
+
+.events-widget__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.events-widget__actions > .btn {
+  flex: 1 1 auto;
+}
+
+/* Boton solo-icono (p. ej. "Ver evento"): no crece y respeta el objetivo
+   tactil de 44px. Requiere aria-label en la plantilla. */
+.events-widget__actions > .events-widget__action--icon {
+  flex: 0 0 auto;
+  min-width: var(--tap-min);
+}
+
+/* ── Chips ────────────────────────────────────────────────────────────── */
+
+.events-widget__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.events-widget__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--status-pending-bd);
+  border-radius: var(--radius-pill);
+  background: var(--status-pending-bg);
+  color: var(--status-pending-fg);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  text-decoration: none;
+}
+
+.events-widget__badge--registered {
+  background: var(--status-accepted-bg);
+  border-color: var(--status-accepted-bd);
+  color: var(--status-accepted-fg);       /* 5.63:1 sobre success-100 */
+}
+
+.events-widget__badge--pending {
+  background: var(--status-deliberation-bg);
+  border-color: var(--status-deliberation-bd);
+  color: var(--status-deliberation-fg);   /* 6.87:1 sobre warning-100 */
+}
+
+a.events-widget__badge:hover,
+a.events-widget__badge:focus-visible {
+  border-color: currentColor;
+  text-decoration: underline;
+}
+
+/* Fecha secundaria dentro del chip: hereda el color del chip para no bajar
+   el contraste, se distingue por peso y no por color. */
+.events-widget__badge-date {
+  font-weight: var(--fw-regular);
+  opacity: 0.85;
+}
+
+/* ── Estado vacio ─────────────────────────────────────────────────────── */
+
+.events-widget__empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.events-widget__empty > .bi {
+  font-size: var(--fs-2xl);
+  color: var(--color-neutral-400);   /* icono decorativo, no texto */
+}
+
+/* ── Movil ────────────────────────────────────────────────────────────── */
+
+@media (max-width: 575.98px) {
+  .events-widget__header {
+    padding: var(--space-4);
+  }
+
+  .events-widget__body {
+    padding: var(--space-4);
+    gap: var(--space-5);
+  }
+
+  .events-widget__actions > .btn {
+    flex: 1 1 100%;
+  }
+}

@@ -1,0 +1,100 @@
+/*
+ * SIIAP — Componente: EVENT COVER
+ * ============================================================================
+ * Portada de evento por tipo. Sustituye los 12 gradientes hex fuera del
+ * sistema que estaban duplicados en events/list.js y events/view.js e
+ * inyectados por JS como `el.style.background = …`.
+ *
+ * Decision del proyecto: color PLANO por tipo, tomado de los tokens
+ * --event-cover-{tipo}. El JS NO conoce colores; solo anhade la clase:
+ *
+ *   el.classList.add('event-cover', 'event-cover--' + tipo.replace(/_/g, '-'));
+ *
+ * Cuando hay imagen de portada real, el JS solo aporta la URL como valor
+ * dinamico en una custom property (nunca un color):
+ *
+ *   el.style.setProperty('--event-cover-src', `url('${url}')`);
+ *   el.classList.add('event-cover--has-image');
+ *
+ * El color plano queda debajo como fondo mientras la imagen carga y como
+ * respaldo si falla.
+ *
+ * Es una clase ADITIVA: no fija tamano ni forma. La geometria (aspect-ratio
+ * de la tarjeta, min-height del hero, radios) sigue viviendo en
+ * events/list.css y events/view.css.
+ *
+ * Sin gradientes, sin desenfoque decorativo y sin animaciones en bucle.
+ * ============================================================================
+ */
+
+.event-cover {
+  position: relative;
+  background-color: var(--event-cover-default);
+  background-image: var(--event-cover-src, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: var(--text-inverse);
+}
+
+/* ── Tipos de evento ──────────────────────────────────────────────────────
+   Cada token esta verificado con texto/icono blanco encima:
+     interview 8.16:1 · defense 7.16:1 · workshop 5.87:1 · seminar 6.47:1
+     conference 5.89:1 · info-session 6.33:1 · default 13.42:1            */
+
+.event-cover--interview    { background-color: var(--event-cover-interview); }
+.event-cover--defense      { background-color: var(--event-cover-defense); }
+.event-cover--workshop     { background-color: var(--event-cover-workshop); }
+.event-cover--seminar      { background-color: var(--event-cover-seminar); }
+.event-cover--conference   { background-color: var(--event-cover-conference); }
+.event-cover--info-session { background-color: var(--event-cover-info-session); }
+.event-cover--default      { background-color: var(--event-cover-default); }
+
+/* ── Icono de respaldo ────────────────────────────────────────────────────
+   Se muestra cuando no hay imagen de portada. Es decorativo: la plantilla
+   debe emitirlo con aria-hidden="true", porque el tipo de evento ya viaja
+   como texto en la insignia de la tarjeta (el color nunca es el unico
+   indicador del tipo).                                                    */
+
+.event-cover__icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-3xl);
+  line-height: 1;
+  color: var(--text-inverse);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* Con imagen real el icono sobra y ensuciaria la foto. */
+.event-cover--has-image .event-cover__icon {
+  display: none;
+}
+
+/* ── Contenido encima de la portada ───────────────────────────────────────
+   Los hijos con texto deben ir en esta capa para quedar sobre el fondo. */
+
+.event-cover__content {
+  position: relative;
+  z-index: var(--z-raised);
+}
+
+/* Velo de legibilidad SOLO cuando hay fotografia: sobre color plano no hace
+   falta (los siete tokens ya superan 5.8:1 con blanco) y oscurecerlo de mas
+   apagaria la identidad del tipo de evento. */
+.event-cover--has-image.event-cover--scrim::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-base);
+  background-image: linear-gradient(
+    to top,
+    var(--color-neutral-900) 0%,
+    transparent 70%
+  );
+  opacity: 0.75;
+  pointer-events: none;
+}

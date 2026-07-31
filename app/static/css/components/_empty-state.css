@@ -1,7 +1,13 @@
 /*
- * EmptyState — estado vacio amistoso para listas, tablas y secciones sin datos.
+ * EmptyState — estado vacio, de error y en-tabla para listas y secciones sin datos.
  * Uso: {% from '_macros.html' import empty_state %}
  *      {{ empty_state('inbox', 'Sin notificaciones', 'Aqui apareceran...') }}
+ *
+ * Variantes:
+ *   .empty-state--compact   espaciado reducido
+ *   .empty-state--inline    para usar DENTRO de un <td colspan="N">
+ *   .empty-state--error     fallo de carga; acompanar de __error-detail y de un
+ *                           boton "Reintentar" dentro de __actions
  */
 
 .empty-state {
@@ -22,13 +28,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 4rem;
-  height: 4rem;
-  font-size: 2.25rem;
+  width: var(--icon-box-lg);
+  height: var(--icon-box-lg);
+  font-size: var(--fs-xl);
   color: var(--color-neutral-400);
   background: var(--color-neutral-100);
   border-radius: var(--radius-pill);
   margin-bottom: var(--space-4);
+  flex-shrink: 0;
 }
 
 .empty-state__title {
@@ -42,7 +49,7 @@
 .empty-state__description {
   font-size: var(--fs-sm);
   color: var(--text-secondary);
-  max-width: 360px;
+  max-width: var(--measure-narrow);
   margin: 0 auto var(--space-5);
   line-height: var(--lh-normal);
 }
@@ -52,4 +59,60 @@
   gap: var(--space-2);
   flex-wrap: wrap;
   justify-content: center;
+}
+
+/* ==========================================================================
+   Variante EN TABLA
+   El componente es display:flex/column, asi que dentro de una celda de tabla
+   se queda sin ancho de referencia y colapsa. Este modificador le devuelve el
+   ancho de la celda y reduce la escala para no romper el ritmo de la tabla.
+   Markup obligatorio: <tr><td colspan="N"><div class="empty-state empty-state--inline">
+   ========================================================================== */
+
+.empty-state--inline {
+  width: 100%;
+  padding: var(--space-6) var(--space-4);
+}
+
+.empty-state--inline .empty-state__icon {
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  font-size: var(--fs-lg);
+  margin-bottom: var(--space-3);
+}
+
+.empty-state--inline .empty-state__title {
+  font-size: var(--fs-base);
+}
+
+.empty-state--inline .empty-state__description {
+  margin-bottom: var(--space-3);
+}
+
+/* La celda que lo contiene no debe aportar padding ni alineacion propios. */
+td > .empty-state--inline,
+th > .empty-state--inline {
+  margin: 0;
+}
+
+/* ==========================================================================
+   Variante ERROR
+   El sistema cubria "vacio" y "cargando" pero no "fallo". Sin esto cada
+   consumidor improvisa un .alert-danger con el string crudo de la excepcion
+   y sin accion de recuperacion.
+   ========================================================================== */
+
+.empty-state--error .empty-state__icon {
+  color: var(--color-danger);          /* 5.71:1 sobre danger-100 */
+  background: var(--color-danger-100);
+}
+
+/* Detalle tecnico del fallo (codigo HTTP, id de peticion). Nunca la traza. */
+.empty-state__error-detail {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);        /* 5.21:1 sobre blanco */
+  margin-top: var(--space-2);
+  max-width: var(--measure-narrow);
+  overflow-wrap: anywhere;
 }

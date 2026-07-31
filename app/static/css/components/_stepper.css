@@ -1,6 +1,9 @@
 /*
  * Stepper — indicador de progreso para wizards y flujos multi-paso.
  * Uso: {{ stepper(steps=[{'label': 'Cuenta'}, {'label': 'Personal'}], current=1) }}
+ *
+ * El estado del paso se comunica con número + color + peso tipográfico,
+ * nunca solo con color (WCAG 1.4.1). El macro añade aria-current="step".
  */
 
 .stepper {
@@ -14,6 +17,11 @@
 
 .stepper__step {
   flex: 1;
+  /* Sin min-width:0 los flex items no se dejan encoger por debajo de su
+     contenido y el stepper desborda horizontalmente. */
+  min-width: 0;
+  /* Objetivo táctil cuando el paso se renderiza como enlace (WCAG 2.5.5). */
+  min-height: var(--tap-min);
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -21,33 +29,33 @@
   border-radius: var(--radius-md);
   background: var(--bg-surface-sunken);
   font-size: var(--fs-sm);
-  color: var(--text-muted);
+  color: var(--text-secondary);  /* 4.81:1 sobre --bg-surface-sunken */
   border: 1px solid transparent;
   transition: all var(--duration-fast) var(--ease-out);
 }
 
 .stepper__step--active {
   background: var(--color-brand-primary-100);
-  color: var(--color-brand-primary);
-  border-color: rgba(11, 30, 138, 0.18);
+  color: var(--color-brand-primary);       /* 11.06:1 */
+  border-color: var(--border-brand-subtle);
   font-weight: var(--fw-semibold);
 }
 
 .stepper__step--completed {
   background: var(--color-success-100);
-  color: #0e6e3a;
-  border-color: rgba(31, 157, 85, 0.25);
+  color: var(--color-success-700);         /* 5.63:1 */
+  border-color: var(--border-success-subtle);
 }
 
 .stepper__number {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: var(--icon-box-sm);
+  height: var(--icon-box-sm);
   border-radius: var(--radius-pill);
   background: var(--color-neutral-0);
-  color: var(--text-muted);
+  color: var(--text-secondary);            /* 5.21:1 sobre blanco */
   font-weight: var(--fw-bold);
   flex-shrink: 0;
 }
@@ -64,9 +72,15 @@
 
 .stepper__label {
   flex: 1;
+  min-width: 0;
+  /* Las etiquetas de paso llevan palabras largas ("Documentación");
+     sin esto rompen la caja en vez de partirse. */
+  overflow-wrap: anywhere;
 }
 
-@media (max-width: 575.98px) {
+/* Apilar por debajo de 768px: entre 576 y 767px los pasos en fila todavía
+   desbordaban horizontalmente. */
+@media (max-width: 767.98px) {
   .stepper {
     flex-direction: column;
     gap: var(--space-1);
