@@ -25,42 +25,88 @@
     return document.querySelector('meta[name="csrf-token"]')?.content || '';
   }
 
+  function escHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /** Marca la región asíncrona como ocupada/lista y lo anuncia (WCAG 4.1.3). */
+  function setBusy(el, busy, message) {
+    if (window.SIIAP && typeof window.SIIAP.setBusy === 'function') {
+      window.SIIAP.setBusy(el, busy, message ? { message } : undefined);
+    } else if (el) {
+      el.setAttribute('aria-busy', busy ? 'true' : 'false');
+    }
+  }
+
+  /** Chip de estado del sistema de diseño (nunca `badge` de Bootstrap). */
+  function badge(status, label) {
+    if (window.SIIAP && typeof window.SIIAP.statusBadge === 'function') {
+      return window.SIIAP.statusBadge(status, label, 'sm');
+    }
+    return `<span class="status-badge status-badge--${escHtml(status)} status-badge--sm">${escHtml(label || status)}</span>`;
+  }
+
   // ── Carta de aceptación en estado diferido ───────────────────────────────
   async function loadDeferralLetter() {
     const container = document.getElementById('deferralAcceptanceLetterSection');
     if (!container) return;
+    setBusy(container, true, 'Buscando tu carta de aceptación…');
     try {
       const resp = await fetch(`/api/v1/acceptance/user/${userId}/program/${userProgramId}/status`);
       const result = await resp.json();
       if (result.error) {
         container.innerHTML = '';
+        setBusy(container, false);
         return;
       }
       const letter = result.data?.acceptance_letter;
       if (letter && letter.file_path) {
         const url = buildDownloadUrl(letter.file_path);
         container.innerHTML = `
-          <a href="${url}" target="_blank" class="btn btn-outline-success btn-sm">
-            <i class="bi bi-download me-1"></i>Descargar Carta de Aceptación
+          <a href="${escHtml(url)}" target="_blank" rel="noopener" class="btn btn-outline-success btn-sm">
+            <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar carta de aceptación
           </a>`;
+        setBusy(container, false, 'Tu carta de aceptación está disponible para descarga.');
       } else {
         container.innerHTML = '';
+        setBusy(container, false);
       }
     } catch (e) {
       container.innerHTML = '';
+      setBusy(container, false);
     }
   }
 
   // ── Flujo de aceptación (aspirante aceptado) ─────────────────────────────
+  function acceptanceErrorState(detail) {
+    return `
+      <div class="empty-state empty-state--error empty-state--compact">
+        <div class="empty-state__icon"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i></div>
+        <h3 class="empty-state__title">No pudimos cargar tus documentos de aceptación</h3>
+        <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
+        ${detail ? `<p class="empty-state__error-detail">${escHtml(detail)}</p>` : ''}
+        <div class="empty-state__actions">
+          <button type="button" id="retryAcceptanceDocs" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Reintentar
+          </button>
+        </div>
+      </div>`;
+  }
+
   async function loadAcceptanceDocs() {
     const container = document.getElementById('acceptanceDocsContent');
     if (!container) return;
+    setBusy(container, true, 'Cargando tus documentos de aceptación…');
     try {
       const resp = await fetch(`/api/v1/acceptance/user/${userId}/program/${userProgramId}/status`);
       const result = await resp.json();
 
       if (result.error) {
-        container.innerHTML = '<p class="text-danger">Error al cargar documentos.</p>';
+        container.innerHTML = acceptanceErrorState(result.error.message);
+        document.getElementById('retryAcceptanceDocs')?.addEventListener('click', loadAcceptanceDocs);
+        setBusy(container, false, 'No se pudieron cargar los documentos de aceptación.');
         return;
       }
 
@@ -94,80 +140,79 @@
       if (receiptApproved) {
         receiptStatus = 'approved';
         receiptNote = 'Aprobada por el coordinador';
-        receiptAction = '<span class="badge bg-success fs-6"><i class="bi bi-check-circle me-1"></i>Aprobada</span>';
+        receiptAction = badge('approved', 'Aprobada');
       } else if (receiptUploaded) {
-        receiptStatus = 'uploaded';
+        receiptStatus = 'review';
         receiptNote = 'Subida, en revisión por el coordinador';
-        receiptAction = '<span class="badge bg-info fs-6">En revisión</span>';
+        receiptAction = badge('review', 'En revisión');
       } else if (receiptRejected) {
         receiptStatus = 'rejected';
-        receiptNote = 'Rechazada: ' + (receipt.review_notes || 'Sin especificar');
+        receiptNote = 'Rechazada: ' + (receipt.review_notes || 'sin especificar');
         if (hasLetter && hasSchedule) {
-          receiptAction = '<button class="btn btn-danger btn-sm" id="uploadReceiptBtn"><i class="bi bi-upload me-1"></i>Volver a Subir</button>';
+          receiptAction = '<button type="button" class="btn btn-primary btn-sm" id="uploadReceiptBtn"><i class="bi bi-upload me-1" aria-hidden="true"></i>Volver a subir</button>';
         }
       } else if (hasLetter && hasSchedule) {
-        receiptAction = '<button class="btn btn-primary btn-sm" id="uploadReceiptBtn"><i class="bi bi-upload me-1"></i>Subir Boleta</button>';
+        receiptAction = '<button type="button" class="btn btn-primary btn-sm" id="uploadReceiptBtn"><i class="bi bi-upload me-1" aria-hidden="true"></i>Subir boleta</button>';
       } else {
-        receiptAction = '<small class="text-muted">Disponible cuando el coordinador suba la carta y tira</small>';
+        receiptAction = '<small class="text-muted">Disponible cuando el coordinador suba la carta y la tira de materias</small>';
       }
 
       const receiptCard = buildReceiptCard(receiptStatus, receiptNote, receiptAction);
       container.innerHTML = '<div class="row g-3">' + letterCard + scheduleCard + receiptCard + '</div>';
+      setBusy(container, false, 'Documentos de aceptación actualizados.');
 
       const btn = document.getElementById('uploadReceiptBtn');
       if (btn) btn.addEventListener('click', triggerReceiptUpload);
 
     } catch (err) {
       console.error('Error loading acceptance docs:', err);
-      container.innerHTML = '<p class="text-danger">Error al cargar documentos.</p>';
+      container.innerHTML = acceptanceErrorState(err.message);
+      document.getElementById('retryAcceptanceDocs')?.addEventListener('click', loadAcceptanceDocs);
+      setBusy(container, false, 'No se pudieron cargar los documentos de aceptación.');
     }
   }
 
-  function buildDocCard(title, icon, isAvailable, subtitle, actionHtml) {
-    const borderClass = isAvailable ? 'border-success' : 'border-secondary';
-    const iconClass = isAvailable ? 'text-success' : 'text-secondary';
-    const statusBadge = isAvailable ? '' : '<span class="badge bg-secondary mb-2">Pendiente</span>';
+  /* Tarjeta de documento del flujo de aceptación. El tono va como fondo suave
+     de 1px completo (nunca border-left de color) y el estado siempre lleva
+     chip con texto, no solo color (WCAG 1.4.1). */
+  function buildAcceptanceCard(icon, title, note, chipHtml, toneClass, actionHtml) {
     return `
       <div class="col-md-4">
-        <div class="card h-100 border ${borderClass}">
-          <div class="card-body text-center py-3">
-            <i class="bi ${icon} ${iconClass} icon-2xl"></i>
-            <h6 class="fw-bold mt-2 mb-1">${title}</h6>
-            <p class="text-muted small mb-2">${subtitle}</p>
-            ${statusBadge}
-            ${actionHtml}
-          </div>
+        <div class="acceptance-doc-card ${toneClass} h-100">
+          <i class="bi ${escHtml(icon)} icon-2xl" aria-hidden="true"></i>
+          <p class="acceptance-doc-card__title">${escHtml(title)}</p>
+          <p class="acceptance-doc-card__note">${escHtml(note)}</p>
+          <p class="mb-2">${chipHtml}</p>
+          ${actionHtml}
         </div>
       </div>`;
+  }
+
+  function buildDocCard(title, icon, isAvailable, subtitle, actionHtml) {
+    return buildAcceptanceCard(
+      icon, title, subtitle,
+      isAvailable ? badge('approved', 'Disponible') : badge('pending', 'Pendiente'),
+      isAvailable ? 'acceptance-doc-card--success' : '',
+      actionHtml
+    );
   }
 
   function buildReceiptCard(status, note, actionHtml) {
-    const borders = {
-      approved: 'border-success', uploaded: 'border-info',
-      rejected: 'border-danger', pending: 'border-warning',
+    const tones = {
+      approved: 'acceptance-doc-card--success',
+      review: 'acceptance-doc-card--info',
+      rejected: 'acceptance-doc-card--danger',
+      pending: 'acceptance-doc-card--warning',
     };
-    const icons = {
-      approved: 'text-success', uploaded: 'text-info',
-      rejected: 'text-danger', pending: 'text-warning',
-    };
-    const bc = borders[status] || 'border-secondary';
-    const ic = icons[status] || 'text-secondary';
-    return `
-      <div class="col-md-4">
-        <div class="card h-100 border ${bc}">
-          <div class="card-body text-center py-3">
-            <i class="bi bi-receipt ${ic} icon-2xl"></i>
-            <h6 class="fw-bold mt-2 mb-1">Boleta de Inscripción</h6>
-            <p class="text-muted small mb-2">${note}</p>
-            ${actionHtml}
-          </div>
-        </div>
-      </div>`;
+    return buildAcceptanceCard(
+      'bi-receipt', 'Boleta de inscripción', note, '',
+      tones[status] || '', actionHtml
+    );
   }
 
   function buildDownloadBtn(url) {
-    return `<a href="${url}" target="_blank" class="btn btn-success btn-sm">
-      <i class="bi bi-download me-1"></i>Descargar
+    return `<a href="${escHtml(url)}" target="_blank" rel="noopener" class="btn btn-success btn-sm">
+      <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar
     </a>`;
   }
 
@@ -216,10 +261,10 @@
     }
     const id = 'toast-' + Date.now();
     cont.insertAdjacentHTML('beforeend', `
-      <div id="${id}" class="toast align-items-center text-bg-${level} border-0" role="alert">
+      <div id="${id}" class="toast align-items-center text-bg-${escHtml(level)} border-0" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
-          <div class="toast-body">${message}</div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+          <div class="toast-body">${escHtml(message)}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto tap-target" data-bs-dismiss="toast" aria-label="Cerrar aviso"></button>
         </div>
       </div>`);
     const el = document.getElementById(id);

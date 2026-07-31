@@ -7,10 +7,12 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 px-md-4 mt-3 mt-md-4">
+{% from '_macros.html' import status_badge %}
+<div class="profile-page container-fluid px-3 px-md-4 mt-3 mt-md-4">
     <div class="row">
-        <!-- Contenido principal -->
-        <main class="col-12">
+        {# No es <main>: base.html ya aporta el landmark principal y anidarlos
+           deja dos "principal" en la misma página. #}
+        <div class="col-12">
             <!-- Cabecera del perfil -->
             <div class="card mb-4 shadow-sm">
                 <div class="card-body">
@@ -20,104 +22,94 @@
                                 <img src="{{ current_user.avatar_url }}" alt="Foto de perfil"
                                     id="profileAvatarImg"
                                     class="rounded-circle border border-3 border-light shadow profile-avatar">
-                                {% if has_perm('coordinator.page.view') %}
-                                <span
-                                    class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                                    Admin
-                                </span>
-                                {% endif %}
                                 <button type="button" id="btnPhotoAction"
-                                        class="btn btn-sm btn-primary rounded-circle position-absolute bottom-0 end-0 d-none"
-                                        title="Cambiar foto">
-                                    <i class="bi bi-camera-fill"></i>
+                                        class="btn btn-primary rounded-circle position-absolute bottom-0 end-0 d-none profile-photo-btn"
+                                        aria-label="Cambiar foto de perfil" title="Cambiar foto de perfil">
+                                    <i class="bi bi-camera-fill" aria-hidden="true"></i>
                                 </button>
                             </div>
-                            <div class="mt-2 small" id="photoStatusText"></div>
+                            <p class="mt-2 small mb-0" id="photoStatusText"></p>
                             <!-- Botón de editar en móvil -->
                             <div class="d-md-none mt-3">
-                                <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal"
+                                <button type="button" class="btn btn-primary btn-sm w-100" data-bs-toggle="modal"
                                     data-bs-target="#editProfileModal">
-                                    <i class="bi bi-pencil-fill me-2"></i>Editar Perfil
+                                    <i class="bi bi-pencil-fill me-2" aria-hidden="true"></i>Editar perfil
                                 </button>
                             </div>
                         </div>
                         <div class="col-12 col-md-9">
                             <div
-                                class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
+                                class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-3">
                                 <div>
-                                    <h2 class="mb-1 h3 h-md-2">{{ current_user.first_name }} {{ current_user.last_name
-                                        }}
-                                        {% if current_user.mother_last_name %}{{ current_user.mother_last_name }}{%
-                                        endif %}
-                                    </h2>
+                                    <h1 class="mb-1 h3">{{ current_user.first_name }} {{ current_user.last_name }}
+                                        {% if current_user.mother_last_name %}{{ current_user.mother_last_name }}{% endif %}
+                                    </h1>
                                     <p class="text-muted mb-2">{{ role_label or '—' }}</p>
                                 </div>
                                 <!-- Botón de editar en desktop -->
-                                <div class="d-none d-md-block">
-                                    <button class="btn btn-primary" data-bs-toggle="modal"
+                                <div class="d-none d-md-flex gap-2">
+                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
                                         data-bs-target="#editProfileModal">
-                                        <i class="bi bi-pencil-fill me-2"></i>Editar Perfil
+                                        <i class="bi bi-pencil-fill me-2" aria-hidden="true"></i>Editar perfil
                                     </button>
                                     {% if not current_user.profile_completed %}
-                                    <button class="btn btn-outline-primary ms-2" data-bs-toggle="modal"
+                                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal"
                                         data-bs-target="#completeProfileModal">
-                                        <i class="bi bi-person-plus me-2"></i>Completar Perfil
+                                        <i class="bi bi-person-plus me-2" aria-hidden="true"></i>Completar perfil
                                     </button>
                                     {% endif %}
                                 </div>
                             </div>
 
-                            <!-- Badges -->
-                            <div class="mb-3">
-                                <span class="badge bg-success me-2">Activo</span>
+                            <!-- Estado de la cuenta -->
+                            <ul class="list-unstyled d-flex flex-wrap gap-2 mb-3">
+                                <li>{{ status_badge('enrolled', label='Cuenta activa', size='sm') }}</li>
                                 {% if current_user.is_internal %}
-                                <span class="badge bg-info me-2">Usuario Interno</span>
+                                <li>{{ status_badge('in_progress', label='Usuario interno', size='sm') }}</li>
                                 {% endif %}
                                 {% if has_perm('coordinator.page.view') %}
-                                <span class="badge bg-danger me-2">Admin</span>
+                                <li>{{ status_badge('interview_completed', label='Administrador', size='sm') }}</li>
                                 {% endif %}
-                                {% if current_user.scolarship_type and current_user.scolarship_type != 'none'%}
-                                <span class="badge bg-primary">Beca: {{ current_user.scolarship_type }}</span>
+                                {% if current_user.scolarship_type and current_user.scolarship_type != 'none' %}
+                                <li>{{ status_badge('enrolled', label='Beca: ' ~ current_user.scolarship_type, size='sm') }}</li>
                                 {% endif %}
                                 {% if not current_user.profile_completed %}
-                                <span class="badge bg-warning">Perfil Incompleto</span>
+                                <li>{{ status_badge('deliberation', label='Perfil incompleto', size='sm') }}</li>
                                 {% else %}
-                                <span class="badge bg-success">Perfil Completo</span>
+                                <li>{{ status_badge('approved', label='Perfil completo', size='sm') }}</li>
                                 {% endif %}
-                            </div>
+                            </ul>
 
-                            <!-- Estadísticas en cards móviles -->
+                            <!-- Resumen de la cuenta -->
                             <div class="row g-2 g-md-3">
                                 {% if current_user.user_program %}
                                 {% set up = current_user.user_program|first %}
                                 <div class="col-6 col-md-3">
-                                    <div class="border rounded p-2 p-md-3 text-center">
-                                        <h5 class="mb-1 h6 h-md-5">{{ up.program.slug }}</h5>
-                                        <small class="text-muted">Programa</small>
+                                    <div class="profile-summary-card">
+                                        <p class="kpi-value kpi-value--sm mb-1">{{ up.program.slug }}</p>
+                                        <p class="kpi-label mb-0">Programa</p>
                                     </div>
                                 </div>
                                 {% endif %}
                                 <div class="col-6 col-md-3">
-                                    <div class="border rounded p-2 p-md-3 text-center">
-                                        <h5 class="mb-1 h6 h-md-5">{{ current_user.last_login.strftime('%d/%m/%Y') }}
-                                        </h5>
-                                        <small class="text-muted">Último acceso</small>
+                                    <div class="profile-summary-card">
+                                        <p class="kpi-value kpi-value--sm mb-1">{{ current_user.last_login|fecha_es('numeric') or '—' }}</p>
+                                        <p class="kpi-label mb-0">Último acceso</p>
                                     </div>
                                 </div>
                                 <div class="col-6 col-md-3">
-                                    <div class="border rounded p-2 p-md-3 text-center">
-                                        <h5 class="mb-1 h6 h-md-5">{{
-                                            current_user.registration_date.strftime('%d/%m/%Y') }}</h5>
-                                        <small class="text-muted">Fecha de registro</small>
+                                    <div class="profile-summary-card">
+                                        <p class="kpi-value kpi-value--sm mb-1">{{ current_user.registration_date|fecha_es('numeric') or '—' }}</p>
+                                        <p class="kpi-label mb-0">Fecha de registro</p>
                                     </div>
                                 </div>
                                 {% if has_perm('coordinator.page.view') %}
                                 <div class="col-6 col-md-3">
-                                    <div class="border rounded p-2 p-md-3 text-center">
-                                        <h5 class="mb-1 h6 h-md-5">
-                                            <i class="bi bi-shield-check"></i>
-                                        </h5>
-                                        <small class="text-muted">Administrador</small>
+                                    <div class="profile-summary-card">
+                                        <p class="kpi-value kpi-value--sm mb-1">
+                                            <i class="bi bi-shield-check" aria-hidden="true"></i>
+                                        </p>
+                                        <p class="kpi-label mb-0">Administrador</p>
                                     </div>
                                 </div>
                                 {% endif %}
@@ -126,9 +118,9 @@
                             <!-- Completar perfil en móvil -->
                             {% if not current_user.profile_completed %}
                             <div class="d-md-none mt-3">
-                                <button class="btn btn-outline-primary btn-sm w-100" data-bs-toggle="modal"
+                                <button type="button" class="btn btn-outline-primary btn-sm w-100" data-bs-toggle="modal"
                                     data-bs-target="#completeProfileModal">
-                                    <i class="bi bi-person-plus me-2"></i>Completar Perfil
+                                    <i class="bi bi-person-plus me-2" aria-hidden="true"></i>Completar perfil
                                 </button>
                             </div>
                             {% endif%}
@@ -140,7 +132,8 @@
             <!-- Navegación de pestañas responsiva -->
             <div class="card mb-4">
                 <div class="card-header p-0">
-                    <ul class="nav nav-tabs card-header-tabs" id="profileTabs" role="tablist">
+                    <ul class="nav nav-tabs card-header-tabs" id="profileTabs" role="tablist"
+                        aria-label="Secciones del perfil">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="info-tab" data-bs-toggle="tab"
                                 data-bs-target="#info-tab-pane" type="button" role="tab" aria-controls="info-tab-pane"
@@ -229,37 +222,37 @@
 {% endblock %}
 
 {% block modals %}
+{% from '_macros.html' import field %}
+
 <!-- Modal para editar perfil -->
-<div class="modal fade" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileModalLabel" aria-hidden="true">
+<div class="modal fade profile-modal" id="editProfileModal" tabindex="-1"
+     aria-labelledby="editProfileModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editProfileModalLabel">Editar perfil</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h2 class="modal-title h5" id="editProfileModalLabel">Editar perfil</h2>
+                <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
 
             <form id="profileForm" data-profile-update="true">
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-12 col-md-4">
-                            <label for="first_name" class="form-label">Nombre</label>
-                            <input type="text" class="form-control" id="first_name" name="first_name"
-                                value="{{ current_user.first_name }}" required>
+                            {{ field('first_name', 'Nombre', required=true, value=current_user.first_name,
+                                     autocomplete='given-name', wrapper_class='') }}
                         </div>
                         <div class="col-12 col-md-4">
-                            <label for="last_name" class="form-label">Apellido Paterno</label>
-                            <input type="text" class="form-control" id="last_name" name="last_name"
-                                value="{{ current_user.last_name }}" required>
+                            {{ field('last_name', 'Apellido paterno', required=true, value=current_user.last_name,
+                                     autocomplete='family-name', wrapper_class='') }}
                         </div>
                         <div class="col-12 col-md-4">
-                            <label for="mother_last_name" class="form-label">Apellido Materno (Opcional)</label>
-                            <input type="text" class="form-control" id="mother_last_name" name="mother_last_name"
-                                value="{{ current_user.mother_last_name }}">
+                            {{ field('mother_last_name', 'Apellido materno', value=current_user.mother_last_name,
+                                     help='Opcional.', wrapper_class='') }}
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Guardar cambios</button>
                 </div>
             </form>
@@ -268,141 +261,124 @@
 </div>
 
 <!-- Modal para completar perfil -->
-<div class="modal fade" id="completeProfileModal" tabindex="-1" aria-labelledby="completeProfileModalLabel"
-    aria-hidden="true">
+<div class="modal fade profile-modal" id="completeProfileModal" tabindex="-1"
+     aria-labelledby="completeProfileModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="completeProfileModalLabel">Completar Perfil Personal</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h2 class="modal-title h5" id="completeProfileModalLabel">Completar perfil personal</h2>
+                <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
 
             <form id="completeProfileForm" data-complete-profile="true">
                 <div class="modal-body">
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i>
+                    <div class="alert alert-info" role="note">
+                        <i class="bi bi-info-circle me-2" aria-hidden="true"></i>
                         Esta información es importante para el proceso de entrevistas y trámites administrativos.
                     </div>
 
                     <div class="row g-3">
                         <div class="col-12 col-md-6">
-                            <label for="phone" class="form-label">Teléfono Personal</label>
-                            <input type="tel" class="form-control" id="phone" name="phone" placeholder="(614) 123-4567">
+                            {{ field('phone', 'Teléfono personal', type='tel', autocomplete='tel',
+                                     placeholder='(614) 123-4567', wrapper_class='') }}
                         </div>
                         <div class="col-12 col-md-6">
-                            <label for="mobile_phone" class="form-label">Teléfono Celular</label>
-                            <input type="tel" class="form-control" id="mobile_phone" name="mobile_phone"
-                                placeholder="(614) 987-6543">
+                            {{ field('mobile_phone', 'Teléfono celular', type='tel', autocomplete='tel',
+                                     placeholder='(614) 987-6543', wrapper_class='') }}
                         </div>
 
                         <div class="col-12">
-                            <label for="address" class="form-label">Dirección Completa</label>
-                            <textarea class="form-control" id="address" name="address" rows="2"
-                                placeholder="Calle, número, colonia, ciudad, estado, CP"></textarea>
+                            {{ field('address', 'Dirección completa', type='textarea', rows=2,
+                                     autocomplete='street-address',
+                                     placeholder='Calle, número, colonia, ciudad, estado, C.P.', wrapper_class='') }}
                         </div>
 
                         <div class="col-12 col-md-6">
-                            <label for="curp" class="form-label">CURP</label>
-                            <input type="text" class="form-control" id="curp" name="curp"
-                                placeholder="ABCD123456HIJKLMN07" maxlength="18">
+                            {{ field('curp', 'CURP', placeholder='ABCD123456HIJKLMN07', wrapper_class='') }}
                         </div>
                         <div class="col-12 col-md-6">
-                            <label for="rfc" class="form-label">RFC</label>
-                            <input type="text" class="form-control" id="rfc" name="rfc" placeholder="ABCD123456ABC"
-                                maxlength="13">
+                            {{ field('rfc', 'RFC', placeholder='ABCD123456ABC', wrapper_class='') }}
                         </div>
 
                         <div class="col-12 col-md-6">
-                            <label for="birth_date" class="form-label">Fecha de Nacimiento</label>
-                            <input type="date" class="form-control" id="birth_date" name="birth_date">
+                            {{ field('birth_date', 'Fecha de nacimiento', type='date', autocomplete='bday', wrapper_class='') }}
                         </div>
                         <div class="col-12 col-md-6">
-                            <label for="birth_place" class="form-label">Lugar de Nacimiento</label>
-                            <input type="text" class="form-control" id="birth_place" name="birth_place"
-                                placeholder="Ciudad, Estado, País">
+                            {{ field('birth_place', 'Lugar de nacimiento', placeholder='Ciudad, estado, país', wrapper_class='') }}
                         </div>
 
                         <div class="col-12 col-md-6">
-                            <label for="cedula_profesional" class="form-label">Cédula Profesional</label>
-                            <input type="text" class="form-control" id="cedula_profesional" name="cedula_profesional"
-                                placeholder="12345678">
+                            {{ field('cedula_profesional', 'Cédula profesional', placeholder='12345678', wrapper_class='') }}
                         </div>
                         <div class="col-12 col-md-6">
-                            <label for="nss" class="form-label">Número de Seguridad Social</label>
-                            <input type="text" class="form-control" id="nss" name="nss" placeholder="12345678901">
-                        </div>
-
-                        <hr class="my-4">
-                        <h6 class="mb-3">Contacto de Emergencia</h6>
-
-                        <div class="col-12 col-md-6">
-                            <label for="emergency_contact_name" class="form-label">Nombre Completo</label>
-                            <input type="text" class="form-control" id="emergency_contact_name"
-                                name="emergency_contact_name" placeholder="Nombre del contacto de emergencia">
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label for="emergency_contact_phone" class="form-label">Teléfono</label>
-                            <input type="tel" class="form-control" id="emergency_contact_phone"
-                                name="emergency_contact_phone" placeholder="(614) 123-4567">
+                            {{ field('nss', 'Número de seguridad social', placeholder='12345678901', wrapper_class='') }}
                         </div>
 
                         <div class="col-12">
-                            <label for="emergency_contact_relationship" class="form-label">Parentesco</label>
-                            <select class="form-select" id="emergency_contact_relationship"
-                                name="emergency_contact_relationship">
-                                <option value="">Seleccionar...</option>
-                                <option value="padre">Padre</option>
-                                <option value="madre">Madre</option>
-                                <option value="esposo">Esposo(a)</option>
-                                <option value="hermano">Hermano(a)</option>
-                                <option value="hijo">Hijo(a)</option>
-                                <option value="abuelo">Abuelo(a)</option>
-                                <option value="tio">Tío(a)</option>
-                                <option value="primo">Primo(a)</option>
-                                <option value="amigo">Amigo(a)</option>
-                                <option value="otro">Otro</option>
-                            </select>
+                            <hr class="my-2">
+                            <h3 class="h6 mb-0">Contacto de emergencia</h3>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            {{ field('emergency_contact_name', 'Nombre completo', required=true,
+                                     placeholder='Nombre del contacto de emergencia', wrapper_class='') }}
+                        </div>
+                        <div class="col-12 col-md-6">
+                            {{ field('emergency_contact_phone', 'Teléfono', type='tel', required=true,
+                                     placeholder='(614) 123-4567', wrapper_class='') }}
+                        </div>
+
+                        <div class="col-12">
+                            {{ field('emergency_contact_relationship', 'Parentesco', type='select', required=true,
+                                     placeholder='Seleccionar…', wrapper_class='',
+                                     options=[
+                                       ('padre', 'Padre'), ('madre', 'Madre'), ('esposo', 'Esposo(a)'),
+                                       ('hermano', 'Hermano(a)'), ('hijo', 'Hijo(a)'), ('abuelo', 'Abuelo(a)'),
+                                       ('tio', 'Tío(a)'), ('primo', 'Primo(a)'), ('amigo', 'Amigo(a)'),
+                                       ('otro', 'Otro')
+                                     ]) }}
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Guardar información</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
 <!-- Modal: Subir foto de perfil -->
-<div class="modal fade" id="uploadPhotoModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade profile-modal" id="uploadPhotoModal" tabindex="-1"
+     aria-labelledby="uploadPhotoModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Cambiar foto de perfil</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        <h2 class="modal-title h5" id="uploadPhotoModalLabel">Cambiar foto de perfil</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form id="uploadPhotoForm" enctype="multipart/form-data">
         <div class="modal-body">
-          <div class="alert alert-info small">
-            <i class="bi bi-info-circle me-2"></i>
+          <div class="alert alert-info small" role="note">
+            <i class="bi bi-info-circle me-2" aria-hidden="true"></i>
             La imagen se redimensiona a 512 px y se comprime a JPEG (máximo 5 MB de entrada).
-            Formatos permitidos: JPG, PNG, WebP.
+            Formatos permitidos: JPG, PNG y WebP.
           </div>
           <div class="text-center mb-3">
-            <img id="photoPreview" src="" alt="Vista previa"
-                 class="rounded-circle border border-3 border-light shadow d-none"
-                 style="width: 160px; height: 160px; object-fit: cover;">
+            {# Sin atributo src a propósito: profile_photo.js asigna .src con la
+               vista previa del archivo elegido y le quita la clase d-none.
+               Un src="" hace que algunos navegadores pidan la propia página. #}
+            <img id="photoPreview" alt="Vista previa de tu nueva foto"
+                 class="rounded-circle border border-3 border-light shadow d-none w-px-160 profile-photo-preview">
           </div>
-          <div class="mb-3">
-            <label for="photoFile" class="form-label">Selecciona tu foto</label>
-            <input type="file" class="form-control" id="photoFile" name="photo"
-                   accept="image/jpeg,image/png,image/webp" required>
-          </div>
+          {{ field('photoFile', 'Selecciona tu foto', type='file', name='photo', required=true,
+                   help='Formatos permitidos: JPG, PNG y WebP.') }}
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" class="btn btn-primary" id="btnUploadPhotoSubmit">
-            <i class="bi bi-upload me-1"></i>Subir foto
+            <i class="bi bi-upload me-1" aria-hidden="true"></i>Subir foto
           </button>
         </div>
       </form>
@@ -411,12 +387,13 @@
 </div>
 
 <!-- Modal: Solicitar cambio de foto -->
-<div class="modal fade" id="requestPhotoChangeModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade profile-modal" id="requestPhotoChangeModal" tabindex="-1"
+     aria-labelledby="requestPhotoChangeModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Solicitar cambio de foto</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        <h2 class="modal-title h5" id="requestPhotoChangeModalLabel">Solicitar cambio de foto</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form id="requestPhotoChangeForm">
         <div class="modal-body">
@@ -424,69 +401,19 @@
             Tu foto de perfil sólo puede modificarse con autorización del coordinador.
             Envía una solicitud explicando el motivo del cambio.
           </p>
-          <div class="mb-3">
-            <label for="photoChangeReason" class="form-label">Motivo (opcional)</label>
-            <textarea class="form-control" id="photoChangeReason" rows="3"
-                      placeholder="Describe brevemente por qué necesitas cambiar tu foto..."></textarea>
-          </div>
+          {{ field('photoChangeReason', 'Motivo', type='textarea', rows=3,
+                   help='Opcional.',
+                   placeholder='Describe brevemente por qué necesitas cambiar tu foto…') }}
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" class="btn btn-primary">
-            <i class="bi bi-send me-1"></i>Enviar solicitud
+            <i class="bi bi-send me-1" aria-hidden="true"></i>Enviar solicitud
           </button>
         </div>
       </form>
     </div>
   </div>
-</div>
-
-<!-- Modal para subir documento -->
-<div class="modal fade" id="uploadDocumentModal" tabindex="-1" aria-labelledby="uploadDocumentModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="uploadDocumentModalLabel">Subir nuevo documento</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <!--Que pendiente esta sección-->
-            <form action="" method="POST" enctype="multipart/form-data">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="document_name" class="form-label">Nombre del documento</label>
-                        <input type="text" class="form-control" id="document_name" name="document_name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="document_type" class="form-label">Tipo de documento</label>
-                        <select class="form-select" id="document_type" name="document_type" required>
-                            <option value="">Seleccionar...</option>
-                            <option value="cv">Curriculum Vitae</option>
-                            <option value="certificate">Certificado de Estudios</option>
-                            <option value="letter">Carta de Motivos</option>
-                            <option value="recommendation">Carta de Recomendación</option>
-                            <option value="payment">Comprobante de Pago</option>
-                            <option value="other">Otro</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="document_file" class="form-label">Archivo</label>
-                        <input class="form-control" type="file" id="document_file" name="document_file" required>
-                        <div class="form-text">Formatos permitidos: PDF, JPG, PNG. Tamaño máximo: 5MB.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="document_description" class="form-label">Descripción (opcional)</label>
-                        <textarea class="form-control" id="document_description" name="document_description"
-                            rows="3"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Subir documento</button>
-                </div>
-            </form>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -496,4 +423,5 @@
 <script src="{{ url_for('static', filename='js/user/profile_notifications.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/user/profile_activity.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/user/profile_photo.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/user/profile_history.js') }}?v={{ static_version }}"></script>
 {% endblock %}

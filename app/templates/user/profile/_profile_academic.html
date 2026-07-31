@@ -1,97 +1,114 @@
+{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close, icon_button %}
+
+{% set _seg_labels = {
+  'danger': 'rechazados', 'success': 'aprobados', 'info': 'con prórroga',
+  'warning': 'en revisión', 'secondary': 'pendientes'
+} %}
+
 <div class="row">
     <div class="col-md-12 mb-4">
-        <div class="card shadow-sm">
+        <section class="card shadow-sm" aria-labelledby="academicProgramsTitle">
             <div class="card-header">
-                <h5 class="mb-0">Programas Académicos</h5>
+                <h2 class="h5 mb-0" id="academicProgramsTitle">Programas académicos</h2>
             </div>
             <div class="card-body">
                 {% if current_user.user_program %}
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Programa</th>
-                                <th>Estado</th>
-                                <th>Fecha de Inicio</th>
-                                <th>Fecha de Término</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for program in current_user.user_program %}
-                            <tr>
-                                <td>{{ program.program.name }}</td>
-                                <td>
-                                    {% if program.status == 'active' %}
-                                    <span class="badge bg-success">Activo</span>
-                                    {% elif program.status == 'pending' %}
-                                    <span class="badge bg-warning text-dark">Pendiente</span>
-                                    {% elif program.status == 'completed' %}
-                                    <span class="badge bg-info">Completado</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">{{ program.status }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ program.enrollment_date.strftime('%d/%m/%Y') if program.enrollment_date else
-                                    'N/A' }}</td>
-                                <td>{{ program.end_date.strftime('%d/%m/%Y') if program.end_date else 'N/A' }}</td>
-                                <td>
-                                    <a href="{{ url_for('program.view_program', slug=program.program.slug) }}"
-                                        class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-eye"></i> Ver
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                {{ data_table_open('Programas académicos en los que estás inscrito', table_class='table-hover align-middle') }}
+                    <thead>
+                        <tr>
+                            <th scope="col">Programa</th>
+                            <th scope="col">Estado</th>
+                            <th scope="col">Fecha de inicio</th>
+                            <th scope="col">Fecha de término</th>
+                            <th scope="col">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user_program in current_user.user_program %}
+                        <tr>
+                            <th scope="row" class="fw-semibold">{{ user_program.program.name }}</th>
+                            <td>
+                                {% if user_program.status == 'active' %}
+                                    {{ status_badge('in_progress', label='Activo', size='sm') }}
+                                {% elif user_program.status == 'pending' %}
+                                    {{ status_badge('pending', size='sm') }}
+                                {% elif user_program.status == 'completed' %}
+                                    {{ status_badge('approved', label='Completado', size='sm') }}
+                                {% else %}
+                                    {{ status_badge('deferred', label=user_program.status, size='sm') }}
+                                {% endif %}
+                            </td>
+                            <td>{{ user_program.enrollment_date|fecha_es('numeric') or 'No disponible' }}</td>
+                            <td>{{ user_program.end_date|fecha_es('numeric') or 'No disponible' }}</td>
+                            <td>
+                                {{ icon_button('eye', 'Ver el programa ' ~ user_program.program.name,
+                                               cls='btn btn-sm btn-outline-primary',
+                                               href=url_for('program.view_program', slug=user_program.program.slug)) }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                {{ data_table_close() }}
                 {% else %}
-                <div class="alert alert-info">
-                    No estás inscrito en ningún programa académico actualmente.
-                    {% if has_perm('programs.api.enroll') %}
-                    <a href="{{ url_for('program.list_programs') }}" class="alert-link">Explora nuestros programas</a>.
-                    {% endif %}
-                </div>
+                {{ empty_state(
+                     icon='mortarboard',
+                     title='No estás inscrito en ningún programa',
+                     description='Cuando te inscribas a un programa de posgrado aparecerá aquí.',
+                     action_label=('Explorar programas' if has_perm('programs.api.enroll') else none),
+                     action_url=url_for('program.list_programs'),
+                     compact=true
+                   ) }}
                 {% endif %}
             </div>
-        </div>
+        </section>
     </div>
 
     {% if has_perm('programs.api.enroll') %}
-    <div class="col-md-6 mb-4">
-        <div class="card shadow-sm">
+      {% if program %}
+      <div class="col-md-6 mb-4">
+        <section class="card shadow-sm h-100" aria-labelledby="applicationStateTitle">
             <div class="card-header">
-                <h5 class="mb-0">Estado de Solicitud</h5>
+                <h2 class="h5 mb-0" id="applicationStateTitle">Estado de tu solicitud</h2>
             </div>
             <div class="card-body">
-                <div class="d-flex align-items-center mb-2">
-                    <span class="legend-dot bg-danger me-1"></span><small class="me-3">Rechazados</small>
-                    <span class="legend-dot bg-success me-1"></span><small class="me-3">Aprobados</small>
-                    <span class="legend-dot bg-warning me-1"></span><small class="me-3">En&nbsp;revisión</small>
-                    <span class="legend-dot bg-secondary me-1"></span><small>Pendientes</small>
-                </div>
-                <h6 class="fw-bold">{{ program.name }}</h6>
+                <ul class="list-unstyled d-flex flex-wrap align-items-center gap-3 mb-2 small">
+                    <li class="d-flex align-items-center">
+                        <span class="legend-dot bg-danger me-1" aria-hidden="true"></span>Rechazados
+                    </li>
+                    <li class="d-flex align-items-center">
+                        <span class="legend-dot bg-success me-1" aria-hidden="true"></span>Aprobados
+                    </li>
+                    <li class="d-flex align-items-center">
+                        <span class="legend-dot bg-warning me-1" aria-hidden="true"></span>En revisión
+                    </li>
+                    <li class="d-flex align-items-center">
+                        <span class="legend-dot bg-secondary me-1" aria-hidden="true"></span>Pendientes
+                    </li>
+                </ul>
 
-                <!-- Barra de progreso -->
-                <div class="progress mb-2" style="height:20px;">
+                <h3 class="h6 fw-bold">{{ program.name }}</h3>
+
+                <!-- Barra de progreso documental -->
+                <div class="progress mb-2 profile-progress">
                     {% for seg in progress_segments %}
                     <div class="progress-bar bg-{{ seg.class }} {% if seg.class == 'warning' %}text-dark{% endif %}"
-                        style="width: {{ seg.pct }}%" role="progressbar">
+                         style="--seg-width: {{ seg.pct }}%" role="progressbar"
+                         aria-valuenow="{{ seg.pct|int }}" aria-valuemin="0" aria-valuemax="100"
+                         aria-label="Documentos {{ _seg_labels.get(seg.class, 'contabilizados') }}">
                     </div>
                     {% endfor %}
                 </div>
-                <small class="text-muted">
-                    {{ status_count.approved }} / {{ total_docs }} aprobados –
+                <p class="text-muted small">
+                    {{ status_count.approved }} / {{ total_docs }} aprobados —
                     {{ status_count.rejected }} rechazados, {{ status_count.review }} en revisión,
                     {{ status_count.pending }} pendientes
-                </small>
+                </p>
 
-                <!-- Timeline mejorado ------------------------------------------------ -->
+                <!-- Detalle del proceso -->
                 <div class="timeline-modern mt-4">
                     {% for ev in timeline %}
                     <div class="timeline-item-modern {% if ev.state == 'done' %}timeline-done{% elif ev.state == 'inprogress' %}timeline-inprogress{% elif ev.state == 'rejected' %}timeline-rejected{% else %}timeline-pending{% endif %}">
-                        <div class="timeline-marker-modern">
+                        <div class="timeline-marker-modern" aria-hidden="true">
                             {% if ev.state == 'done' %}
                                 <i class="bi bi-check-lg"></i>
                             {% elif ev.state == 'inprogress' %}
@@ -103,29 +120,29 @@
                             {% endif %}
                         </div>
                         <div class="timeline-content-modern">
-                            <div class="d-flex justify-content-between align-items-start">
+                            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
                                 <div>
-                                    <h6 class="mb-1 fw-bold">
-                                        <i class="bi {{ ev.icon }} me-2"></i>{{ ev.label }}
-                                    </h6>
+                                    <p class="mb-1 fw-bold">
+                                        <i class="bi {{ ev.icon }} me-2" aria-hidden="true"></i>{{ ev.label }}
+                                    </p>
                                     <p class="text-muted small mb-0">
                                         {% if ev.date %}
                                             {{ ev.date }}
                                         {% elif ev.state == 'done' %}
                                             Completado
                                         {% elif ev.state == 'inprogress' %}
-                                            En progreso...
+                                            En progreso
                                         {% else %}
                                             Pendiente
                                         {% endif %}
                                     </p>
                                 </div>
                                 {% if ev.state == 'done' %}
-                                    <span class="badge bg-success rounded-pill">✓</span>
+                                    {{ status_badge('approved', label='Completado', size='sm') }}
                                 {% elif ev.state == 'inprogress' %}
-                                    <span class="badge bg-primary rounded-pill">
-                                        <span class="spinner-grow spinner-grow-sm" role="status"></span>
-                                    </span>
+                                    {{ status_badge('in_progress', label='En curso', size='sm') }}
+                                {% elif ev.state == 'rejected' %}
+                                    {{ status_badge('rejected', size='sm') }}
                                 {% endif %}
                             </div>
                         </div>
@@ -134,46 +151,57 @@
                 </div>
 
             </div>
-        </div>
-    </div>
+        </section>
+      </div>
 
-    <!-- Requisitos pendientes ---------------------------------------- -->
-    <div class="col-md-6 mb-4">
-        <div class="card shadow-sm">
+      <!-- Requisitos pendientes ---------------------------------------- -->
+      <div class="col-md-6 mb-4">
+        <section class="card shadow-sm h-100" aria-labelledby="pendingRequirementsTitle">
             <div class="card-header">
-                <h5 class="mb-0">Requisitos Pendientes</h5>
+                <h2 class="h5 mb-0" id="pendingRequirementsTitle">Requisitos pendientes</h2>
             </div>
             <div class="card-body">
+                {% if pending_items %}
                 <ul class="list-group">
                     {% for item in pending_items %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        {{ item.name }}
+                    <li class="list-group-item d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                        <span>{{ item.name }}</span>
                         {% if item.status == 'rejected' %}
-                        <span class="badge bg-danger rounded-pill"><i class="bi bi-x-lg"></i></span>
+                            {{ status_badge('rejected', size='sm') }}
                         {% else %}
-                        <span class="badge bg-warning text-dark rounded-pill"><i
-                                class="bi bi-exclamation-lg"></i></span>
+                            {{ status_badge('pending', size='sm') }}
                         {% endif %}
                     </li>
                     {% endfor %}
-                    {% if not pending_items %}
-                    <li class="list-group-item text-center text-success fw-bold">
-                        ¡No quedan documentos pendientes!
-                    </li>
-                    {% endif %}
                 </ul>
 
-                {% if pending_items %}
                 <div class="mt-3">
-                    <a class="btn btn-primary btn-sm" href="{{ url_for('program.admission.admission_dashboard',
-                            slug=program.slug) }}">
-                        <i class="bi bi-upload me-2"></i>Subir documentos pendientes
+                    <a class="btn btn-primary btn-sm"
+                       href="{{ url_for('program.admission.admission_dashboard', slug=program.slug) }}">
+                        <i class="bi bi-upload me-2" aria-hidden="true"></i>Subir documentos pendientes
                     </a>
                 </div>
+                {% else %}
+                {{ empty_state(
+                     icon='check-circle',
+                     title='No quedan documentos pendientes',
+                     description='Has entregado todos los requisitos de tu solicitud.',
+                     compact=true
+                   ) }}
                 {% endif %}
             </div>
-        </div>
-    </div>
-
+        </section>
+      </div>
+      {% else %}
+      <div class="col-12 mb-4">
+        {{ empty_state(
+             icon='folder-x',
+             title='Aún no tienes una solicitud activa',
+             description='Cuando inicies un proceso de admisión verás aquí tu avance documental.',
+             action_label='Explorar programas',
+             action_url=url_for('program.list_programs')
+           ) }}
+      </div>
+      {% endif %}
     {% endif %}
 </div>

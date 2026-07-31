@@ -1,38 +1,21 @@
+{% from '_macros.html' import role_banner, stepper, status_badge, empty_state, async_region, skeleton_cards %}
+
 {% if not program %}
 <!-- Usuario NO registrado en ningún programa -->
 <div class="row justify-content-center">
     <div class="col-lg-8 col-xl-6">
-        <div class="card shadow border-0">
-            <div class="card-body text-center py-5">
-                <div class="mb-4">
-                    <i class="bi bi-folder-x text-muted icon-5xl"></i>
-                </div>
-                <h3 class="mb-3">No estás registrado en ningún programa</h3>
-                <p class="text-muted mb-4 lead">
-                    Actualmente no tienes una solicitud de admisión activa.<br>
-                    Explora nuestros programas de posgrado y comienza tu proceso de admisión.
-                </p>
-                <a href="{{ url_for('program.list_programs') }}" class="btn btn-primary btn-lg">
-                    <i class="bi bi-search me-2"></i>Explorar Programas Disponibles
-                </a>
-            </div>
-        </div>
+        {{ empty_state(
+             icon='folder-x',
+             title='No estás registrado en ningún programa',
+             description='Actualmente no tienes una solicitud de admisión activa. Explora los programas de posgrado y comienza tu proceso.',
+             action_label='Explorar programas disponibles',
+             action_url=url_for('program.list_programs')
+           ) }}
     </div>
 </div>
 {% else %}
 <!-- Usuario SÍ está registrado en un programa -->
-{% from '_macros.html' import role_banner %}
 
-{# Calculo de progreso aproximado basado en estado de admision #}
-{% set _status_progress = {
-  'in_progress': 20,
-  'interview_completed': 50,
-  'deliberation': 70,
-  'accepted': 95,
-  'enrolled': 100,
-  'rejected': 100,
-  'deferred': 50,
-} %}
 {% set _next_actions = {
   'in_progress': 'Completa la carga de tus documentos pendientes para tu admisión',
   'interview_completed': 'Tu entrevista fue registrada. Espera la deliberación del comité',
@@ -43,99 +26,85 @@
   'deferred': 'Tu admisión fue diferida. Revisa los detalles del periodo destino',
 } %}
 
+{# Etapas del proceso de admisión: el stepper sustituye a la barra de progreso
+   global del banner para que solo haya UN indicador de "dónde estoy". #}
+{% set _admission_steps = [
+  {'label': 'Documentos'},
+  {'label': 'Entrevista'},
+  {'label': 'Deliberación'},
+  {'label': 'Resultado'},
+  {'label': 'Inscripción'},
+] %}
+{% set _status_step = {
+  'in_progress': 1,
+  'interview_completed': 2,
+  'deliberation': 3,
+  'accepted': 4,
+  'rejected': 4,
+  'deferred': 4,
+  'enrolled': 5,
+} %}
+
 {{ role_banner(
   user=current_user,
   role_key='applicant',
   context_line=program.name,
-  next_action=_next_actions.get(admission_status, 'Sigue el avance de tu proceso desde aquí'),
-  progress=_status_progress.get(admission_status)
+  next_action=_next_actions.get(admission_status, 'Sigue el avance de tu proceso desde aquí')
 ) }}
+
+{{ stepper(_admission_steps, current=_status_step.get(admission_status, 1)) }}
 
 {% include 'partials/_events_widget.html' %}
 
-<!-- Acciones Rápidas -->
-<div class="row mb-4">
+<!-- Acción principal + accesos secundarios -->
+<section class="row mb-4" aria-labelledby="applicantActionsTitle">
     <div class="col-12">
-        <h5 class="mb-3 fw-bold text-secondary">
-            <i class="bi bi-lightning-charge-fill me-2"></i>Acciones Rápidas
-        </h5>
-        <div class="row g-3">
-            <!-- Subir Documentos -->
-            <div class="col-md-3 col-sm-6">
+        <h2 class="h5 mb-3 fw-bold" id="applicantActionsTitle">
+            <i class="bi bi-lightning-charge-fill me-2" aria-hidden="true"></i>¿Qué quieres hacer?
+        </h2>
+
+        <div class="card quick-action-primary mb-3">
+            <div class="card-body">
+                <p class="quick-action-primary__title mb-1">
+                    <i class="bi bi-file-earmark-arrow-up me-2" aria-hidden="true"></i>Subir documentos
+                </p>
+                <p class="quick-action-primary__hint">
+                    {% if pending_items %}
+                        Te faltan {{ pending_items|length }} requisito{{ 's' if pending_items|length != 1 else '' }} por entregar.
+                    {% else %}
+                        Consulta y actualiza los requisitos de tu solicitud.
+                    {% endif %}
+                </p>
                 <a href="{{ url_for('program.admission.admission_dashboard', slug=program.slug) }}"
-                   class="text-decoration-none">
-                    <div class="card h-100 border-0 shadow-sm quick-action-card">
-                        <div class="card-body text-center py-4">
-                            <div class="mb-3">
-                                <i class="bi bi-file-earmark-arrow-up text-primary icon-2xl"></i>
-                            </div>
-                            <h6 class="mb-1 fw-bold">Subir Documentos</h6>
-                            <small class="text-muted">Envía tus requisitos</small>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <!-- Ver Programa -->
-            <div class="col-md-3 col-sm-6">
-                <a href="{{ url_for('program.view_program', slug=program.slug) }}"
-                   class="text-decoration-none">
-                    <div class="card h-100 border-0 shadow-sm quick-action-card">
-                        <div class="card-body text-center py-4">
-                            <div class="mb-3">
-                                <i class="bi bi-book text-success icon-2xl"></i>
-                            </div>
-                            <h6 class="mb-1 fw-bold">Ver Programa</h6>
-                            <small class="text-muted">Detalles del programa</small>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <!-- Mi Perfil -->
-            <div class="col-md-3 col-sm-6">
-                <a href="{{ url_for('pages_user.profile') }}"
-                   class="text-decoration-none">
-                    <div class="card h-100 border-0 shadow-sm quick-action-card">
-                        <div class="card-body text-center py-4">
-                            <div class="mb-3">
-                                <i class="bi bi-person-circle text-info icon-2xl"></i>
-                            </div>
-                            <h6 class="mb-1 fw-bold">Mi Perfil</h6>
-                            <small class="text-muted">Información personal</small>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <!-- Explorar Programas -->
-            <div class="col-md-3 col-sm-6">
-                <a href="{{ url_for('program.list_programs') }}"
-                   class="text-decoration-none">
-                    <div class="card h-100 border-0 shadow-sm quick-action-card">
-                        <div class="card-body text-center py-4">
-                            <div class="mb-3">
-                                <i class="bi bi-mortarboard text-warning icon-2xl"></i>
-                            </div>
-                            <h6 class="mb-1 fw-bold">Otros Programas</h6>
-                            <small class="text-muted">Explorar catálogo</small>
-                        </div>
-                    </div>
+                   class="btn btn-primary btn-lg">
+                    <i class="bi bi-upload me-2" aria-hidden="true"></i>Ir a mis documentos
                 </a>
             </div>
         </div>
+
+        <div class="quick-action-links">
+            <a href="{{ url_for('program.view_program', slug=program.slug) }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-book" aria-hidden="true"></i>Ver el programa
+            </a>
+            <a href="{{ url_for('pages_user.profile') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-person-circle" aria-hidden="true"></i>Mi perfil
+            </a>
+            <a href="{{ url_for('program.list_programs') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-mortarboard" aria-hidden="true"></i>Otros programas
+            </a>
+        </div>
     </div>
-</div>
+</section>
 
 <!-- Panel Principal: Estado y Progreso -->
 <div class="row">
     <!-- Columna Izquierda: Estado de Solicitud -->
     <div class="col-lg-6 mb-4">
-        <div class="card border-0 shadow h-100">
-            <div class="card-header bg-white border-0 pt-4 pb-3">
+        <section class="card h-100" aria-labelledby="applicationStatusTitle">
+            <div class="card-header bg-transparent pt-4 pb-3">
                 <div class="d-flex align-items-center">
-                    <i class="bi bi-graph-up text-primary fs-4 me-2"></i>
-                    <h5 class="mb-0 fw-bold">Estado de Solicitud</h5>
+                    <i class="bi bi-graph-up text-brand-primary fs-4 me-2" aria-hidden="true"></i>
+                    <h2 class="h5 mb-0 fw-bold" id="applicationStatusTitle">Estado de tu solicitud</h2>
                 </div>
             </div>
             <div class="card-body">
@@ -143,91 +112,96 @@
                 <div class="mb-4 p-3 rounded-3 applicant-banner">
                     <div class="d-flex align-items-center">
                         <div class="flex-shrink-0 me-3">
-                            <i class="bi bi-mortarboard-fill text-primary icon-xl"></i>
+                            <i class="bi bi-mortarboard-fill text-brand-primary icon-xl" aria-hidden="true"></i>
                         </div>
                         <div class="flex-grow-1">
-                            <h5 class="mb-0 fw-bold text-primary">{{ program.name }}</h5>
-                            <small class="text-muted">Programa de Posgrado</small>
+                            <p class="mb-0 fw-bold text-brand-primary">{{ program.name }}</p>
+                            <small class="text-muted">Programa de posgrado</small>
                         </div>
                     </div>
                 </div>
 
                 <!-- Leyenda de colores -->
-                <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
-                    <small class="d-flex align-items-center">
-                        <span class="legend-dot bg-success me-1"></span>Aprobados
-                    </small>
-                    <small class="d-flex align-items-center">
-                        <span class="legend-dot bg-danger me-1"></span>Rechazados
-                    </small>
-                    <small class="d-flex align-items-center">
-                        <span class="legend-dot bg-warning me-1"></span>En revisión
-                    </small>
-                    <small class="d-flex align-items-center">
-                        <span class="legend-dot bg-secondary me-1"></span>Pendientes
-                    </small>
-                </div>
+                <ul class="list-unstyled d-flex flex-wrap align-items-center gap-3 mb-3 small">
+                    <li class="d-flex align-items-center">
+                        <span class="legend-dot bg-success me-1" aria-hidden="true"></span>Aprobados
+                    </li>
+                    <li class="d-flex align-items-center">
+                        <span class="legend-dot bg-danger me-1" aria-hidden="true"></span>Rechazados
+                    </li>
+                    <li class="d-flex align-items-center">
+                        <span class="legend-dot bg-warning me-1" aria-hidden="true"></span>En revisión
+                    </li>
+                    <li class="d-flex align-items-center">
+                        <span class="legend-dot bg-secondary me-1" aria-hidden="true"></span>Pendientes
+                    </li>
+                </ul>
 
-                <!-- Barra de progreso -->
+                <!-- Barra de progreso documental -->
+                {% set _seg_labels = {
+                  'danger': 'rechazados', 'success': 'aprobados', 'info': 'con prórroga',
+                  'warning': 'en revisión', 'secondary': 'pendientes'
+                } %}
                 <div class="progress mb-3 progress-admission">
                     {% if progress_segments %}
                         {% for seg in progress_segments %}
                         <div class="progress-bar bg-{{ seg.class }} {% if seg.class == 'warning' %}text-dark{% endif %}"
-                            style="width: {{ seg.pct }}%" role="progressbar">
+                             style="--seg-width: {{ seg.pct }}%" role="progressbar"
+                             aria-valuenow="{{ seg.pct|int }}" aria-valuemin="0" aria-valuemax="100"
+                             aria-label="Documentos {{ _seg_labels.get(seg.class, 'contabilizados') }}">
                             {% if seg.pct > 10 %}{{ seg.pct|int }}%{% endif %}
                         </div>
                         {% endfor %}
                     {% else %}
-                        <div class="progress-bar bg-secondary" style="width: 100%" role="progressbar">
+                        <div class="progress-bar bg-secondary" style="--seg-width: 100%" role="progressbar"
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"
+                             aria-label="Sin documentos entregados">
                             Sin documentos
                         </div>
                     {% endif %}
                 </div>
 
-                <!-- Estadísticas -->
+                <!-- Cifras -->
                 <div class="d-flex justify-content-between text-center mb-4">
                     <div>
-                        <h4 class="mb-0 text-success fw-bold">{{ status_count.approved }}</h4>
-                        <small class="text-muted">Aprobados</small>
+                        <p class="kpi-value kpi-value--sm text-success-strong">{{ status_count.approved }}</p>
+                        <p class="kpi-label">Aprobados</p>
                     </div>
                     <div>
-                        <h4 class="mb-0 text-warning fw-bold">{{ status_count.review }}</h4>
-                        <small class="text-muted">En revisión</small>
+                        <p class="kpi-value kpi-value--sm text-warning-strong">{{ status_count.review }}</p>
+                        <p class="kpi-label">En revisión</p>
                     </div>
                     <div>
-                        <h4 class="mb-0 text-secondary fw-bold">{{ status_count.pending }}</h4>
-                        <small class="text-muted">Pendientes</small>
+                        <p class="kpi-value kpi-value--sm">{{ status_count.pending }}</p>
+                        <p class="kpi-label">Pendientes</p>
                     </div>
                     <div>
-                        <h4 class="mb-0 text-danger fw-bold">{{ status_count.rejected }}</h4>
-                        <small class="text-muted">Rechazados</small>
+                        <p class="kpi-value kpi-value--sm text-danger-strong">{{ status_count.rejected }}</p>
+                        <p class="kpi-label">Rechazados</p>
                     </div>
                 </div>
 
-                <div class="text-center">
-                    <p class="text-muted mb-0">
-                        <strong>{{ status_count.approved }}</strong> de <strong>{{ total_docs }}</strong> documentos aprobados
-                    </p>
-                </div>
+                <p class="text-muted text-center mb-0">
+                    <strong>{{ status_count.approved }}</strong> de <strong>{{ total_docs }}</strong> documentos aprobados
+                </p>
             </div>
-        </div>
+        </section>
     </div>
 
-    <!-- Columna Derecha: Timeline del Proceso -->
+    <!-- Columna Derecha: Detalle del proceso -->
     <div class="col-lg-6 mb-4">
-        <div class="card border-0 shadow h-100">
-            <div class="card-header bg-white border-0 pt-4 pb-3">
+        <section class="card h-100" aria-labelledby="admissionTimelineTitle">
+            <div class="card-header bg-transparent pt-4 pb-3">
                 <div class="d-flex align-items-center">
-                    <i class="bi bi-clock-history text-primary fs-4 me-2"></i>
-                    <h5 class="mb-0 fw-bold">Proceso de Admisión</h5>
+                    <i class="bi bi-clock-history text-brand-primary fs-4 me-2" aria-hidden="true"></i>
+                    <h2 class="h5 mb-0 fw-bold" id="admissionTimelineTitle">Detalle del proceso</h2>
                 </div>
             </div>
             <div class="card-body">
-                <!-- Timeline mejorado -->
                 <div class="timeline-modern">
                     {% for ev in timeline %}
                     <div class="timeline-item-modern {% if ev.state == 'done' %}timeline-done{% elif ev.state == 'inprogress' %}timeline-inprogress{% elif ev.state == 'rejected' %}timeline-rejected{% else %}timeline-pending{% endif %}">
-                        <div class="timeline-marker-modern">
+                        <div class="timeline-marker-modern" aria-hidden="true">
                             {% if ev.state == 'done' %}
                                 <i class="bi bi-check-lg"></i>
                             {% elif ev.state == 'inprogress' %}
@@ -239,29 +213,29 @@
                             {% endif %}
                         </div>
                         <div class="timeline-content-modern">
-                            <div class="d-flex justify-content-between align-items-start">
+                            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
                                 <div>
-                                    <h6 class="mb-1 fw-bold">
-                                        <i class="bi {{ ev.icon }} me-2"></i>{{ ev.label }}
-                                    </h6>
+                                    <p class="mb-1 fw-bold">
+                                        <i class="bi {{ ev.icon }} me-2" aria-hidden="true"></i>{{ ev.label }}
+                                    </p>
                                     <p class="text-muted small mb-0">
                                         {% if ev.date %}
                                             {{ ev.date }}
                                         {% elif ev.state == 'done' %}
                                             Completado
                                         {% elif ev.state == 'inprogress' %}
-                                            En progreso...
+                                            En progreso
                                         {% else %}
                                             Pendiente
                                         {% endif %}
                                     </p>
                                 </div>
                                 {% if ev.state == 'done' %}
-                                    <span class="badge bg-success rounded-pill">✓</span>
+                                    {{ status_badge('approved', label='Completado', size='sm') }}
                                 {% elif ev.state == 'inprogress' %}
-                                    <span class="badge bg-primary rounded-pill">
-                                        <span class="spinner-grow spinner-grow-sm" role="status"></span>
-                                    </span>
+                                    {{ status_badge('in_progress', label='En curso', size='sm') }}
+                                {% elif ev.state == 'rejected' %}
+                                    {{ status_badge('rejected', size='sm') }}
                                 {% endif %}
                             </div>
                         </div>
@@ -269,7 +243,7 @@
                     {% endfor %}
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 </div>
 
@@ -277,65 +251,64 @@
 {% if pending_items %}
 <div class="row">
     <div class="col-12">
-        <div class="card border-0 shadow">
-            <div class="card-header bg-white border-0 pt-4 pb-3">
-                <div class="d-flex align-items-center justify-content-between">
+        <section class="card" aria-labelledby="pendingItemsTitle">
+            <div class="card-header bg-transparent pt-4 pb-3">
+                <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
                     <div class="d-flex align-items-center">
-                        <i class="bi bi-exclamation-triangle text-warning fs-4 me-2"></i>
-                        <h5 class="mb-0 fw-bold">Requisitos Pendientes</h5>
+                        <i class="bi bi-exclamation-triangle text-warning-strong fs-4 me-2" aria-hidden="true"></i>
+                        <h2 class="h5 mb-0 fw-bold" id="pendingItemsTitle">Requisitos pendientes</h2>
                     </div>
-                    <span class="badge bg-warning text-dark rounded-pill px-3 py-2">
+                    <span class="badge bg-warning rounded-pill px-3 py-2">
                         {{ pending_items|length }} pendiente{% if pending_items|length != 1 %}s{% endif %}
                     </span>
                 </div>
             </div>
             <div class="card-body">
-                <div class="row g-3">
+                <ul class="row g-3 list-unstyled mb-0">
                     {% for item in pending_items %}
-                    <div class="col-md-6">
-                        <div class="d-flex align-items-center p-3 border rounded {% if item.status == 'rejected' %}border-danger bg-danger bg-opacity-10{% else %}border-warning bg-warning bg-opacity-10{% endif %}">
+                    <li class="col-md-6">
+                        <div class="d-flex align-items-center p-3 rounded {% if item.status == 'rejected' %}bg-danger-soft{% else %}bg-warning-soft{% endif %}">
                             <div class="flex-shrink-0 me-3">
                                 {% if item.status == 'rejected' %}
-                                    <i class="bi bi-x-circle-fill text-danger fs-3"></i>
+                                    <i class="bi bi-x-circle-fill fs-3" aria-hidden="true"></i>
                                 {% else %}
-                                    <i class="bi bi-clock-fill text-warning fs-3"></i>
+                                    <i class="bi bi-clock-fill fs-3" aria-hidden="true"></i>
                                 {% endif %}
                             </div>
                             <div class="flex-grow-1">
-                                <h6 class="mb-0">{{ item.name }}</h6>
-                                <small class="text-muted">
+                                <p class="mb-0 fw-semibold">{{ item.name }}</p>
+                                <small>
                                     {% if item.status == 'rejected' %}
-                                        Rechazado - Requiere reenvío
+                                        Rechazado — requiere reenvío
                                     {% else %}
                                         Pendiente de envío
                                     {% endif %}
                                 </small>
                             </div>
                         </div>
-                    </div>
+                    </li>
                     {% endfor %}
-                </div>
+                </ul>
 
                 <div class="mt-4 text-center">
-                    <a class="btn btn-primary btn-lg" href="{{ url_for('program.admission.admission_dashboard', slug=program.slug) }}">
-                        <i class="bi bi-upload me-2"></i>Subir Documentos Pendientes
+                    <a class="btn btn-outline-primary" href="{{ url_for('program.admission.admission_dashboard', slug=program.slug) }}">
+                        <i class="bi bi-upload me-2" aria-hidden="true"></i>Subir documentos pendientes
                     </a>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 </div>
 {% else %}
-<!-- Mensaje de éxito cuando no hay pendientes -->
+<!-- Sin requisitos pendientes -->
 <div class="row">
     <div class="col-12">
-        <div class="card border-0 shadow bg-success bg-opacity-10">
-            <div class="card-body text-center py-4">
-                <i class="bi bi-check-circle-fill text-success icon-3xl"></i>
-                <h5 class="mt-3 mb-2 text-success fw-bold">¡Excelente!</h5>
-                <p class="text-muted mb-0">No tienes documentos pendientes. Tu solicitud está en revisión.</p>
-            </div>
-        </div>
+        {{ empty_state(
+             icon='check-circle-fill',
+             title='No tienes documentos pendientes',
+             description='Tu solicitud está completa y en revisión por el comité.',
+             compact=true
+           ) }}
     </div>
 </div>
 {% endif %}
@@ -344,14 +317,14 @@
 {% if admission_status == 'deferred' %}
 <div class="row mt-4" id="deferral-section">
   <div class="col-12">
-    <div class="card border-0 shadow card-accent-warning">
-      <div class="card-header bg-white border-0 pt-4 pb-3">
-        <div class="d-flex align-items-center justify-content-between">
+    <section class="card card-accent-warning" aria-labelledby="deferralTitle">
+      <div class="card-header bg-transparent pt-4 pb-3">
+        <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
           <div class="d-flex align-items-center">
-            <i class="bi bi-arrow-clockwise text-warning fs-4 me-2"></i>
-            <h5 class="mb-0 fw-bold">Inscripción Diferida</h5>
+            <i class="bi bi-arrow-clockwise text-warning-strong fs-4 me-2" aria-hidden="true"></i>
+            <h2 class="h5 mb-0 fw-bold" id="deferralTitle">Inscripción diferida</h2>
           </div>
-          <span class="badge bg-warning text-dark px-3 py-2">Diferida</span>
+          {{ status_badge('deferred', label='Diferida') }}
         </div>
         <p class="text-muted small mt-1 mb-0">
           Tu carta de aceptación sigue vigente. Podrás completar tu inscripción en el nuevo periodo.
@@ -361,11 +334,11 @@
 
         {% if deferral_status and deferral_status.active_deferral %}
           {% set d = deferral_status.active_deferral %}
-          <div class="alert alert-warning d-flex gap-3 align-items-start mb-4">
-            <i class="bi bi-exclamation-triangle-fill text-warning fs-4 flex-shrink-0 mt-1"></i>
+          <div class="alert alert-warning d-flex gap-3 align-items-start mb-4" role="note">
+            <i class="bi bi-exclamation-triangle-fill fs-4 flex-shrink-0 mt-1" aria-hidden="true"></i>
             <div>
               <strong>Tu inscripción fue diferida</strong><br>
-              <span class="text-muted small">
+              <span class="small">
                 Fuiste aceptado en el periodo
                 <strong>{{ d.original_period_name or 'original' }}</strong>
                 pero no completaste tu inscripción.
@@ -377,92 +350,80 @@
 
           <div class="row g-3 mb-4">
             <div class="col-sm-4">
-              <div class="card text-center h-100 border-warning">
-                <div class="card-body py-3">
-                  <i class="bi bi-arrow-clockwise text-warning fs-2 mb-2"></i>
-                  <div class="small text-muted">Diferimientos usados</div>
-                  <div class="fw-bold fs-5">{{ deferral_status.deferrals_used }} / {{ deferral_status.max_deferrals }}</div>
-                </div>
+              <div class="stat-card stat-card--warning h-100">
+                <i class="bi bi-arrow-clockwise stat-card__icon" aria-hidden="true"></i>
+                <p class="stat-card__value">{{ deferral_status.deferrals_used }} / {{ deferral_status.max_deferrals }}</p>
+                <p class="stat-card__label">Diferimientos usados</p>
               </div>
             </div>
             <div class="col-sm-4">
-              <div class="card text-center h-100">
-                <div class="card-body py-3">
-                  <i class="bi bi-calendar2-event fs-2 text-primary mb-2"></i>
-                  <div class="small text-muted">Periodo destino</div>
-                  <div class="fw-bold small">{{ d.deferred_to_period_name or 'Por asignar' }}</div>
-                </div>
+              <div class="stat-card h-100">
+                <i class="bi bi-calendar2-event stat-card__icon" aria-hidden="true"></i>
+                <p class="stat-card__value">{{ d.deferred_to_period_name or 'Por asignar' }}</p>
+                <p class="stat-card__label">Periodo destino</p>
               </div>
             </div>
             <div class="col-sm-4">
-              <div class="card text-center h-100 {% if deferral_status.can_defer %}border-secondary{% else %}border-danger{% endif %}">
-                <div class="card-body py-3">
-                  <i class="bi bi-hourglass-split fs-2 {% if deferral_status.can_defer %}text-secondary{% else %}text-danger{% endif %} mb-2"></i>
-                  <div class="small text-muted">Diferimientos restantes</div>
-                  <div class="fw-bold">{{ deferral_status.max_deferrals - deferral_status.deferrals_used }}</div>
-                </div>
+              <div class="stat-card {% if deferral_status.can_defer %}stat-card--info{% else %}stat-card--danger{% endif %} h-100">
+                <i class="bi bi-hourglass-split stat-card__icon" aria-hidden="true"></i>
+                <p class="stat-card__value">{{ deferral_status.max_deferrals - deferral_status.deferrals_used }}</p>
+                <p class="stat-card__label">Diferimientos restantes</p>
               </div>
             </div>
           </div>
 
         {% else %}
-          <div class="alert alert-secondary">
-            <i class="bi bi-info-circle me-2"></i>
+          <div class="alert alert-info" role="note">
+            <i class="bi bi-info-circle me-2" aria-hidden="true"></i>
             Tu inscripción está diferida. El coordinador te notificará cuando el nuevo periodo esté disponible.
           </div>
         {% endif %}
 
         <hr>
-        <div class="d-flex align-items-center gap-2">
-          <i class="bi bi-file-earmark-text-fill text-success"></i>
+        <p class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-file-earmark-text-fill text-success-strong" aria-hidden="true"></i>
           <span class="fw-semibold">Tu carta de aceptación sigue vigente.</span>
-        </div>
-        <p class="text-muted small mt-1 mb-3">
+        </p>
+        <p class="text-muted small mb-3">
           Cuando el coordinador active el nuevo periodo, deberás completar los documentos de inscripción
           (nueva tira de materias y boleta de servicios escolares).
         </p>
 
         {% if program %}
-        <div id="deferralAcceptanceLetterSection">
-          <div class="text-center py-2 text-muted">
-            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-            Cargando carta de aceptación...
-          </div>
-        </div>
+        {% call async_region('deferralAcceptanceLetterSection', 'Carta de aceptación') %}
+          <span class="skeleton skeleton-button"></span>
+        {% endcall %}
         {% endif %}
 
       </div>
-    </div>
+    </section>
   </div>
 </div>
 {% endif %}
 
-<!-- Seccion de Aceptacion e Inscripcion (solo visible para aspirantes aceptados) -->
+<!-- Sección de Aceptación e Inscripción (solo para aspirantes aceptados) -->
 {% if admission_status == 'accepted' %}
 <div class="row mt-4" id="acceptance-section">
   <div class="col-12">
-    <div class="card border-0 shadow card-accent-success">
-      <div class="card-header bg-white border-0 pt-4 pb-3">
-        <div class="d-flex align-items-center justify-content-between">
+    <section class="card card-accent-success" aria-labelledby="acceptanceTitle">
+      <div class="card-header bg-transparent pt-4 pb-3">
+        <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
           <div class="d-flex align-items-center">
-            <i class="bi bi-patch-check-fill text-success fs-4 me-2"></i>
-            <h5 class="mb-0 fw-bold">Aceptacion e Inscripcion</h5>
+            <i class="bi bi-patch-check-fill text-success-strong fs-4 me-2" aria-hidden="true"></i>
+            <h2 class="h5 mb-0 fw-bold" id="acceptanceTitle">Aceptación e inscripción</h2>
           </div>
-          <span class="badge bg-success px-3 py-2">Aceptado</span>
+          {{ status_badge('accepted') }}
         </div>
         <p class="text-muted small mt-1 mb-0">
-          Completa los siguientes pasos para finalizar tu inscripcion al programa.
+          Completa los siguientes pasos para finalizar tu inscripción al programa.
         </p>
       </div>
       <div class="card-body">
-        <div id="acceptanceDocsContent">
-          <div class="text-center py-3 text-muted">
-            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-            Cargando documentos...
-          </div>
-        </div>
+        {% call async_region('acceptanceDocsContent', 'Documentos de aceptación') %}
+          {{ skeleton_cards(count=3, size='sm') }}
+        {% endcall %}
       </div>
-    </div>
+    </section>
   </div>
 </div>
 

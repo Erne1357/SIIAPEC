@@ -1,21 +1,18 @@
+{% from '_macros.html' import role_banner, status_badge, empty_state %}
+
 {% if not coordinated_programs or coordinated_programs|length == 0 %}
 <!-- Program admin sin programa asignado -->
 <div class="row justify-content-center">
     <div class="col-lg-8">
-        <div class="card shadow border-0">
-            <div class="card-body text-center py-5">
-                <i class="bi bi-exclamation-triangle text-warning icon-5xl"></i>
-                <h3 class="mt-3 mb-3">No tienes un programa asignado</h3>
-                <p class="text-muted mb-0">
-                    Contacta al administrador de posgrado para que te asigne un programa.
-                </p>
-            </div>
-        </div>
+        {{ empty_state(
+             icon='exclamation-triangle',
+             title='No tienes un programa asignado',
+             description='Contacta al administrador de posgrado para que te asigne un programa.'
+           ) }}
     </div>
 </div>
 {% else %}
 <!-- Dashboard para Program Admin -->
-{% from '_macros.html' import role_banner %}
 
 {{ role_banner(
   user=current_user,
@@ -36,7 +33,7 @@
 <!-- Selector de Programa (solo si hay múltiples programas) -->
 {% if show_all_programs %}
 <div class="alert bg-info-soft mb-3" role="note">
-  <i class="bi bi-info-circle-fill me-2"></i>
+  <i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>
   Estás viendo todos los programas. <strong>Selecciona uno específico</strong>
   arriba para activar las acciones rápidas y ver actividad detallada.
 </div>
@@ -44,17 +41,17 @@
 {% if show_program_selector %}
 <div class="row mb-4">
     <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <h4 class="mb-0 fw-bold text-primary">
-                <i class="bi bi-mortarboard-fill me-2"></i>Dashboard de Coordinación
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <h2 class="h5 mb-0 fw-bold text-brand-primary">
+                <i class="bi bi-mortarboard-fill me-2" aria-hidden="true"></i>Dashboard de coordinación
                 {% if show_all_programs %}
-                <small class="text-muted">(Todos los programas)</small>
+                <span class="text-muted fw-normal">(Todos los programas)</span>
                 {% elif program %}
-                <small class="text-muted">({{ program.name }})</small>
+                <span class="text-muted fw-normal">({{ program.name }})</span>
                 {% endif %}
-            </h4>
-            <div class="d-flex align-items-center">
-                <label for="programSelector" class="form-label me-2 mb-0 fw-bold text-secondary">Programa:</label>
+            </h2>
+            <div class="d-flex align-items-center gap-2">
+                <label for="programSelector" class="form-label mb-0 fw-bold text-secondary">Programa:</label>
                 <select id="programSelector" class="form-select program-selector">
                     {% for prog in coordinated_programs %}
                     <option value="{{ prog.id }}" {% if prog.id == selected_program_id and not show_all_programs %}selected{% endif %}>
@@ -70,123 +67,77 @@
 </div>
 {% endif %}
 
-<!-- Acciones Rápidas -->
-<div class="row mb-4">
+<!-- Acción principal + accesos secundarios -->
+<section class="row mb-4" aria-labelledby="programAdminActionsTitle">
     <div class="col-12">
-        <h5 class="mb-3 fw-bold text-secondary">
-            <i class="bi bi-lightning-charge-fill me-2"></i>Acciones Rápidas
-        </h5>
-        <div class="row g-3">
-            <!-- Revisar Solicitudes -->
-            <div class="col-md-3 col-sm-6">
-                {% if show_all_programs %}
-                <div class="card h-100 border-0 shadow-sm quick-action-card-disabled" aria-disabled="true">
-                    <div class="card-body text-center py-4">
-                        <div class="mb-3">
-                            <i class="bi bi-clipboard-check text-muted icon-2xl"></i>
-                        </div>
-                        <h6 class="mb-1 fw-bold text-muted">Revisar Solicitudes</h6>
-                        <small class="text-muted">Selecciona un programa</small>
-                    </div>
-                </div>
-                {% elif program %}
+        <h2 class="h5 mb-3 fw-bold" id="programAdminActionsTitle">
+            <i class="bi bi-lightning-charge-fill me-2" aria-hidden="true"></i>¿Qué quieres hacer?
+        </h2>
+
+        {% if not show_all_programs and program %}
+        <div class="card quick-action-primary mb-3">
+            <div class="card-body">
+                <p class="quick-action-primary__title mb-1">
+                    <i class="bi bi-clipboard-check me-2" aria-hidden="true"></i>Revisar solicitudes
+                </p>
+                <p class="quick-action-primary__hint">
+                    {% if metrics and metrics.pending_reviews and metrics.pending_reviews > 0 %}
+                        Hay {{ metrics.pending_reviews }} documento{{ 's' if metrics.pending_reviews != 1 else '' }} esperando tu dictamen.
+                    {% else %}
+                        No hay documentos esperando dictamen en este momento.
+                    {% endif %}
+                </p>
                 <a href="{{ url_for('pages_admin.pages_review.submissions', program_id=program.id, status='review') }}"
-                   class="text-decoration-none">
-                    <div class="card h-100 border-0 shadow-sm quick-action-card">
-                        <div class="card-body text-center py-4">
-                            <div class="mb-3">
-                                <i class="bi bi-clipboard-check text-primary icon-2xl"></i>
-                            </div>
-                            <h6 class="mb-1 fw-bold">Revisar Solicitudes</h6>
-                            <small class="text-muted">Aprobar documentos</small>
-                            {% if metrics and metrics.pending_reviews > 0 %}
-                            <span class="badge bg-warning text-dark mt-2">{{ metrics.pending_reviews }} pendientes</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                </a>
-                {% else %}
-                <div class="card h-100 border-0 shadow-sm quick-action-card-disabled" aria-disabled="true">
-                    <div class="card-body text-center py-4">
-                        <div class="mb-3">
-                            <i class="bi bi-clipboard-check text-muted icon-2xl"></i>
-                        </div>
-                        <h6 class="mb-1 fw-bold text-muted">Revisar Solicitudes</h6>
-                        <small class="text-muted">Sin programas</small>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-
-            <!-- Ver Estudiantes -->
-            <div class="col-md-3 col-sm-6">
-                <a href="{{ url_for('pages_admin.pages_settings.users') }}"
-                   class="text-decoration-none">
-                    <div class="card h-100 border-0 shadow-sm quick-action-card">
-                        <div class="card-body text-center py-4">
-                            <div class="mb-3">
-                                <i class="bi bi-people text-success icon-2xl"></i>
-                            </div>
-                            <h6 class="mb-1 fw-bold">Ver Estudiantes</h6>
-                            <small class="text-muted">Gestionar usuarios</small>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <!-- Gestionar Programa -->
-            <div class="col-md-3 col-sm-6">
-                <div class="card h-100 border-0 shadow-sm quick-action-card quick-action-card-disabled" aria-disabled="true">
-                    <div class="card-body text-center py-4">
-                        <div class="mb-3">
-                            <i class="bi bi-gear text-info icon-2xl"></i>
-                        </div>
-                        <h6 class="mb-1 fw-bold">Gestionar Programa</h6>
-                        <small class="text-muted">Próximamente</small>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Programar Entrevistas -->
-            <div class="col-md-3 col-sm-6">
-                <a href="{{ url_for('pages_admin.pages_events.index') }}"
-                   class="text-decoration-none">
-                    <div class="card h-100 border-0 shadow-sm quick-action-card">
-                        <div class="card-body text-center py-4">
-                            <div class="mb-3">
-                                <i class="bi bi-calendar-event text-warning icon-2xl"></i>
-                            </div>
-                            <h6 class="mb-1 fw-bold">Eventos</h6>
-                            <small class="text-muted">Entrevistas y defensas</small>
-                        </div>
-                    </div>
+                   class="btn btn-primary btn-lg">
+                    <i class="bi bi-clipboard-check me-2" aria-hidden="true"></i>Ir a revisión de documentos
                 </a>
             </div>
         </div>
+        {% else %}
+        <div class="card quick-action-primary mb-3">
+            <div class="card-body">
+                <p class="quick-action-primary__title mb-1">
+                    <i class="bi bi-funnel me-2" aria-hidden="true"></i>Selecciona un programa
+                </p>
+                <p class="quick-action-primary__hint">
+                    La revisión de documentos se activa al elegir un programa específico en el selector de arriba.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="quick-action-links">
+            <a href="{{ url_for('pages_admin.pages_settings.users') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-people" aria-hidden="true"></i>Ver estudiantes
+            </a>
+            <a href="{{ url_for('pages_admin.pages_events.index') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-calendar-event" aria-hidden="true"></i>Eventos: entrevistas y defensas
+            </a>
+        </div>
     </div>
-</div>
+</section>
 
 <!-- KPIs Principales -->
-<div class="row mb-4">
+<section class="row mb-4" aria-labelledby="programAdminKpisTitle">
     <div class="col-12">
         <div class="mb-4 p-3 rounded-3 applicant-banner">
             <div class="d-flex align-items-center">
                 <div class="flex-shrink-0 me-3">
-                    <i class="bi bi-mortarboard-fill text-primary icon-xl"></i>
+                    <i class="bi bi-mortarboard-fill text-brand-primary icon-xl" aria-hidden="true"></i>
                 </div>
                 <div class="flex-grow-1">
-                    <h5 class="mb-0 fw-bold text-primary">
+                    <h2 class="h5 mb-0 fw-bold text-brand-primary" id="programAdminKpisTitle">
                         {% if selected_program_id == "all" %}
-                            Todos los Programas
+                            Todos los programas
                         {% elif selected_program %}
                             {{ selected_program.name }}
                         {% elif program %}
                             {{ program.name }}
                         {% else %}
-                            Mis Programas
+                            Mis programas
                         {% endif %}
-                    </h5>
-                    <small class="text-muted">Panel de Administración</small>
+                    </h2>
+                    <small class="text-muted">Panel de administración</small>
                 </div>
             </div>
         </div>
@@ -194,77 +145,61 @@
 
     <!-- KPI Cards -->
     <div class="col-md-3 col-sm-6 mb-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    <i class="bi bi-person-lines-fill text-primary icon-2xl"></i>
-                </div>
-                <h2 class="mb-0 fw-bold text-primary">{{ metrics.total_applicants if metrics else 0 }}</h2>
-                <p class="text-muted mb-0 small">Solicitantes Totales</p>
-            </div>
+        <div class="stat-card stat-card--brand h-100">
+            <i class="bi bi-person-lines-fill stat-card__icon" aria-hidden="true"></i>
+            <p class="stat-card__value">{{ metrics.total_applicants if metrics else 0 }}</p>
+            <p class="stat-card__label">Solicitantes totales</p>
         </div>
     </div>
 
     <div class="col-md-3 col-sm-6 mb-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    <i class="bi bi-hourglass-split text-warning icon-2xl"></i>
-                </div>
-                <h2 class="mb-0 fw-bold text-warning">{{ metrics.pending_reviews if metrics else 0 }}</h2>
-                <p class="text-muted mb-0 small">Documentos por Revisar</p>
-            </div>
+        <div class="stat-card stat-card--warning h-100">
+            <i class="bi bi-hourglass-split stat-card__icon" aria-hidden="true"></i>
+            <p class="stat-card__value">{{ metrics.pending_reviews if metrics else 0 }}</p>
+            <p class="stat-card__label">Documentos por revisar</p>
         </div>
     </div>
 
     <div class="col-md-3 col-sm-6 mb-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    <i class="bi bi-check-circle-fill text-success icon-2xl"></i>
-                </div>
-                <h2 class="mb-0 fw-bold text-success">{{ metrics.approved_applications if metrics else 0 }}</h2>
-                <p class="text-muted mb-0 small">Solicitudes Aprobadas</p>
-            </div>
+        <div class="stat-card stat-card--success h-100">
+            <i class="bi bi-check-circle-fill stat-card__icon" aria-hidden="true"></i>
+            <p class="stat-card__value">{{ metrics.approved_applications if metrics else 0 }}</p>
+            <p class="stat-card__label">Solicitudes aprobadas</p>
         </div>
     </div>
 
     <div class="col-md-3 col-sm-6 mb-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    <i class="bi bi-calendar2-check text-info icon-2xl"></i>
-                </div>
-                <h2 class="mb-0 fw-bold text-info">{{ metrics.interviews_scheduled if metrics else 0 }}</h2>
-                <p class="text-muted mb-0 small">Entrevistas Programadas</p>
-            </div>
+        <div class="stat-card stat-card--info h-100">
+            <i class="bi bi-calendar2-check stat-card__icon" aria-hidden="true"></i>
+            <p class="stat-card__value">{{ metrics.interviews_scheduled if metrics else 0 }}</p>
+            <p class="stat-card__label">Entrevistas programadas</p>
         </div>
     </div>
-</div>
+</section>
 
 <!-- Estadísticas Adicionales y Actividad Reciente -->
 <div class="row">
-    <!-- Gráfico de Estado de Solicitudes -->
+    <!-- Distribución de estados -->
     <div class="col-lg-6 mb-4">
-        <div class="card border-0 shadow h-100">
-            <div class="card-header bg-white border-0 pt-4 pb-3">
-                <h5 class="mb-0 fw-bold">
-                    <i class="bi bi-pie-chart text-primary me-2"></i>Estado de Solicitudes
-                </h5>
+        <section class="card h-100" aria-labelledby="applicationsBreakdownTitle">
+            <div class="card-header bg-transparent pt-4 pb-3">
+                <h2 class="h5 mb-0 fw-bold" id="applicationsBreakdownTitle">
+                    <i class="bi bi-pie-chart text-brand-primary me-2" aria-hidden="true"></i>Estado de las solicitudes
+                </h2>
             </div>
             <div class="card-body">
                 <div class="d-flex justify-content-around text-center mb-4">
                     <div>
-                        <h3 class="mb-0 text-success fw-bold">{{ metrics.approved_applications if metrics else 0 }}</h3>
-                        <small class="text-muted">Aprobadas</small>
+                        <p class="kpi-value kpi-value--sm text-success-strong">{{ metrics.approved_applications if metrics else 0 }}</p>
+                        <p class="kpi-label">Aprobadas</p>
                     </div>
                     <div>
-                        <h3 class="mb-0 text-secondary fw-bold">{{ metrics.in_process if metrics else 0 }}</h3>
-                        <small class="text-muted">En Proceso</small>
+                        <p class="kpi-value kpi-value--sm">{{ metrics.in_process if metrics else 0 }}</p>
+                        <p class="kpi-label">En proceso</p>
                     </div>
                     <div>
-                        <h3 class="mb-0 text-danger fw-bold">{{ metrics.rejected_applications if metrics else 0 }}</h3>
-                        <small class="text-muted">Rechazadas</small>
+                        <p class="kpi-value kpi-value--sm text-danger-strong">{{ metrics.rejected_applications if metrics else 0 }}</p>
+                        <p class="kpi-label">Rechazadas</p>
                     </div>
                 </div>
 
@@ -272,87 +207,98 @@
                 <div class="progress progress-admission">
                     {% set total = metrics.total_applicants if metrics else 0 %}
                     {% if metrics and total > 0 %}
-                        <div class="progress-bar bg-success" style="width: {{ (metrics.approved_applications / total * 100)|round }}%">
-                            {{ (metrics.approved_applications / total * 100)|round|int }}%
+                        {% set pct_approved = (metrics.approved_applications / total * 100)|round|int %}
+                        {% set pct_process  = (metrics.in_process / total * 100)|round|int %}
+                        {% set pct_rejected = (metrics.rejected_applications / total * 100)|round|int %}
+                        <div class="progress-bar bg-success" style="--seg-width: {{ pct_approved }}%"
+                             role="progressbar" aria-valuenow="{{ pct_approved }}" aria-valuemin="0"
+                             aria-valuemax="100" aria-label="Solicitudes aprobadas">
+                            {{ pct_approved }}%
                         </div>
-                        <div class="progress-bar bg-secondary" style="width: {{ (metrics.in_process / total * 100)|round }}%">
-                            {{ (metrics.in_process / total * 100)|round|int }}%
+                        <div class="progress-bar bg-secondary" style="--seg-width: {{ pct_process }}%"
+                             role="progressbar" aria-valuenow="{{ pct_process }}" aria-valuemin="0"
+                             aria-valuemax="100" aria-label="Solicitudes en proceso">
+                            {{ pct_process }}%
                         </div>
-                        <div class="progress-bar bg-danger" style="width: {{ (metrics.rejected_applications / total * 100)|round }}%">
-                            {{ (metrics.rejected_applications / total * 100)|round|int }}%
+                        <div class="progress-bar bg-danger" style="--seg-width: {{ pct_rejected }}%"
+                             role="progressbar" aria-valuenow="{{ pct_rejected }}" aria-valuemin="0"
+                             aria-valuemax="100" aria-label="Solicitudes rechazadas">
+                            {{ pct_rejected }}%
                         </div>
                     {% else %}
-                        <div class="progress-bar bg-secondary" style="width: 100%">
+                        <div class="progress-bar bg-secondary" style="--seg-width: 100%"
+                             role="progressbar" aria-valuenow="0" aria-valuemin="0"
+                             aria-valuemax="100" aria-label="Sin solicitudes registradas">
                             Sin solicitudes
                         </div>
                     {% endif %}
                 </div>
 
-                <div class="mt-4 text-center">
-                    <p class="text-muted mb-0">
-                        <strong>{{ metrics.total_submissions if metrics else 0 }}</strong> documentos subidos en total
-                    </p>
-                </div>
+                <p class="text-muted text-center mt-4 mb-0">
+                    <strong>{{ metrics.total_submissions if metrics else 0 }}</strong> documentos subidos en total
+                </p>
             </div>
-        </div>
+        </section>
     </div>
 
     <!-- Actividad Reciente -->
     <div class="col-lg-6 mb-4">
-        <div class="card border-0 shadow h-100">
-            <div class="card-header bg-white border-0 pt-4 pb-3">
-                <h5 class="mb-0 fw-bold">
-                    <i class="bi bi-clock-history text-primary me-2"></i>Actividad Reciente
-                </h5>
+        <section class="card h-100" aria-labelledby="recentActivityTitle">
+            <div class="card-header bg-transparent pt-4 pb-3">
+                <h2 class="h5 mb-0 fw-bold" id="recentActivityTitle">
+                    <i class="bi bi-clock-history text-brand-primary me-2" aria-hidden="true"></i>Actividad reciente
+                </h2>
             </div>
             <div class="card-body">
                 {% if recent_submissions %}
-                <div class="list-group list-group-flush">
+                <ul class="list-group list-group-flush">
                     {% for submission in recent_submissions %}
-                    <div class="list-group-item border-0 px-0">
-                        <div class="d-flex justify-content-between align-items-start">
+                    <li class="list-group-item border-0 px-0">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
                             <div class="flex-grow-1">
-                                <h6 class="mb-1">{{ submission.user_name }}</h6>
+                                <p class="mb-1 fw-semibold">{{ submission.user_name }}</p>
                                 <p class="mb-1 small text-muted">
                                     {{ submission.archive_name }}
                                     {% if show_all_programs and submission.program_name %}
-                                        <span class="text-primary">- {{ submission.program_name }}</span>
+                                        <span class="text-brand-primary">— {{ submission.program_name }}</span>
                                     {% endif %}
                                 </p>
                                 <small class="text-muted">{{ submission.upload_date }}</small>
                             </div>
                             <div class="flex-shrink-0">
                                 {% if submission.status == 'review' %}
-                                    <span class="badge bg-warning text-dark">Revisar</span>
+                                    {{ status_badge('review', size='sm') }}
                                 {% elif submission.status == 'approved' %}
-                                    <span class="badge bg-success">Aprobado</span>
+                                    {{ status_badge('approved', size='sm') }}
                                 {% elif submission.status == 'rejected' %}
-                                    <span class="badge bg-danger">Rechazado</span>
+                                    {{ status_badge('rejected', size='sm') }}
                                 {% else %}
-                                    <span class="badge bg-secondary">Pendiente</span>
+                                    {{ status_badge('pending', size='sm') }}
                                 {% endif %}
                             </div>
                         </div>
-                    </div>
+                    </li>
                     {% endfor %}
-                </div>
+                </ul>
                 <div class="mt-3 text-center">
                     {% if show_all_programs %}
-                        <p class="text-muted">Selecciona un programa específico para ver todas las solicitudes</p>
+                        <p class="text-muted mb-0">Selecciona un programa específico para ver todas las solicitudes</p>
                     {% elif program %}
                         <a href="{{ url_for('pages_admin.pages_review.submissions', program_id=program.id) }}" class="btn btn-outline-primary btn-sm">
-                            Ver todas las solicitudes <i class="bi bi-arrow-right ms-1"></i>
+                            Ver todas las solicitudes <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
                         </a>
                     {% endif %}
                 </div>
                 {% else %}
-                <div class="text-center py-4">
-                    <i class="bi bi-inbox text-muted icon-3xl"></i>
-                    <p class="text-muted mt-3 mb-0">No hay actividad reciente</p>
-                </div>
+                {{ empty_state(
+                     icon='inbox',
+                     title='Sin actividad reciente',
+                     description='Cuando los aspirantes suban documentos aparecerán aquí.',
+                     compact=true
+                   ) }}
                 {% endif %}
             </div>
-        </div>
+        </section>
     </div>
 </div>
 

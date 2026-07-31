@@ -1,6 +1,15 @@
 // app/static/js/user/profile_notifications.js
 
 class ProfileNotificationsManager {
+    // La prioridad se muestra al usuario: siempre en español.
+    static PRIORITY_LABELS = {
+        low: 'Baja',
+        normal: 'Normal',
+        medium: 'Media',
+        high: 'Alta',
+        critical: 'Crítica',
+    };
+
     constructor() {
         this.currentFilter = 'all';
         this.currentPage = 1;
@@ -71,16 +80,25 @@ class ProfileNotificationsManager {
         }
     }
 
+    /** El estado activo del toggle se expone con aria-pressed, no solo con la
+     *  clase .active, que es puramente visual (WCAG 4.1.2). */
     updateFilterButtons() {
         const filterAllBtn = document.getElementById('filterAllNotifications');
         const filterUnreadBtn = document.getElementById('filterUnreadNotifications');
+        const allActive = this.currentFilter === 'all';
 
-        if (this.currentFilter === 'all') {
-            filterAllBtn?.classList.add('active');
-            filterUnreadBtn?.classList.remove('active');
-        } else {
-            filterAllBtn?.classList.remove('active');
-            filterUnreadBtn?.classList.add('active');
+        filterAllBtn?.classList.toggle('active', allActive);
+        filterAllBtn?.setAttribute('aria-pressed', allActive ? 'true' : 'false');
+        filterUnreadBtn?.classList.toggle('active', !allActive);
+        filterUnreadBtn?.setAttribute('aria-pressed', allActive ? 'false' : 'true');
+    }
+
+    /** Marca la región asíncrona como ocupada/lista y lo anuncia (WCAG 4.1.3). */
+    setBusy(el, busy, message) {
+        if (window.SIIAP && typeof window.SIIAP.setBusy === 'function') {
+            window.SIIAP.setBusy(el, busy, message ? { message } : undefined);
+        } else if (el) {
+            el.setAttribute('aria-busy', busy ? 'true' : 'false');
         }
     }
 
@@ -88,7 +106,13 @@ class ProfileNotificationsManager {
         const container = document.getElementById('notificationsFull');
         if (!container) return;
 
-        container.innerHTML = '<div class="notification-loading"><div class="spinner-border"></div><p class="mt-2">Cargando notificaciones...</p></div>';
+        this.setBusy(container, true, 'Cargando notificaciones…');
+        container.innerHTML = `
+            <div class="notification-loading">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Cargando notificaciones…</span>
+                </div>
+            </div>`;
 
         try {
             const unreadOnly = this.currentFilter === 'unread';
@@ -108,14 +132,18 @@ class ProfileNotificationsManager {
             }
 
             if (notifications.length === 0) {
+                const emptyMsg = unreadOnly
+                    ? 'No tienes notificaciones sin leer.'
+                    : 'Aún no has recibido notificaciones.';
                 container.innerHTML = `
-                    <div class="notification-empty py-5">
-                        <i class="bi bi-bell-slash"></i>
-                        <p class="mt-3 text-muted">
-                            ${unreadOnly ? 'No tienes notificaciones sin leer' : 'No tienes notificaciones'}
-                        </p>
+                    <div class="empty-state empty-state--compact">
+                        <div class="empty-state__icon"><i class="bi bi-bell-slash" aria-hidden="true"></i></div>
+                        <h3 class="empty-state__title">Sin notificaciones</h3>
+                        <p class="empty-state__description">${emptyMsg}</p>
                     </div>
                 `;
+                this.renderPagination(0);
+                this.setBusy(container, false, emptyMsg);
                 return;
             }
 
@@ -141,15 +169,26 @@ class ProfileNotificationsManager {
 
             // Renderizar paginación
             this.renderPagination(total);
+            this.setBusy(container, false, `${notifications.length} notificación(es) cargadas.`);
 
         } catch (error) {
             console.error('Error loading notifications:', error);
             container.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
-                    Error al cargar las notificaciones
+                <div class="empty-state empty-state--error empty-state--compact">
+                    <div class="empty-state__icon"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i></div>
+                    <h3 class="empty-state__title">No pudimos cargar tus notificaciones</h3>
+                    <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
+                    <p class="empty-state__error-detail">${this.escapeHtml(error.message || 'Error de red')}</p>
+                    <div class="empty-state__actions">
+                        <button type="button" id="retryNotifications" class="btn btn-outline-primary">
+                            <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Reintentar
+                        </button>
+                    </div>
                 </div>
             `;
+            document.getElementById('retryNotifications')
+                ?.addEventListener('click', () => this.loadNotifications());
+            this.setBusy(container, false, 'No se pudieron cargar las notificaciones.');
         }
     }
 
@@ -196,61 +235,63 @@ class ProfileNotificationsManager {
             minute: '2-digit'
         });
         const hasLink = !!notification.action_url;
-        const cursorStyle = hasLink ? 'cursor:pointer;' : '';
+        const priorityLabel = ProfileNotificationsManager.PRIORITY_LABELS[priorityClass] || priorityClass;
 
         let actionsHtml = '';
 
         if (notification.type === 'event_invitation' && !notification.is_read && notification.related_invitation_id) {
             actionsHtml = `
                 <div class="notification-actions">
-                    <button class="btn btn-sm btn-success respond-invitation"
+                    <button type="button" class="btn btn-sm btn-success respond-invitation"
                             data-notification-id="${notification.id}"
                             data-response="accepted">
-                        <i class="bi bi-check"></i> Aceptar
+                        <i class="bi bi-check" aria-hidden="true"></i> Aceptar
                     </button>
-                    <button class="btn btn-sm btn-danger respond-invitation"
+                    <button type="button" class="btn btn-sm btn-outline-danger respond-invitation"
                             data-notification-id="${notification.id}"
                             data-response="rejected">
-                        <i class="bi bi-x"></i> Rechazar
+                        <i class="bi bi-x" aria-hidden="true"></i> Rechazar
                     </button>
                 </div>
             `;
         }
 
         const linkHint = hasLink
-            ? `<span class="ms-2 text-muted" style="font-size:.75rem;">
-                   <i class="bi bi-box-arrow-up-right"></i> Ver página
+            ? `<span class="ms-2 text-muted small">
+                   <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Ver página
                </span>`
             : '';
 
         return `
-            <div class="notification-item ${unreadClass}" data-id="${notification.id}"
-                 data-action-url="${this.escapeHtml(notification.action_url || '')}"
-                 style="${cursorStyle}">
+            <div class="notification-item ${unreadClass}${hasLink ? ' cursor-pointer' : ''}"
+                 data-id="${notification.id}"
+                 data-action-url="${this.escapeHtml(notification.action_url || '')}">
                 <div class="notification-full-item">
-                    <div class="notification-icon bg-${color}">
+                    <div class="notification-icon bg-${color}" aria-hidden="true">
                         <i class="${icon}"></i>
                     </div>
                     <div class="notification-content flex-grow-1">
-                        <strong>${this.escapeHtml(notification.title)}</strong>
+                        <p class="fw-semibold mb-1">${this.escapeHtml(notification.title)}</p>
                         <p class="mb-2">${this.escapeHtml(notification.message)}</p>
                         ${actionsHtml}
                         <div class="notification-meta">
                             <span>
-                                <span class="notification-priority ${priorityClass}">${priorityClass}</span>
+                                <span class="notification-priority ${priorityClass}">${this.escapeHtml(priorityLabel)}</span>
                                 <span class="ms-2">${time}</span>
                                 ${linkHint}
                             </span>
-                            <div>
+                            <div class="d-flex gap-1">
                                 ${!notification.is_read ? `
-                                    <button class="btn btn-sm btn-outline-primary mark-read-btn"
+                                    <button type="button" class="btn btn-sm btn-outline-primary mark-read-btn"
                                             data-id="${notification.id}">
-                                        <i class="bi bi-check"></i> Marcar leída
+                                        <i class="bi bi-check" aria-hidden="true"></i> Marcar leída
                                     </button>
                                 ` : ''}
-                                <button class="btn btn-sm btn-outline-danger delete-btn"
-                                        data-id="${notification.id}">
-                                    <i class="bi bi-trash"></i>
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-btn tap-target"
+                                        data-id="${notification.id}"
+                                        aria-label="Eliminar la notificación «${this.escapeHtml(notification.title)}»"
+                                        title="Eliminar notificación">
+                                    <i class="bi bi-trash" aria-hidden="true"></i>
                                 </button>
                             </div>
                         </div>

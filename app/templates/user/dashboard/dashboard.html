@@ -8,12 +8,11 @@
 {% endblock %}
 
 {% block content %}
+{% from '_macros.html' import empty_state %}
 <div class="container-fluid py-4">
-  <!-- Encabezado principal -->
-  <div class="text-center mb-5">
-    <h1 class="display-4 fw-bold mb-2">Bienvenido, {{ current_user.first_name }} {{ current_user.last_name }}</h1>
-    <p class="lead text-muted">Panel de Control</p>
-  </div>
+  {# El saludo personalizado y el próximo paso los da role_banner dentro de cada
+     dashboard; aquí solo se nombra la página para la navegación por encabezados. #}
+  <h1 class="h3 fw-bold mb-4">Panel de control</h1>
 
   {% if has_perm('programs.api.enroll') %}
     {% include 'user/dashboard/applicant_dashboard.html' %}
@@ -26,10 +25,13 @@
   {% else %}
     <div class="row justify-content-center">
       <div class="col-md-8">
-        <div class="alert alert-info text-center">
-          <i class="bi bi-info-circle fs-3 mb-3"></i>
-          <p class="mb-0">El dashboard para tu rol estará disponible próximamente.</p>
-        </div>
+        {{ empty_state(
+             icon='hourglass-split',
+             title='Tu panel aún no está disponible',
+             description='El tablero para tu rol estará disponible próximamente. Mientras tanto puedes consultar tu perfil.',
+             action_label='Ir a mi perfil',
+             action_url=url_for('pages_user.profile')
+           ) }}
       </div>
     </div>
   {% endif %}
@@ -38,15 +40,16 @@
 
 {% block modals %}
 {% if has_perm('permanence.api.upload_my_payment') %}
+{% from '_macros.html' import required_mark %}
 <!-- Modal: Subir comprobante de pago de inscripción -->
 <div class="modal fade" id="modalPaymentProof" tabindex="-1"
      aria-labelledby="modalPaymentProofLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modalPaymentProofLabel">
-          <i class="bi bi-upload me-2"></i>Subir comprobante de pago
-        </h5>
+        <h2 class="modal-title h5" id="modalPaymentProofLabel">
+          <i class="bi bi-upload me-2" aria-hidden="true"></i>Subir comprobante de pago
+        </h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form id="formPaymentProof" enctype="multipart/form-data" novalidate>
@@ -56,11 +59,11 @@
           </p>
           <div class="mb-3">
             <label for="paymentProofFile" class="form-label">
-              Comprobante de pago <span class="text-danger">*</span>
+              Comprobante de pago{{ required_mark() }}
             </label>
             <input type="file" class="form-control" id="paymentProofFile"
-                   accept=".pdf" required>
-            <div class="form-text">Solo se aceptan archivos PDF.</div>
+                   accept=".pdf" required aria-describedby="paymentProofFileHelp">
+            <div id="paymentProofFileHelp" class="form-text">Solo se aceptan archivos PDF.</div>
           </div>
         </div>
         <div class="modal-footer">
@@ -68,7 +71,7 @@
             Cancelar
           </button>
           <button type="submit" class="btn btn-primary" id="btnSubmitPaymentProof">
-            <i class="bi bi-upload me-1"></i>Subir comprobante
+            <i class="bi bi-upload me-1" aria-hidden="true"></i>Subir comprobante
           </button>
         </div>
       </form>

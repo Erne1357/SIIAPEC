@@ -1,39 +1,42 @@
 {% extends 'base.html' %}
-{% block title %}Coordinación - Gestión de Estudiantes{% endblock %}
+{% from '_macros.html' import data_table_open, data_table_close, skeleton_table %}
+
+{% block title %}Coordinación · Gestión de Estudiantes{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/coordinator/dashboard.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+<div class="container-fluid py-4" id="coordinatorDashboardPage">
   <div class="row">
     <div class="col-12">
       <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
         <div>
           <h1 class="h3 mb-2">Gestión de Estudiantes</h1>
-          <p class="text-muted mb-0">Supervisa el progreso y gestiona documentos de tus estudiantes</p>
+          <p class="text-secondary mb-0">Supervisa el progreso y gestiona los documentos de tus estudiantes</p>
         </div>
         <div class="mt-3 mt-md-0">
-          <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#uploadForStudentModal">
-            <i class="bi bi-upload me-2"></i>Subir por Estudiante
+          <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadForStudentModal">
+            <i class="bi bi-upload me-2" aria-hidden="true"></i>Subir por estudiante
           </button>
         </div>
       </div>
 
       <!-- Filtros y controles -->
-      <div class="card mb-4">
+      <section class="card mb-4" aria-labelledby="filtersHeading">
         <div class="card-body">
+          <h2 class="visually-hidden" id="filtersHeading">Filtros de la lista de estudiantes</h2>
           <div class="row g-3 align-items-end">
             <div class="col-12 col-md-3">
-              <label class="form-label">Programa</label>
+              <label class="form-label" for="programFilter">Programa</label>
               <select class="form-select" id="programFilter">
                 <option value="">Todos los programas</option>
-                <!-- Se llenará dinámicamente -->
+                <!-- Se llena dinámicamente -->
               </select>
             </div>
             <div class="col-12 col-md-3">
-              <label class="form-label">Fase</label>
+              <label class="form-label" for="phaseFilter">Fase</label>
               <select class="form-select" id="phaseFilter">
                 <option value="">Todas las fases</option>
                 <option value="admission">Admisión</option>
@@ -42,70 +45,78 @@
               </select>
             </div>
             <div class="col-12 col-md-3">
-              <label class="form-label">Estado</label>
+              <label class="form-label" for="statusFilter">Estado</label>
               <select class="form-select" id="statusFilter">
                 <option value="">Todos los estados</option>
-                <option value="pending">Documentos Pendientes</option>
-                <option value="review">En Revisión</option>
+                <option value="pending">Documentos pendientes</option>
+                <option value="review">En revisión</option>
                 <option value="approved">Completado</option>
-                <option value="rejected">Con Rechazos</option>
+                <option value="rejected">Con rechazos</option>
               </select>
             </div>
             <div class="col-12 col-md-3">
               <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="showOtherPrograms">
+                <input class="form-check-input cursor-pointer" type="checkbox" role="switch" id="showOtherPrograms">
                 <label class="form-check-label" for="showOtherPrograms">
                   Ver otros programas (solo consulta)
                 </label>
               </div>
             </div>
           </div>
-          <div class="row mt-3">
+          <div class="row mt-3 g-2">
             <div class="col-12 col-md-6">
+              <label class="form-label" for="studentSearch">Buscar estudiante</label>
               <div class="input-group">
-                <input type="search" class="form-control" placeholder="Buscar estudiante..." id="studentSearch">
-                <button class="btn btn-outline-secondary" type="button" id="searchBtn">
-                  <i class="bi bi-search"></i>
+                <input type="search" class="form-control" placeholder="Nombre, correo o número de control"
+                       id="studentSearch">
+                <button class="btn btn-outline-secondary tap-target" type="button" id="searchBtn"
+                        aria-label="Buscar estudiante" title="Buscar estudiante">
+                  <i class="bi bi-search" aria-hidden="true"></i>
                 </button>
               </div>
             </div>
-            <div class="col-12 col-md-6 text-md-end mt-2 mt-md-0">
-              <button class="btn btn-outline-primary" id="refreshBtn">
-                <i class="bi bi-arrow-repeat me-1"></i>Actualizar
+            <div class="col-12 col-md-6 d-flex align-items-end justify-content-md-end">
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshBtn">
+                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Actualizar
               </button>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       <!-- Pestañas por fase -->
       <ul class="nav nav-tabs mb-4" id="phaseTabs" role="tablist">
         <li class="nav-item" role="presentation">
           <button class="nav-link active" id="admission-tab" data-bs-toggle="tab" data-bs-target="#admission-pane"
-            type="button" role="tab">
-            <i class="bi bi-person-plus-fill me-2"></i>Admisión
+            type="button" role="tab" aria-controls="admission-pane" aria-selected="true">
+            <i class="bi bi-person-plus-fill" aria-hidden="true"></i>Admisión
             <span class="badge bg-primary ms-2" id="admissionCount">0</span>
+            <span class="visually-hidden">estudiantes</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="permanence-tab" data-bs-toggle="tab" data-bs-target="#permanence-pane"
-            type="button" role="tab">
-            <i class="bi bi-mortarboard-fill me-2"></i>Permanencia
+            type="button" role="tab" aria-controls="permanence-pane" aria-selected="false">
+            <i class="bi bi-mortarboard-fill" aria-hidden="true"></i>Permanencia
             <span class="badge bg-info ms-2" id="permanenceCount">0</span>
+            <span class="visually-hidden">estudiantes</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="conclusion-tab" data-bs-toggle="tab" data-bs-target="#conclusion-pane"
-            type="button" role="tab">
-            <i class="bi bi-award-fill me-2"></i>Conclusión
+            type="button" role="tab" aria-controls="conclusion-pane" aria-selected="false">
+            <i class="bi bi-award-fill" aria-hidden="true"></i>Conclusión
             <span class="badge bg-success ms-2" id="conclusionCount">0</span>
+            <span class="visually-hidden">estudiantes</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="photo-requests-tab" data-bs-toggle="tab"
-                  data-bs-target="#photo-requests-pane" type="button" role="tab">
-            <i class="bi bi-camera-fill me-2"></i>Solicitudes de foto
-            <span class="badge bg-warning text-dark ms-2 d-none" id="photoRequestsCount">0</span>
+                  data-bs-target="#photo-requests-pane" type="button" role="tab"
+                  aria-controls="photo-requests-pane" aria-selected="false">
+            <i class="bi bi-camera-fill" aria-hidden="true"></i>Solicitudes de foto
+            <span class="badge bg-warning ms-2 d-none" id="photoRequestsCount">0</span>
+            <span class="visually-hidden">solicitudes</span>
           </button>
         </li>
       </ul>
@@ -113,131 +124,107 @@
       <!-- Contenido de las pestañas -->
       <div class="tab-content" id="phaseTabsContent">
         <!-- Admisión -->
-        <div class="tab-pane fade show active" id="admission-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header">
-              <h5 class="mb-0">Estudiantes en Proceso de Admisión</h5>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="admissionTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th class="w-px-50"></th>
-                      <th>Estudiante</th>
-                      <th>Programa</th>
-                      <th class="text-center w-px-120">Progreso</th>
-                      <th class="text-center w-px-140">Documentos</th>
-                      <th class="text-center w-px-100">Estado</th>
-                      <th class="w-px-150">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="7" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 7">{% for _ in range(7) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+        <div class="tab-pane fade show active" id="admission-pane" role="tabpanel" aria-labelledby="admission-tab">
+          <h2 class="h5 mb-3">Estudiantes en proceso de admisión</h2>
+          {{ data_table_open('Estudiantes en proceso de admisión con su progreso documental',
+                             id='admissionTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col" class="w-px-50"><span class="visually-hidden">Foto</span></th>
+                <th scope="col">Estudiante</th>
+                <th scope="col">Programa</th>
+                <th scope="col" class="text-center w-px-120">Progreso</th>
+                <th scope="col" class="text-center w-px-140">Documentos</th>
+                <th scope="col" class="text-center w-px-100">Estado</th>
+                <th scope="col" class="w-px-150">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="7" class="p-0">{{ skeleton_table(rows=4, cols=7, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
 
         <!-- Permanencia -->
-        <div class="tab-pane fade" id="permanence-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header">
-              <h5 class="mb-0">Estudiantes en Permanencia</h5>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="permanenceTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th class="w-px-50"></th>
-                      <th>Estudiante</th>
-                      <th>Programa</th>
-                      <th class="text-center">Semestre</th>
-                      <th class="text-center">Avance</th>
-                      <th class="text-center">Estado</th>
-                      <th class="w-px-150">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="7" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 7">{% for _ in range(7) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+        <div class="tab-pane fade" id="permanence-pane" role="tabpanel" aria-labelledby="permanence-tab">
+          <h2 class="h5 mb-3">Estudiantes en permanencia</h2>
+          {{ data_table_open('Estudiantes en permanencia con su semestre y avance académico',
+                             id='permanenceTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col" class="w-px-50"><span class="visually-hidden">Foto</span></th>
+                <th scope="col">Estudiante</th>
+                <th scope="col">Programa</th>
+                <th scope="col" class="text-center">Semestre</th>
+                <th scope="col" class="text-center">Avance</th>
+                <th scope="col" class="text-center">Estado</th>
+                <th scope="col" class="w-px-150">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="7" class="p-0">{{ skeleton_table(rows=4, cols=7, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
 
         <!-- Conclusión -->
-        <div class="tab-pane fade" id="conclusion-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header">
-              <h5 class="mb-0">Estudiantes en Proceso de Conclusión</h5>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="conclusionTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th class="w-px-50"></th>
-                      <th>Estudiante</th>
-                      <th>Programa</th>
-                      <th class="text-center">Etapa</th>
-                      <th class="text-center">Progreso</th>
-                      <th class="text-center">Estado</th>
-                      <th class="w-px-150">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="7" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 7">{% for _ in range(7) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+        <div class="tab-pane fade" id="conclusion-pane" role="tabpanel" aria-labelledby="conclusion-tab">
+          <h2 class="h5 mb-3">Estudiantes en proceso de conclusión</h2>
+          {{ data_table_open('Estudiantes en proceso de conclusión con su etapa y progreso',
+                             id='conclusionTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col" class="w-px-50"><span class="visually-hidden">Foto</span></th>
+                <th scope="col">Estudiante</th>
+                <th scope="col">Programa</th>
+                <th scope="col" class="text-center">Etapa</th>
+                <th scope="col" class="text-center">Progreso</th>
+                <th scope="col" class="text-center">Estado</th>
+                <th scope="col" class="w-px-150">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="7" class="p-0">{{ skeleton_table(rows=4, cols=7, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
 
         <!-- Solicitudes de cambio de foto -->
-        <div class="tab-pane fade" id="photo-requests-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <div>
-                <h5 class="mb-0">
-                  <i class="bi bi-camera-fill me-2 text-warning"></i>
-                  Solicitudes de cambio de foto de perfil
-                </h5>
-                <small class="text-muted">Habilita o rechaza solicitudes de tus estudiantes</small>
-              </div>
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="btnRefreshPhotoRequests">
-                <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
-              </button>
+        <div class="tab-pane fade" id="photo-requests-pane" role="tabpanel" aria-labelledby="photo-requests-tab">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <h2 class="h5 mb-0">
+                <i class="bi bi-camera-fill me-2 text-warning-strong" aria-hidden="true"></i>
+                Solicitudes de cambio de foto de perfil
+              </h2>
+              <p class="text-secondary small mb-0">Habilita o rechaza las solicitudes de tus estudiantes</p>
             </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="photoRequestsTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th class="w-px-60"></th>
-                      <th>Estudiante</th>
-                      <th>Email</th>
-                      <th class="text-center">Solicitado</th>
-                      <th class="w-px-200 text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody id="photoRequestsTbody">
-                    <tr>
-                      <td colspan="5" class="text-center py-4 text-muted small">
-                        <div class="spinner-border spinner-border-sm me-1" role="status"></div>
-                        Cargando solicitudes...
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnRefreshPhotoRequests">
+              <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Actualizar
+            </button>
           </div>
+          {{ data_table_open('Solicitudes de cambio de foto de perfil pendientes de resolución',
+                             id='photoRequestsTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col" class="w-px-60"><span class="visually-hidden">Foto</span></th>
+                <th scope="col">Estudiante</th>
+                <th scope="col">Correo</th>
+                <th scope="col" class="text-center">Solicitado</th>
+                <th scope="col" class="w-px-200 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="photoRequestsTbody">
+              <tr>
+                <td colspan="5" class="text-center py-4">
+                  <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Cargando solicitudes…</span>
+                  </div>
+                  <span class="ms-2 text-secondary small">Cargando solicitudes…</span>
+                </td>
+              </tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
       </div>
     </div>
@@ -247,28 +234,29 @@
 {% endblock %}
 
 {% block modals %}
-<!-- Modal: subir foto del estudiante (coordinador desde lista) -->
-<div class="modal fade" id="coordPhotoUploadFromListModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+<!-- Modal: subir foto del estudiante (coordinador, desde la lista) -->
+<div class="modal fade" id="coordPhotoUploadFromListModal" tabindex="-1"
+     aria-labelledby="coordPhotoUploadFromListModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Subir foto del estudiante</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="coordPhotoUploadFromListModalTitle">Subir foto del estudiante</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form id="coordPhotoUploadFromListForm" enctype="multipart/form-data">
         <input type="hidden" id="coordPhotoTargetUserId">
         <div class="modal-body">
-          <p class="small text-muted">Sube la foto en nombre del estudiante. Se comprime automáticamente.</p>
+          <p class="small text-secondary">Sube la foto en nombre del estudiante. Se comprime automáticamente.</p>
           <div class="mb-3">
             <label class="form-label" for="coordPhotoFile">Foto (JPG, PNG o WebP)</label>
             <input type="file" class="form-control" id="coordPhotoFile" name="photo"
-                   accept="image/jpeg,image/png,image/webp" required>
+                   accept="image/jpeg,image/png,image/webp" required aria-required="true">
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" class="btn btn-primary">
-            <i class="bi bi-upload me-1"></i>Subir
+            <i class="bi bi-upload me-1" aria-hidden="true"></i>Subir
           </button>
         </div>
       </form>
@@ -276,97 +264,107 @@
   </div>
 </div>
 
-<!-- Modal: Detalles del Estudiante -->
-<div class="modal fade" id="studentDetailsModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-xl">
+<!-- Modal: Detalles del estudiante (solo consulta: se cierra con Esc) -->
+<div class="modal fade" id="studentDetailsModal" tabindex="-1" data-bs-backdrop="static"
+     aria-labelledby="modalStudentName" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
     <div class="modal-content">
       <div class="modal-header">
         <div class="d-flex align-items-center">
-          <img src="" alt="Avatar" class="rounded-circle me-3 avatar-md" id="modalStudentAvatar">
+          <img src="{{ url_for('static', filename='assets/images/default.jpg') }}" alt=""
+               class="rounded-circle me-3 avatar-md" id="modalStudentAvatar">
           <div>
-            <h5 class="modal-title mb-0" id="modalStudentName">Cargando...</h5>
-            <small class="text-muted" id="modalStudentEmail"></small><br>
-            <small class="text-muted"><i class="bi bi-mortarboard-fill me-1"></i><span id="modalStudentProgram"></span></small>
+            <h2 class="modal-title h5 mb-0" id="modalStudentName">Cargando…</h2>
+            <p class="text-secondary small mb-0" id="modalStudentEmail"></p>
+            <p class="text-secondary small mb-0">
+              <i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i><span id="modalStudentProgram"></span>
+            </p>
           </div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body" id="modalContent">
-        <!-- Tabs -->
+        <!-- Pestañas -->
         <ul class="nav nav-tabs mb-3" id="studentDetailsTabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="general-tab" data-bs-toggle="tab" 
-                    data-bs-target="#general-pane" type="button" role="tab">
-              <i class="bi bi-person me-1"></i>General
+            <button class="nav-link active" id="general-tab" data-bs-toggle="tab"
+                    data-bs-target="#general-pane" type="button" role="tab"
+                    aria-controls="general-pane" aria-selected="true">
+              <i class="bi bi-person" aria-hidden="true"></i>General
             </button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="documents-tab" data-bs-toggle="tab" 
-                    data-bs-target="#documents-pane" type="button" role="tab">
-              <i class="bi bi-file-earmark-text me-1"></i>Documentos
+            <button class="nav-link" id="documents-tab" data-bs-toggle="tab"
+                    data-bs-target="#documents-pane" type="button" role="tab"
+                    aria-controls="documents-pane" aria-selected="false">
+              <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Documentos
             </button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="interview-tab" data-bs-toggle="tab" 
-                    data-bs-target="#interview-pane" type="button" role="tab">
-              <i class="bi bi-calendar3 me-1"></i>Entrevista
+            <button class="nav-link" id="interview-tab" data-bs-toggle="tab"
+                    data-bs-target="#interview-pane" type="button" role="tab"
+                    aria-controls="interview-pane" aria-selected="false">
+              <i class="bi bi-calendar3" aria-hidden="true"></i>Entrevista
             </button>
           </li>
         </ul>
-        
-        <!-- Tab Content -->
+
         <div class="tab-content" id="studentDetailsTabContent">
-          <div class="tab-pane fade show active" id="general-pane" role="tabpanel">
+          <div class="tab-pane fade show active" id="general-pane" role="tabpanel" aria-labelledby="general-tab">
             <div id="generalTabContent"></div>
           </div>
-          <div class="tab-pane fade" id="documents-pane" role="tabpanel">
+          <div class="tab-pane fade" id="documents-pane" role="tabpanel" aria-labelledby="documents-tab">
             <div id="documentsTabContent"></div>
           </div>
-          <div class="tab-pane fade" id="interview-pane" role="tabpanel">
+          <div class="tab-pane fade" id="interview-pane" role="tabpanel" aria-labelledby="interview-tab">
             <div id="interviewTabContent"></div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>
 </div>
-<!-- Modal: Detalle de Permanencia -->
-<div class="modal fade" id="permanenceDetailsModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-lg">
+
+<!-- Modal: Detalle de permanencia (solo consulta: se cierra con Esc) -->
+<div class="modal fade" id="permanenceDetailsModal" tabindex="-1" data-bs-backdrop="static"
+     aria-labelledby="permModalName" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
       <div class="modal-header">
         <div class="d-flex align-items-center gap-3">
-          <img src="" alt="Avatar" class="rounded-circle flex-shrink-0 avatar-md"
-            id="permModalAvatar">
+          <img src="{{ url_for('static', filename='assets/images/default.jpg') }}" alt=""
+               class="rounded-circle flex-shrink-0 avatar-md" id="permModalAvatar">
           <div>
-            <h5 class="modal-title mb-0" id="permModalName">Cargando...</h5>
-            <small class="text-muted" id="permModalEmail"></small><br>
-            <small class="text-muted">
-              <i class="bi bi-mortarboard-fill me-1"></i><span id="permModalProgram"></span>
-              &nbsp;·&nbsp;
+            <h2 class="modal-title h5 mb-0" id="permModalName">Cargando…</h2>
+            <p class="text-secondary small mb-0" id="permModalEmail"></p>
+            <p class="text-secondary small mb-0">
+              <i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i><span id="permModalProgram"></span>
+              <span class="mx-1" aria-hidden="true">·</span>
               <span class="font-monospace fw-semibold" id="permModalControlNumber"></span>
-            </small>
+            </p>
           </div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
 
       <div class="modal-body">
-        <!-- Spinner de carga -->
+        <!-- Carga -->
         <div id="permModalSpinner" class="text-center py-5">
-          <div class="spinner-border text-primary" role="status"></div>
-          <p class="mt-2 text-muted small">Cargando...</p>
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando detalle de permanencia…</span>
+          </div>
+          <p class="mt-2 text-secondary small">Cargando…</p>
         </div>
 
         <!-- Contenido real (oculto hasta que cargue) -->
         <div id="permModalContent" class="d-none">
 
-          <!-- Alerta: docs admisión pendientes -->
+          <!-- Aviso: documentos de admisión pendientes -->
           <div id="permAdmissionAlert" class="alert alert-warning d-flex align-items-center gap-2 mb-3 d-none">
-            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
             <div>
               <strong>Documentos de admisión pendientes:</strong>
               <span id="permAdmissionCount"></span> documento(s) sin aprobar.
@@ -379,40 +377,42 @@
           <ul class="nav nav-tabs mb-3" id="permTabs" role="tablist">
             <li class="nav-item" role="presentation">
               <button class="nav-link active" id="permTab-resumen" data-bs-toggle="tab"
-                data-bs-target="#permPane-resumen" type="button" role="tab">
-                <i class="bi bi-layout-text-sidebar-reverse me-1"></i>Resumen
+                data-bs-target="#permPane-resumen" type="button" role="tab"
+                aria-controls="permPane-resumen" aria-selected="true">
+                <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>Resumen
               </button>
             </li>
             <li class="nav-item" role="presentation">
               <button class="nav-link" id="permTab-historial" data-bs-toggle="tab"
-                data-bs-target="#permPane-historial" type="button" role="tab">
-                <i class="bi bi-clock-history me-1"></i>Historial
+                data-bs-target="#permPane-historial" type="button" role="tab"
+                aria-controls="permPane-historial" aria-selected="false">
+                <i class="bi bi-clock-history" aria-hidden="true"></i>Historial
               </button>
             </li>
           </ul>
 
           <div class="tab-content" id="permTabContent">
-            <!-- Tab Resumen -->
-            <div class="tab-pane fade show active" id="permPane-resumen" role="tabpanel">
+            <!-- Resumen -->
+            <div class="tab-pane fade show active" id="permPane-resumen" role="tabpanel"
+                 aria-labelledby="permTab-resumen">
 
-              <!-- Tarjetas de estado -->
               <div class="row g-3 mb-4" id="permSummaryCards"></div>
 
               <!-- Beca SECIHTI -->
               <div class="card mb-3" id="permConacytCard">
                 <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
                   <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-award-fill fs-4 text-warning"></i>
+                    <i class="bi bi-award-fill icon-xl text-warning-strong" aria-hidden="true"></i>
                     <div>
-                      <div class="fw-semibold">Beca SECIHTI</div>
-                      <small class="text-muted">Módulo C — Formato de Desempeño mensual</small>
+                      <p class="fw-semibold mb-0">Beca SECIHTI</p>
+                      <p class="text-secondary small mb-0">Módulo C — Formato de Desempeño mensual</p>
                     </div>
                   </div>
                   <div class="d-flex align-items-center gap-3">
-                    <span id="permConacytBadge" class="badge fs-6"></span>
+                    <span id="permConacytBadge"></span>
                     <div class="form-check form-switch mb-0" id="permConacytToggleWrap">
-                      <input class="form-check-input" type="checkbox" role="switch"
-                        id="permConacytSwitch" class="cursor-pointer">
+                      <input class="form-check-input cursor-pointer" type="checkbox" role="switch"
+                        id="permConacytSwitch">
                       <label class="form-check-label small" for="permConacytSwitch">Becario activo</label>
                     </div>
                   </div>
@@ -422,15 +422,16 @@
               <!-- Estado de inscripción semestral -->
               <div class="card" id="permEnrollmentCard">
                 <div class="card-header fw-semibold">
-                  <i class="bi bi-calendar-check me-1"></i>Inscripción Semestral — Periodo Activo
+                  <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Inscripción semestral — periodo activo
                 </div>
                 <div class="card-body" id="permEnrollmentBody"></div>
               </div>
 
             </div>
 
-            <!-- Tab Historial -->
-            <div class="tab-pane fade" id="permPane-historial" role="tabpanel">
+            <!-- Historial -->
+            <div class="tab-pane fade" id="permPane-historial" role="tabpanel"
+                 aria-labelledby="permTab-historial">
               <div id="permHistoryContent"></div>
             </div>
           </div>
@@ -439,79 +440,84 @@
 
       <div class="modal-footer gap-2">
         <button type="button" class="btn btn-outline-secondary btn-sm" id="permOpenFullBtn">
-          <i class="bi bi-folder2-open me-1"></i>Ver expediente de admisión
+          <i class="bi bi-folder2-open me-1" aria-hidden="true"></i>Ver expediente de admisión
         </button>
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal: Doble confirmación SECIHTI -->
-<div class="modal fade" id="confirmConacytModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-sm">
+<!-- Modal: Doble confirmación SECIHTI (acción sensible: conserva backdrop y teclado bloqueados) -->
+<div class="modal fade" id="confirmConacytModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false"
+     aria-labelledby="confirmConacytModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">
-          <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Confirmar cambio SECIHTI
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="confirmConacytModalTitle">
+          <i class="bi bi-exclamation-triangle-fill text-warning-strong me-2" aria-hidden="true"></i>Confirmar cambio SECIHTI
+        </h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <p class="mb-2">Estudiante: <strong id="confirmConacytStudent"></strong></p>
         <p class="mb-1">Acción: <strong id="confirmConacytAction"></strong></p>
-        <p class="text-muted small mb-0">
-          Activar/desactivar la beca SECIHTI puede afectar reportes y ventanas
+        <p class="text-secondary small mb-0">
+          Activar o desactivar la beca SECIHTI puede afectar reportes y ventanas
           de entrega mensuales. Confirma que es correcto.
         </p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary btn-sm" id="btnCancelConacyt" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnCancelConacyt" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-warning btn-sm" id="btnConfirmConacyt">
-          <i class="bi bi-check-lg me-1"></i>Sí, continuar
+          <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Sí, continuar
         </button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal para subir documento por estudiante -->
-<div class="modal fade" id="uploadForStudentModal" tabindex="-1" aria-labelledby="uploadForStudentLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+<!-- Modal: subir documento por estudiante -->
+<div class="modal fade" id="uploadForStudentModal" tabindex="-1"
+     aria-labelledby="uploadForStudentModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <form class="modal-content" data-coordinator-upload="true">
       <div class="modal-header">
-        <h5 class="modal-title" id="uploadForStudentLabel">Subir Documento por Estudiante</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        <h2 class="modal-title h5" id="uploadForStudentModalTitle">Subir documento por estudiante</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <div class="row g-3">
           <div class="col-12 col-md-6">
             <label for="targetStudent" class="form-label">Estudiante</label>
-            <select class="form-select" id="targetStudent" name="student_id" required>
-              <option value="">Seleccionar estudiante...</option>
+            <select class="form-select" id="targetStudent" name="student_id" required aria-required="true">
+              <option value="">Seleccionar estudiante…</option>
             </select>
           </div>
           <div class="col-12 col-md-6">
             <label for="targetProgram" class="form-label">Programa</label>
-            <input type="text" class="form-control" id="targetProgram" readonly placeholder="Automático según estudiante">
+            <input type="text" class="form-control" id="targetProgram" readonly
+                   placeholder="Automático según el estudiante">
           </div>
           <div class="col-12">
             <label for="targetArchive" class="form-label">Archivo a subir</label>
-            <select class="form-select" id="targetArchive" name="archive_id" required disabled>
+            <select class="form-select" id="targetArchive" name="archive_id" required aria-required="true" disabled>
               <option value="">Primero selecciona un estudiante</option>
             </select>
           </div>
           <div class="col-12">
             <label for="coordinatorFile" class="form-label">Archivo (opcional)</label>
-            <input type="file" class="form-control" id="coordinatorFile" name="file" accept=".pdf">
-            <div class="form-text">Solo PDF, máximo 3MB. Si no adjuntas archivo, el comentario es obligatorio.</div>
+            <input type="file" class="form-control" id="coordinatorFile" name="file" accept=".pdf"
+                   aria-describedby="coordinatorFileHelp">
+            <div class="form-text" id="coordinatorFileHelp">Solo PDF, máximo 3 MB. Si no adjuntas archivo, el comentario es obligatorio.</div>
           </div>
           <div class="col-12">
             <label for="coordinatorNotes" class="form-label">
               Notas del coordinador
-              <span class="text-muted small" id="coordinatorNotesHint">(opcional si adjuntas archivo, obligatorio si no)</span>
+              <span class="text-secondary small" id="coordinatorNotesHint">(opcional si adjuntas archivo, obligatorio si no)</span>
             </label>
             <textarea class="form-control" id="coordinatorNotes" name="notes" rows="3"
+                      aria-describedby="coordinatorNotesHint"
                       placeholder="Observaciones sobre el documento o motivo de la validación sin archivo..."></textarea>
             <div class="invalid-feedback" id="coordinatorNotesError">
               El comentario es obligatorio cuando no adjuntas un archivo.
@@ -520,8 +526,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Subir Documento</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Subir documento</button>
       </div>
     </form>
   </div>

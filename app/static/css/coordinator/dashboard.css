@@ -1,33 +1,45 @@
-.student-avatar {
-    width: 32px;
-    height: 32px;
+/*
+ * Gestión de Estudiantes (panel del coordinador) — hoja propia.
+ *
+ * Las reglas que reescriben clases de Bootstrap (.progress, .table-secondary)
+ * van dentro de #coordinatorDashboardPage: sin el prefijo repintaban el layout
+ * entero y las tablas de cualquier modal.
+ *
+ * Los modificadores propios (.progress--lg, .progress-bar--dynamic,
+ * .perm-progress-current) NO se prefijan porque el markup de los modales vive
+ * fuera del contenedor de página y son nombres exclusivos de esta vista.
+ */
+
+#coordinatorDashboardPage .progress {
+    height: var(--space-2);
 }
 
-.progress {
-    height: 8px;
+/* Fila de solo consulta (programa de otro coordinador). El color no es el
+   único indicador: la fila lleva además el icono bi-eye y su texto oculto. */
+#coordinatorDashboardPage .table-secondary {
+    background-color: var(--bg-surface-sunken);
 }
 
-.table-secondary {
-    opacity: 0.6;
+#coordinatorDashboardPage .btn-group-sm .btn {
+    padding: var(--space-1) var(--space-2);
 }
 
-.btn-group-sm .btn {
-    padding: 0.25rem 0.5rem;
+/* Barra más alta cuando muestra el porcentaje en su interior. */
+.progress--lg {
+    height: var(--space-5);
 }
 
-/* Segmento del semestre en curso (parpadea) en la tabla de Permanencia */
-.progress-bar.perm-blink {
-    background-color: var(--color-info);
-    opacity: 0.45;
+/* El porcentaje es el único valor genuinamente dinámico: viaja como custom
+   property desde el JS (style="--progress: 42%") y se aplica aquí. */
+.progress-bar--dynamic {
+    width: var(--progress, 0%);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .progress-bar.perm-blink {
-        animation: perm-blink 1.4s ease-in-out infinite;
-    }
-}
-
-@keyframes perm-blink {
-    0%, 100% { opacity: 0.30; }
-    50%      { opacity: 1.00; }
+/* Segmento del semestre EN CURSO dentro de la barra de avance.
+   Antes parpadeaba en bucle (animación infinita, WCAG 2.2.2): se sustituyó por
+   un tono suave con contorno propio, que lo distingue del tramo ya completado
+   sin depender del movimiento ni sólo del color (WCAG 1.4.1). */
+.progress-bar.perm-progress-current {
+    background-color: var(--color-info-100);
+    box-shadow: inset 0 0 0 1px var(--color-info);
 }

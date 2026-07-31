@@ -24,17 +24,54 @@
     if (typeof showFlash === 'function') showFlash(level, message);
   }
 
+  /** Marca la región asíncrona como ocupada/lista y lo anuncia (WCAG 4.1.3). */
+  function setBusy(el, busy, message) {
+    if (window.SIIAP && typeof window.SIIAP.setBusy === 'function') {
+      window.SIIAP.setBusy(el, busy, message ? { message } : undefined);
+    } else if (el) {
+      el.setAttribute('aria-busy', busy ? 'true' : 'false');
+    }
+  }
+
+  /** Chip de estado del sistema de diseño (nunca `badge` de Bootstrap). */
+  function badge(status, label) {
+    if (window.SIIAP && typeof window.SIIAP.statusBadge === 'function') {
+      return window.SIIAP.statusBadge(status, label, 'sm');
+    }
+    return `<span class="status-badge status-badge--${escHtml(status)} status-badge--sm">${escHtml(label || status)}</span>`;
+  }
+
+  /** Estado vacío de error, con botón de reintento. */
+  function errorState(title, detail, retryId) {
+    return `
+      <div class="empty-state empty-state--error empty-state--compact">
+        <div class="empty-state__icon"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i></div>
+        <h3 class="empty-state__title">${escHtml(title)}</h3>
+        <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
+        ${detail ? `<p class="empty-state__error-detail">${escHtml(detail)}</p>` : ''}
+        <div class="empty-state__actions">
+          <button type="button" id="${escHtml(retryId)}" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Reintentar
+          </button>
+        </div>
+      </div>`;
+  }
+
   // ── Documentos del semestre ──────────────────────────────────────────────
   async function loadStudentDocs() {
     const container = document.getElementById('studentDocsContainer');
     if (!container) return;
+    setBusy(container, true, 'Cargando documentos del semestre…');
     try {
       const res = await fetch(`/api/v1/permanence/user-program/${UP_ID}/documents`);
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
       renderStudentDocs(json.data || []);
     } catch (e) {
-      container.innerHTML = `<div class="alert alert-danger m-3 small">Error al cargar documentos: ${e.message}</div>`;
+      container.innerHTML = errorState(
+        'No pudimos cargar tus documentos del semestre.', e.message, 'retryStudentDocs');
+      document.getElementById('retryStudentDocs')?.addEventListener('click', loadStudentDocs);
+      setBusy(container, false, 'No se pudieron cargar los documentos del semestre.');
     }
   }
 
@@ -42,10 +79,12 @@
     const container = document.getElementById('studentDocsContainer');
     if (!docs.length) {
       container.innerHTML = `
-        <div class="text-center py-4 text-muted">
-          <i class="bi bi-folder-x fs-2 d-block mb-2"></i>
-          No hay documentos solicitados para este periodo.
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-folder-x" aria-hidden="true"></i></div>
+          <h3 class="empty-state__title">Sin documentos solicitados</h3>
+          <p class="empty-state__description">No hay documentos solicitados para este periodo.</p>
         </div>`;
+      setBusy(container, false, 'No hay documentos solicitados para este periodo.');
       return;
     }
 
@@ -63,24 +102,24 @@
 
       if (!sub) {
         if (dl.is_currently_open) {
-          statusHtml = '<span class="badge bg-warning text-dark">Pendiente</span>';
+          statusHtml = badge('pending', 'Pendiente');
           actionHtml = buildUploadForm(UP_ID, dl.id, dl.label);
         } else {
-          statusHtml = '<span class="badge bg-secondary">Ventana cerrada</span>';
+          statusHtml = badge('deferred', 'Ventana cerrada');
         }
       } else if (sub.status === 'review') {
-        statusHtml = '<span class="badge bg-info text-dark"><i class="bi bi-hourglass-split me-1"></i>En revisión</span>';
+        statusHtml = badge('review', 'En revisión');
       } else if (sub.status === 'approved') {
-        statusHtml = '<span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Aprobado</span>';
+        statusHtml = badge('approved', 'Aprobado');
         if (sub.file_path) {
-          actionHtml = `<a href="/files/doc/${sub.file_path}" target="_blank" class="btn btn-sm btn-outline-success">
-            <i class="bi bi-eye me-1"></i>Ver documento
+          actionHtml = `<a href="/files/doc/${escHtml(sub.file_path)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver documento
           </a>`;
         }
       } else if (sub.status === 'rejected') {
-        statusHtml = '<span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Rechazado</span>';
+        statusHtml = badge('rejected', 'Rechazado');
         if (sub.reviewer_comment) {
-          statusHtml += `<div class="small text-danger mt-1">Motivo: ${escHtml(sub.reviewer_comment)}</div>`;
+          statusHtml += `<p class="small text-danger-strong mt-1 mb-0">Motivo: ${escHtml(sub.reviewer_comment)}</p>`;
         }
         if (dl.is_currently_open) {
           actionHtml = buildUploadForm(UP_ID, dl.id, dl.label);
@@ -88,19 +127,20 @@
       }
 
       return `
-        <div class="border-bottom px-3 py-3">
+        <li class="border-bottom py-3">
           <div class="d-flex align-items-start gap-3 flex-wrap">
             <div class="flex-grow-1">
-              <div class="fw-semibold">${escHtml(dl.label)}</div>
-              <div class="small text-muted">${escHtml(archive.name)} ${closesAt}</div>
+              <p class="fw-semibold mb-0">${escHtml(dl.label)}</p>
+              <p class="small text-muted mb-0">${escHtml(archive.name)} ${closesAt}</p>
               <div class="mt-1">${statusHtml}</div>
             </div>
             ${actionHtml ? `<div class="flex-shrink-0">${actionHtml}</div>` : ''}
           </div>
-        </div>`;
+        </li>`;
     }).join('');
 
-    container.innerHTML = rows;
+    container.innerHTML = `<ul class="list-unstyled mb-0">${rows}</ul>`;
+    setBusy(container, false, `${docs.length} documento(s) del semestre cargados.`);
 
     container.querySelectorAll('.doc-upload-form').forEach(form => {
       form.addEventListener('submit', async e => {
@@ -111,7 +151,7 @@
         if (!fileInput.files.length) return;
         const btn = form.querySelector('button[type=submit]');
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span class="visually-hidden">Subiendo…</span>';
 
         const fd = new FormData();
         fd.append('file', fileInput.files[0]);
@@ -134,13 +174,15 @@
   }
 
   function buildUploadForm(upId, dlId, label) {
+    const inputId = `docUpload-${upId}-${dlId}`;
     return `
-      <form class="doc-upload-form" data-up-id="${upId}" data-dl-id="${dlId}">
-        <div class="input-group input-group-sm" style="min-width: 260px;">
-          <input type="file" class="form-control doc-upload-input"
+      <form class="doc-upload-form" data-up-id="${escHtml(String(upId))}" data-dl-id="${escHtml(String(dlId))}">
+        <label class="visually-hidden" for="${inputId}">Archivo para ${escHtml(label || 'el documento')}</label>
+        <div class="input-group input-group-sm doc-upload-group">
+          <input type="file" id="${inputId}" class="form-control doc-upload-input"
                  accept=".pdf,.doc,.docx,.jpg,.png" required>
           <button type="submit" class="btn btn-primary text-nowrap">
-            <i class="bi bi-upload me-1"></i>Subir
+            <i class="bi bi-upload me-1" aria-hidden="true"></i>Subir
           </button>
         </div>
       </form>`;
@@ -150,6 +192,7 @@
   async function loadEnrollmentPayment() {
     const container = document.getElementById('enrollmentPaymentContainer');
     if (!container) return;
+    setBusy(container, true, 'Verificando tu inscripción…');
 
     try {
       const res = await fetch('/api/v1/permanence/my-enrollment');
@@ -160,10 +203,11 @@
       if (!res.ok || json.error) {
         if (res.status === 404) {
           container.innerHTML = `
-            <div class="alert alert-secondary d-flex gap-2 align-items-center mb-0 py-2 small">
-              <i class="bi bi-info-circle-fill fs-5"></i>
+            <div class="alert alert-info d-flex gap-2 align-items-center mb-0 py-2 small" role="note">
+              <i class="bi bi-info-circle-fill fs-5" aria-hidden="true"></i>
               <span>No hay inscripción activa para este periodo.</span>
             </div>`;
+          setBusy(container, false, 'No hay inscripción activa para este periodo.');
         } else {
           throw new Error(json.error?.message || 'Error');
         }
@@ -173,7 +217,10 @@
       renderEnrollmentPayment(json.data);
 
     } catch (e) {
-      container.innerHTML = `<div class="alert alert-danger small mb-0">Error al cargar información de pago: ${escHtml(e.message)}</div>`;
+      container.innerHTML = errorState(
+        'No pudimos cargar tu información de pago.', e.message, 'retryEnrollmentPayment');
+      document.getElementById('retryEnrollmentPayment')?.addEventListener('click', loadEnrollmentPayment);
+      setBusy(container, false, 'No se pudo cargar la información de pago.');
     }
   }
 
@@ -184,12 +231,14 @@
 
     if (!data) {
       if (card) card.classList.add('d-none');
+      setBusy(container, false);
       return;
     }
 
     // Inscripción confirmada — ocultar la card completa
     if (data.enrollment_confirmed) {
       if (card) card.classList.add('d-none');
+      setBusy(container, false);
       return;
     }
 
@@ -229,12 +278,10 @@
     let proofHtml = '';
     if (proof) {
       proofHtml = `
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <span class="badge bg-warning text-dark">
-            <i class="bi bi-hourglass-split me-1"></i>Pendiente de confirmación por coordinador
-          </span>
-          <a href="/files/doc/${escHtml(proof)}" target="_blank" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-eye me-1"></i>Ver comprobante actual
+        <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+          ${badge('review', 'Pendiente de confirmación por el coordinador')}
+          <a href="/files/doc/${escHtml(proof)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver comprobante actual
           </a>
         </div>`;
     }
@@ -242,7 +289,7 @@
     const uploadBtn = `
       <button type="button" class="btn btn-primary btn-sm"
               data-bs-toggle="modal" data-bs-target="#modalPaymentProof">
-        <i class="bi bi-upload me-1"></i>Subir comprobante de pago
+        <i class="bi bi-upload me-1" aria-hidden="true"></i>Subir comprobante de pago
       </button>`;
 
     container.innerHTML = `
@@ -253,6 +300,7 @@
         ${proofHtml}
         ${uploadBtn}
       </div>`;
+    setBusy(container, false, 'Información de pago actualizada.');
   }
 
   function bindPaymentProofForm() {
@@ -268,7 +316,7 @@
       const originalHtml = btn ? btn.innerHTML : '';
       if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Subiendo...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Subiendo…';
       }
 
       const fd = new FormData();
@@ -314,13 +362,17 @@
   async function loadLeaveRequest() {
     const container = document.getElementById('leaveRequestContainer');
     if (!container) return;
+    setBusy(container, true, 'Verificando tu solicitud de baja temporal…');
     try {
       const res = await fetch(`/api/v1/permanence/user-program/${UP_ID}/leave-request`);
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
       renderLeaveRequest(json.data);
     } catch (e) {
-      container.innerHTML = `<div class="alert alert-danger small">Error al cargar solicitud: ${e.message}</div>`;
+      container.innerHTML = errorState(
+        'No pudimos cargar tu solicitud de baja temporal.', e.message, 'retryLeaveRequest');
+      document.getElementById('retryLeaveRequest')?.addEventListener('click', loadLeaveRequest);
+      setBusy(container, false, 'No se pudo cargar la solicitud de baja temporal.');
     }
   }
 
@@ -331,9 +383,10 @@
     if (!data.archive_available) {
       container.innerHTML = `
         <p class="text-muted small mb-0">
-          <i class="bi bi-info-circle me-1"></i>
+          <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
           La solicitud de baja temporal no está disponible para tu programa actualmente.
         </p>`;
+      setBusy(container, false, 'La solicitud de baja temporal no está disponible.');
       return;
     }
 
@@ -346,49 +399,57 @@
         </p>
         ${buildLeaveUploadForm()}`;
       bindLeaveUploadForm();
+      setBusy(container, false, 'Puedes enviar tu solicitud de baja temporal.');
       return;
     }
 
     if (sub.status === 'review') {
       container.innerHTML = `
-        <div class="d-flex align-items-center gap-2">
-          <span class="badge bg-info text-dark"><i class="bi bi-hourglass-split me-1"></i>En revisión</span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          ${badge('review', 'En revisión')}
           <span class="small text-muted">Tu solicitud está siendo revisada por el coordinador.</span>
         </div>`;
+      setBusy(container, false, 'Tu solicitud de baja temporal está en revisión.');
       return;
     }
 
     if (sub.status === 'approved') {
       container.innerHTML = `
-        <div class="d-flex align-items-center gap-2">
-          <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Aprobada</span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          ${badge('approved', 'Aprobada')}
           <span class="small text-muted">Tu solicitud de baja temporal fue aprobada.</span>
         </div>`;
+      setBusy(container, false, 'Tu solicitud de baja temporal fue aprobada.');
       return;
     }
 
     if (sub.status === 'rejected') {
       const motivo = sub.reviewer_comment
-        ? `<div class="small text-danger mt-1">Motivo: ${escHtml(sub.reviewer_comment)}</div>`
+        ? `<p class="small text-danger-strong mt-1 mb-0">Motivo: ${escHtml(sub.reviewer_comment)}</p>`
         : '';
       container.innerHTML = `
         <div class="mb-3">
-          <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Rechazada</span>
+          ${badge('rejected', 'Rechazada')}
           ${motivo}
         </div>
         <p class="text-muted small mb-2">Puedes volver a subir la solicitud corregida.</p>
         ${buildLeaveUploadForm()}`;
       bindLeaveUploadForm();
+      setBusy(container, false, 'Tu solicitud de baja temporal fue rechazada.');
+      return;
     }
+
+    setBusy(container, false);
   }
 
   function buildLeaveUploadForm() {
     return `
       <form id="leaveUploadForm" class="d-flex align-items-center gap-2 flex-wrap">
+        <label class="visually-hidden" for="leaveFile">Formulario de baja temporal firmado</label>
         <input type="file" class="form-control form-control-sm leave-upload-input" id="leaveFile"
                accept=".pdf,.doc,.docx,.jpg,.png" required>
         <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap">
-          <i class="bi bi-upload me-1"></i>Enviar solicitud
+          <i class="bi bi-upload me-1" aria-hidden="true"></i>Enviar solicitud
         </button>
       </form>`;
   }
@@ -402,7 +463,7 @@
       if (!file) return;
       const btn = form.querySelector('button[type=submit]');
       btn.disabled = true;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span class="visually-hidden">Enviando…</span>';
 
       const fd = new FormData();
       fd.append('file', file);

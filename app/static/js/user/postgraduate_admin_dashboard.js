@@ -18,45 +18,62 @@
     danger: 'alert-danger',
   };
 
+  function escHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /** Marca la región asíncrona como ocupada/lista y lo anuncia (WCAG 4.1.3). */
+  function setBusy(el, busy, message) {
+    if (window.SIIAP && typeof window.SIIAP.setBusy === 'function') {
+      window.SIIAP.setBusy(el, busy, message ? { message } : undefined);
+    } else if (el) {
+      el.setAttribute('aria-busy', busy ? 'true' : 'false');
+    }
+  }
+
   function renderReminders(list, reminders) {
     if (!reminders.length) {
       list.innerHTML = `
-        <div class="text-center py-4">
-          <i class="bi bi-check-circle text-success icon-3xl"></i>
-          <h5 class="mt-3 text-success">¡Todo en orden!</h5>
-          <p class="text-muted mb-0">No hay recordatorios pendientes</p>
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-check-circle" aria-hidden="true"></i></div>
+          <h3 class="empty-state__title">¡Todo en orden!</h3>
+          <p class="empty-state__description">No hay recordatorios pendientes.</p>
         </div>`;
+      setBusy(list, false, 'No hay recordatorios pendientes.');
       return;
     }
 
     const html = reminders.map(r => {
-      const cls = ALERT_CLASSES[r.type] || 'alert-secondary';
+      const cls = ALERT_CLASSES[r.type] || 'alert-info';
       const btnType = r.type === 'warning' ? 'warning' : r.type;
       const action = r.action
-        ? `<a href="${r.action.url}" class="btn btn-sm btn-${btnType} mt-2">
-             ${r.action.text} <i class="bi bi-arrow-right ms-1"></i>
+        ? `<a href="${escHtml(r.action.url)}" class="btn btn-sm btn-${escHtml(btnType)} mt-2">
+             ${escHtml(r.action.text)} <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
            </a>`
         : '';
       return `
-        <div class="alert ${cls} d-flex align-items-start mb-3">
+        <div class="alert ${cls} d-flex align-items-start mb-3" role="note">
           <div class="flex-shrink-0 me-3">
-            <i class="bi ${r.icon} icon-2xl"></i>
+            <i class="bi ${escHtml(r.icon)} icon-2xl" aria-hidden="true"></i>
           </div>
           <div class="flex-grow-1">
-            <h6 class="alert-heading mb-1">${r.title}</h6>
-            <p class="mb-0">${r.message}</p>
+            <p class="alert-heading fw-semibold mb-1">${escHtml(r.title)}</p>
+            <p class="mb-0">${escHtml(r.message)}</p>
             ${action}
           </div>
         </div>`;
     }).join('');
 
     list.innerHTML = html;
+    setBusy(list, false, `${reminders.length} recordatorio(s) cargados.`);
   }
 
   async function checkEmailConfiguration() {
     const list = document.getElementById('reminders-list');
-    const loading = document.getElementById('loading-reminders');
     if (!list) return;
+    setBusy(list, true, 'Verificando la configuración del sistema…');
 
     try {
       const response = await fetch('/api/v1/emails/status');
@@ -95,19 +112,27 @@
     } catch (error) {
       console.error('Error al verificar configuración:', error);
       list.innerHTML = `
-        <div class="alert alert-danger">
-          <i class="bi bi-exclamation-triangle me-2"></i>
-          Error al cargar recordatorios. Por favor, recarga la página.
+        <div class="empty-state empty-state--error empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i></div>
+          <h3 class="empty-state__title">No pudimos cargar los recordatorios</h3>
+          <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
+          <p class="empty-state__error-detail">${escHtml(error.message || 'Error de red')}</p>
+          <div class="empty-state__actions">
+            <button type="button" id="retryReminders" class="btn btn-outline-primary">
+              <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Reintentar
+            </button>
+          </div>
         </div>`;
-    } finally {
-      if (loading) loading.classList.add('d-none');
-      if (list) list.classList.remove('d-none');
+      document.getElementById('retryReminders')
+        ?.addEventListener('click', checkEmailConfiguration);
+      setBusy(list, false, 'No se pudieron cargar los recordatorios.');
     }
   }
 
   function init() {
+    // shown.bs.tab (no 'click'): evita un refetch por cada pulsación repetida.
     const tab = document.getElementById('reminders-tab');
-    if (tab) tab.addEventListener('click', checkEmailConfiguration);
+    if (tab) tab.addEventListener('shown.bs.tab', checkEmailConfiguration);
 
     // ==================== TIEMPO REAL ====================
     // Reload tras toast (delay 3s) cuando suceden eventos que afectan los KPIs.
@@ -127,10 +152,11 @@
     window.addEventListener('siiap:acceptance:updated',   () => scheduleReload('Cambio en aceptación. Actualizando...'));
     window.addEventListener('siiap:deliberation:updated', () => scheduleReload('Cambio en deliberación. Actualizando...'));
 
-    // email:queue_update: no reload, sólo refresca recordatorios si la tab está visible
+    // email:queue_update: no reload, sólo refresca recordatorios si la pestaña
+    // de recordatorios está visible.
     window.addEventListener('siiap:email:queue_update', () => {
-      const list = document.getElementById('reminders-list');
-      if (list && !list.classList.contains('d-none')) {
+      const pane = document.getElementById('reminders');
+      if (pane && pane.classList.contains('active')) {
         checkEmailConfiguration();
       }
     });

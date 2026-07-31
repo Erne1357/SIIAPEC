@@ -1,12 +1,10 @@
-.profile-avatar {
-  width: 140px;
-  height: 140px;
-  object-fit: cover;
-}
-
-#studentRecordPage .nav-tabs .nav-link {
-  white-space: nowrap;
-}
+/*
+ * Expediente del alumno — hoja propia.
+ *
+ * La regla `#studentRecordPage .nav-tabs .nav-link` (especificidad 1,2,0) se
+ * eliminó: ganaba a components/_nav.css y dejaba la pestaña activa sin fondo
+ * de marca. El ancho de la foto pasó a la utilidad .avatar-xl de base.css.
+ */
 
 #studentRecordPage .info-grid {
   display: grid;
@@ -23,7 +21,7 @@
 
 #studentRecordPage .info-grid .info-cell .label {
   font-size: var(--fs-xs);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
   margin-bottom: var(--space-1);
@@ -36,8 +34,35 @@
   word-break: break-word;
 }
 
+/* Cabecera de cada grupo de documentos dentro del acordeón de Documentos. */
+#studentRecordPage .doc-group-title {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface-sunken);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
 #studentRecordPage .timeline-item + .timeline-item {
   border-top: 1px solid var(--border-default);
   padding-top: var(--space-3);
   margin-top: var(--space-3);
+}
+
+/* La barra de 9 pestañas desborda en móvil: se desplaza en horizontal sin
+   romper el layout y sin ocultar ninguna. */
+@media (max-width: 767.98px) {
+  #studentRecordPage .nav-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Se aplica al <li>, no a .nav-link: redeclarar .nav-link aquí ganaría a
+     components/_nav.css por especificidad y mataría el sistema. */
+  #studentRecordPage .nav-tabs .nav-item {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 }

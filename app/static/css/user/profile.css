@@ -1,591 +1,361 @@
-/* app/static/css/user/profile.css */
-
-/* ========== VARIABLES Y BASE ========== */
-:root {
-  --profile-avatar-xl: 150px;
-  --profile-avatar-lg: 120px;
-  --profile-avatar-md: 100px;
-  --profile-avatar-sm: 80px;
-}
+/* app/static/css/user/profile.css
+ *
+ * Hoja de la página de Perfil. También se carga en el dashboard de usuario
+ * porque el timeline de admisión y la leyenda de colores se comparten.
+ *
+ * REGLA: toda regla que apunte a un selector de Bootstrap (.card, .alert,
+ * .badge, .form-label, .nav-tabs, .table-*, .modal-*, .container-fluid) va
+ * SIEMPRE bajo el scope `.profile-page`. Sin ese prefijo la hoja —que carga la
+ * última— se comía los estilos del dashboard y de los componentes compartidos.
+ *
+ * No se declaran aquí: pestañas (components/_nav.css), estados vacíos
+ * (components/_empty-state.css) ni chips de estado (components/_status-badge.css).
+ */
 
 /* ========== AVATAR RESPONSIVO ========== */
 .profile-avatar {
-  width: var(--profile-avatar-xl);
-  height: var(--profile-avatar-xl);
+  width: 150px;
+  height: 150px;
   object-fit: cover;
-  transition: all 0.3s ease;
+  /* Sin transición de tamaño: solo se dispara al redimensionar la ventana
+     y anima propiedades de layout, que recalculan en cada fotograma. */
 }
 
 @media (max-width: 991.98px) {
-  .profile-avatar {
-    width: var(--profile-avatar-lg);
-    height: var(--profile-avatar-lg);
-  }
+  .profile-avatar { width: 120px; height: 120px; }
 }
 
 @media (max-width: 767.98px) {
-  .profile-avatar {
-    width: var(--profile-avatar-md);
-    height: var(--profile-avatar-md);
-  }
+  .profile-avatar { width: 100px; height: 100px; }
 }
 
 @media (max-width: 575.98px) {
-  .profile-avatar {
-    width: var(--profile-avatar-sm);
-    height: var(--profile-avatar-sm);
-  }
+  .profile-avatar { width: 80px; height: 80px; }
 }
 
-/* ========== TIMELINE ========== */
+/* Botón de cambiar foto: objetivo táctil de 44px (WCAG 2.5.5) */
+.profile-photo-btn {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  padding: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Vista previa cuadrada dentro del modal de subida */
+.profile-photo-preview {
+  height: 160px;
+  object-fit: cover;
+}
+
+/* Botones de refrescar de las tarjetas asíncronas */
+.profile-refresh-btn {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ========== LEYENDA DE COLORES (perfil + dashboard del aspirante) ========== */
+.legend-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-pill);
+}
+
+/* ========== BARRA DE PROGRESO DOCUMENTAL ========== */
+/* El porcentaje es el único valor genuinamente dinámico: llega desde Jinja
+   como custom property --seg-width, nunca como style="width:" suelto. */
+.profile-progress {
+  height: var(--space-5);
+  border-radius: var(--radius-md);
+}
+
+.profile-progress .progress-bar {
+  width: var(--seg-width, 0%);
+}
+
+/* ========== TIMELINE SIMPLE (historial de acciones) ========== */
 .timeline {
   position: relative;
-  padding-left: 30px;
-  margin-top: 20px;
-}
-
-.timeline:before {
-  content: '';
-  position: absolute;
-  left: 10px;
-  top: 0;
-  height: 100%;
-  width: 2px;
-  background-color: #e9ecef;
+  padding-left: var(--space-8);
 }
 
 .timeline-item {
   position: relative;
-  margin-bottom: 20px;
+  padding-bottom: var(--space-5);
+  border-left: 1px solid var(--border-default);
 }
 
-.timeline-dot {
+.timeline-item:last-child {
+  border-left-color: transparent;
+}
+
+.timeline-marker {
   position: absolute;
-  left: -30px;
-  top: 0;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 10px;
-  z-index: 2;
+  left: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-brand-primary);
+  border: 2px solid var(--bg-surface);
 }
 
 .timeline-content {
-  padding-bottom: 10px;
+  padding-left: var(--space-6);
 }
 
-/* Timeline responsivo */
+.timeline-date {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* ========== TIMELINE DEL PROCESO DE ADMISIÓN ========== */
+.timeline-modern {
+  position: relative;
+  padding: 0;
+}
+
+.timeline-item-modern {
+  display: flex;
+  position: relative;
+  padding-bottom: var(--space-8);
+  padding-left: var(--space-12);
+}
+
+.timeline-item-modern:last-child {
+  padding-bottom: 0;
+}
+
+.timeline-item-modern::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: var(--space-8);
+  height: calc(100% - var(--space-3));
+  width: 2px;
+  background-color: var(--border-default);
+}
+
+.timeline-item-modern:last-child::before {
+  display: none;
+}
+
+.timeline-marker-modern {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-inverse);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  z-index: var(--z-above);
+  border: 3px solid var(--bg-surface);
+  background-color: var(--color-neutral-500);
+}
+
+.timeline-done .timeline-marker-modern      { background-color: var(--color-success); }
+.timeline-inprogress .timeline-marker-modern { background-color: var(--color-brand-primary); }
+.timeline-pending .timeline-marker-modern    { background-color: var(--color-neutral-500); }
+.timeline-rejected .timeline-marker-modern   { background-color: var(--color-danger); }
+
+.timeline-content-modern {
+  flex: 1;
+  background-color: var(--bg-surface-sunken);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+}
+
+.timeline-done .timeline-content-modern {
+  background-color: var(--color-success-100);
+  border-color: var(--border-success-subtle);
+}
+
+.timeline-inprogress .timeline-content-modern {
+  background-color: var(--color-brand-primary-50);
+  border-color: var(--border-brand-subtle);
+}
+
+.timeline-rejected .timeline-content-modern {
+  background-color: var(--color-danger-100);
+  border-color: var(--border-danger-subtle);
+}
+
 @media (max-width: 767.98px) {
-  .timeline {
-    padding-left: 25px;
+  .timeline-item-modern {
+    padding-left: var(--space-10);
   }
-  
-  .timeline-dot {
-    left: -25px;
-    width: 16px;
-    height: 16px;
-    font-size: 8px;
+
+  .timeline-marker-modern {
+    width: var(--space-6);
+    height: var(--space-6);
+    font-size: var(--fs-xs);
+  }
+
+  .timeline-item-modern::before {
+    left: 11px;
+  }
+
+  .timeline-content-modern {
+    padding: var(--space-3) var(--space-4);
   }
 }
 
-/* ========== CARDS Y INTERACCIONES ========== */
-.card {
-  transition: all 0.3s ease;
-  border: none;
-  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+/* ==========================================================================
+   ALCANCE DE PÁGINA — todo lo que sigue solo aplica dentro de .profile-page
+   ========================================================================== */
+
+/* ── Tarjetas ─────────────────────────────────────────────────────────── */
+.profile-page .card {
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-1);
 }
 
-.card:hover {
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+/* Solo las tarjetas realmente interactivas se elevan al pasar el ratón */
+.profile-page a > .card,
+.profile-page .quick-action-card {
+  transition: box-shadow var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
+}
+
+.profile-page a > .card:hover,
+.profile-page .quick-action-card:hover {
+  box-shadow: var(--shadow-4);
   transform: translateY(-2px);
 }
 
-/* ========== BADGES Y BOTONES ========== */
-.badge {
-  font-weight: 500;
-  padding: 0.375rem 0.75rem;
-}
-
-.btn-outline-primary, .btn-outline-success, .btn-outline-danger, .btn-outline-info {
-  transition: all 0.2s ease;
-}
-
-.btn-outline-primary:hover, 
-.btn-outline-success:hover, 
-.btn-outline-danger:hover, 
-.btn-outline-info:hover {
-  transform: translateY(-2px);
-}
-
-/* ========== ICONOS EN CÍRCULOS ========== */
-.bg-primary.bg-opacity-10, 
-.bg-success.bg-opacity-10, 
-.bg-info.bg-opacity-10, 
-.bg-danger.bg-opacity-10, 
-.bg-warning.bg-opacity-10 {
-  transition: all 0.3s ease;
-  border-radius: 50%;
-}
-
-.bg-primary.bg-opacity-10:hover, 
-.bg-success.bg-opacity-10:hover, 
-.bg-info.bg-opacity-10:hover, 
-.bg-danger.bg-opacity-10:hover, 
-.bg-warning.bg-opacity-10:hover {
-  transform: scale(1.05);
-}
-
-/* ========== NAVEGACIÓN DE PESTAÑAS RESPONSIVA ========== */
-.nav-tabs {
-  border-bottom: 1px solid #dee2e6;
+/* ── Pestañas: solo desplazamiento horizontal en móvil.
+      El color y la tipografía los pone components/_nav.css. ─────────────── */
+.profile-page .nav-tabs {
   flex-wrap: nowrap;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-.nav-tabs::-webkit-scrollbar {
+.profile-page .nav-tabs .nav-link {
+  white-space: nowrap;
+}
+
+.profile-page .nav-tabs::-webkit-scrollbar {
   height: 4px;
 }
 
-.nav-tabs::-webkit-scrollbar-track {
-  background: #f1f1f1;
+.profile-page .nav-tabs::-webkit-scrollbar-track {
+  background-color: var(--bg-surface-sunken);
 }
 
-.nav-tabs::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 2px;
+.profile-page .nav-tabs::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: var(--radius-xs);
 }
 
-.nav-tabs .nav-link {
-  color: var(--text-muted);
-  font-weight: 500;
-  padding: 0.75rem 1rem;
-  white-space: nowrap;
-  border: none;
-  border-bottom: 3px solid transparent;
-  background: none;
-}
-
-.nav-tabs .nav-link.active {
-  color: var(--color-brand-primary);
-  font-weight: 600;
-  border-bottom-color: var(--color-brand-primary);
-  background: none;
-}
-
-.nav-tabs .nav-link:hover:not(.active) {
-  color: #495057;
-  background-color: rgba(13, 110, 253, 0.05);
-  border-bottom-color: rgba(13, 110, 253, 0.3);
-}
-
-/* Pestañas en móvil */
-@media (max-width: 575.98px) {
-  .nav-tabs .nav-link {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
-  }
-  
-  .nav-tabs .nav-link i {
-    font-size: 1rem;
-  }
-}
-
-/* ========== TABLAS RESPONSIVAS ========== */
-.table-hover tbody tr:hover {
-  background-color: rgba(13, 110, 253, 0.05);
-}
-
-.table-responsive {
-  border-radius: 0.375rem;
+/* ── Tablas ───────────────────────────────────────────────────────────── */
+.profile-page .table-hover tbody tr:hover {
+  background-color: var(--color-brand-primary-50);
 }
 
 @media (max-width: 767.98px) {
-  .table-responsive table {
-    font-size: 0.875rem;
-  }
-  
-  .table-responsive .btn {
-    padding: 0.25rem 0.5rem;
-  }
-  
-  .table-responsive .btn i {
-    font-size: 0.875rem;
+  .profile-page .siiap-table-wrapper table {
+    font-size: var(--fs-sm);
   }
 }
 
-/* ========== MODALES RESPONSIVOS ========== */
-.modal-header {
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
+/* ── Modales ──────────────────────────────────────────────────────────── */
+.profile-page .modal-header,
+.profile-modal .modal-header {
+  background-color: var(--bg-surface-sunken);
+  border-bottom: 1px solid var(--border-default);
 }
 
 @media (max-width: 575.98px) {
-  .modal-dialog {
-    margin: 0.5rem;
-  }
-  
-  .modal-xl {
+  .profile-modal .modal-dialog,
+  .profile-modal .modal-dialog.modal-xl {
     max-width: none;
-    margin: 0.5rem;
+    margin: var(--space-2);
   }
-  
-  .modal-body {
-    padding: 1rem;
-  }
-  
-  .modal-footer {
-    padding: 0.75rem 1rem;
-  }
-  
-  .modal-footer .btn {
+
+  .profile-modal .modal-body   { padding: var(--space-4); }
+  .profile-modal .modal-footer { padding: var(--space-3) var(--space-4); }
+
+  .profile-modal .modal-footer .btn {
     flex: 1;
-    margin: 0 0.25rem;
+    margin: 0 var(--space-1);
   }
 }
 
-/* ========== LEGEND DOT ========== */
-.legend-dot {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
+/* ── Formularios ──────────────────────────────────────────────────────── */
+.profile-page .form-label,
+.profile-modal .form-label {
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
 }
 
-/* ========== ESTADÍSTICAS RESPONSIVAS ========== */
-.stats-card {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border-radius: 0.5rem;
-  transition: all 0.3s ease;
-}
-
-.stats-card:hover {
-  background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
-  transform: translateY(-2px);
-}
-
-@media (max-width: 575.98px) {
-  .stats-card {
-    margin-bottom: 0.75rem;
-  }
-  
-  .stats-card h5 {
-    font-size: 1rem;
-  }
-  
-  .stats-card small {
-    font-size: 0.75rem;
-  }
-}
-
-/* ========== ALERTAS RESPONSIVAS ========== */
-.alert {
-  border-radius: 0.5rem;
-  border: none;
-  padding: 1rem;
-}
-
-@media (max-width: 575.98px) {
-  .alert {
-    padding: 0.75rem;
-    font-size: 0.875rem;
-  }
-}
-
-/* ========== FORMULARIOS RESPONSIVOS ========== */
-.form-label {
-  font-weight: 600;
-  color: #495057;
-  margin-bottom: 0.5rem;
-}
-
-.form-control:focus,
-.form-select:focus {
-  border-color: #86b7fe;
+/* Anillo de foco de marca (antes era el azul por defecto de Bootstrap) */
+.profile-page .form-control:focus,
+.profile-page .form-select:focus,
+.profile-modal .form-control:focus,
+.profile-modal .form-select:focus {
+  border-color: var(--color-brand-primary);
   outline: 0;
-  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  box-shadow: var(--shadow-focus);
 }
 
 @media (max-width: 575.98px) {
-  .form-label {
-    font-size: 0.875rem;
+  .profile-page .form-label,
+  .profile-modal .form-label {
+    font-size: var(--fs-sm);
   }
-  
-  .form-control,
-  .form-select {
-    padding: 0.5rem 0.75rem;
-  }
-}
 
-/* ========== CONTENIDO SCROLLEABLE ========== */
-.scrollable-content {
-  max-height: 400px;
-  overflow-y: auto;
-  border-radius: 0.375rem;
-}
-
-.scrollable-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scrollable-content::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.scrollable-content::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-.scrollable-content::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* ========== ANIMACIONES SUAVES ========== */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  .profile-page .form-control,
+  .profile-page .form-select,
+  .profile-modal .form-control,
+  .profile-modal .form-select {
+    padding: var(--space-2) var(--space-3);
   }
 }
 
-.fade-in {
-  animation: fadeIn 0.5s ease-out;
+/* ── Datos etiqueta/valor de la pestaña Información ──────────────────── */
+.profile-data-list {
+  margin-bottom: var(--space-4);
 }
 
-/* ========== UTILIDADES ADICIONALES ========== */
-.text-truncate-2 {
-  display: -webkit-box;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.profile-data-list__term {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-1);
 }
 
-.border-start-primary {
-  border-left: 4px solid var(--color-brand-primary) !important;
+.profile-data-list__value {
+  margin-bottom: 0;
+  color: var(--text-primary);
 }
 
-.border-start-success {
-  border-left: 4px solid var(--color-success) !important;
+/* ── Tarjetas de resumen de la cabecera ───────────────────────────────── */
+.profile-summary-card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  text-align: center;
 }
 
-.border-start-danger {
-  border-left: 4px solid var(--color-danger) !important;
-}
-
-.border-start-warning {
-  border-left: 4px solid var(--color-warning) !important;
-}
-
-/* ========== MEJORAS ESPECÍFICAS PARA MÓVIL ========== */
 @media (max-width: 575.98px) {
-  /* Reducir padding general */
-  .container-fluid {
-    padding-left: 1rem;
-    padding-right: 1rem;
+  .profile-page .container-fluid {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
   }
-  
-  /* Títulos más compactos */
-  h2.h3 {
-    font-size: 1.5rem;
-  }
-  
-  h5.h6 {
-    font-size: 1rem;
-  }
-  
-  /* Botones más grandes en móvil */
-  .btn-sm {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-  }
-  
-  /* Cards más compactas */
-  .card-body {
-    padding: 1rem;
-  }
-  
-  .card-header {
-    padding: 0.75rem 1rem;
-  }
-}
 
-/* ========== DARK MODE COMPATIBILITY ========== */
-@media (prefers-color-scheme: dark) {
-  .timeline:before {
-    background-color: #495057;
-  }
-  
-  .nav-tabs .nav-link {
-    color: #adb5bd;
-  }
-  
-  .nav-tabs .nav-link.active {
-    color: #fff;
-  }
-}
-
-.timeline {
-    position: relative;
-    padding-left: 30px;
-}
-
-.timeline-item {
-    position: relative;
-    padding-bottom: 20px;
-    border-left: 2px solid #dee2e6;
-}
-
-.timeline-item:last-child {
-    border-left: 2px solid transparent;
-}
-
-.timeline-marker {
-    position: absolute;
-    left: -8px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--color-brand-primary);
-    border: 2px solid #fff;
-}
-
-.timeline-content {
-    padding-left: 25px;
-}
-
-.timeline-date {
-    font-size: 0.875rem;
-    color: #ffffff;
-}
-
-/* ========== TIMELINE MODERNO (NUEVO DISEÑO) ========== */
-.timeline-modern {
-    position: relative;
-    padding: 0;
-}
-
-.timeline-item-modern {
-    display: flex;
-    position: relative;
-    padding-bottom: 2rem;
-    padding-left: 3rem;
-}
-
-.timeline-item-modern:last-child {
-    padding-bottom: 0;
-}
-
-.timeline-item-modern::before {
-    content: '';
-    position: absolute;
-    left: 15px;
-    top: 30px;
-    height: calc(100% - 10px);
-    width: 2px;
-    background: #dee2e6;
-}
-
-.timeline-item-modern:last-child::before {
-    display: none;
-}
-
-.timeline-marker-modern {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 14px;
-    font-weight: bold;
-    z-index: 2;
-    border: 3px solid white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.timeline-done .timeline-marker-modern {
-    background: linear-gradient(135deg, var(--color-success) 0%, #2ec27e 100%);
-}
-
-.timeline-inprogress .timeline-marker-modern {
-    background: linear-gradient(135deg, var(--color-brand-primary) 0%, var(--color-brand-secondary) 100%);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-    .timeline-inprogress .timeline-marker-modern {
-        animation: pulse 2s infinite;
-    }
-}
-
-.timeline-pending .timeline-marker-modern {
-    background: var(--color-neutral-500);
-}
-
-.timeline-rejected .timeline-marker-modern {
-    background: linear-gradient(135deg, var(--color-danger) 0%, var(--color-brand-accent-600) 100%);
-}
-
-@keyframes pulse {
-    0%, 100% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.05);
-    }
-}
-
-.timeline-content-modern {
-    flex: 1;
-    background: #f8f9fa;
-    padding: 1rem 1.25rem;
-    border-radius: 8px;
-    border-left: 3px solid #dee2e6;
-}
-
-.timeline-done .timeline-content-modern {
-    border-left-color: var(--color-success);
-}
-
-.timeline-inprogress .timeline-content-modern {
-    border-left-color: var(--color-brand-primary);
-    background: linear-gradient(90deg, rgba(11, 30, 138, 0.05) 0%, var(--bg-surface-sunken) 100%);
-}
-
-.timeline-rejected .timeline-content-modern {
-    border-left-color: var(--color-danger);
-}
-
-/* Timeline moderno responsivo */
-@media (max-width: 767.98px) {
-    .timeline-item-modern {
-        padding-left: 2.5rem;
-    }
-
-    .timeline-marker-modern {
-        width: 28px;
-        height: 28px;
-        font-size: 12px;
-    }
-
-    .timeline-item-modern::before {
-        left: 13px;
-    }
-
-    .timeline-content-modern {
-        padding: 0.75rem 1rem;
-    }
+  .profile-page .card-body   { padding: var(--space-4); }
+  .profile-page .card-header { padding: var(--space-3) var(--space-4); }
 }

@@ -1,30 +1,32 @@
 {% extends 'base.html' %}
-{% block title %}Deliberacion de Aspirantes{% endblock %}
+{% from '_macros.html' import data_table_open, data_table_close, skeleton_table, required_mark %}
+
+{% block title %}Deliberación de Aspirantes{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/coordinator/deliberation.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+<div class="container-fluid py-4" id="deliberationPage">
   <div class="row">
     <div class="col-12">
-      <!-- Header -->
+      <!-- Encabezado -->
       <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
         <div>
           <h1 class="h3 mb-2">
-            <i class="bi bi-people-fill me-2"></i>Deliberacion de Aspirantes
+            <i class="bi bi-people-fill me-2" aria-hidden="true"></i>Deliberación de Aspirantes
           </h1>
-          <p class="text-muted mb-0">Gestiona el proceso de admision de aspirantes</p>
+          <p class="text-secondary mb-0">Gestiona el proceso de admisión de aspirantes</p>
         </div>
       </div>
 
-      <!-- Selector de programa -->
+      <!-- Selector de programa e indicadores -->
       <div class="card mb-4">
         <div class="card-body">
-          <div class="row align-items-center">
+          <div class="row align-items-center g-3">
             <div class="col-md-4">
-              <label class="form-label fw-bold">Programa</label>
+              <label class="form-label fw-bold" for="programSelector">Programa</label>
               <select class="form-select" id="programSelector">
                 <option value="" {% if not selected_program %}selected{% endif %}>Todos los programas</option>
                 {% for program in coordinator_programs %}
@@ -35,192 +37,183 @@
               </select>
             </div>
             <div class="col-md-8">
-              <div id="statsContainer" class="d-flex flex-wrap gap-3 mt-3 mt-md-0">
-                <!-- Stats cards will be loaded here -->
+              <div id="statsContainer" class="d-flex flex-wrap gap-3"
+                   role="group" aria-label="Indicadores de deliberación">
+                <!-- Las tarjetas de indicadores se cargan por JS -->
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Tabs por estado -->
+      <!-- Pestañas por estado -->
       <ul class="nav nav-tabs mb-4" id="statusTabs" role="tablist">
         <li class="nav-item" role="presentation">
           <button class="nav-link active" id="pending-interview-tab" data-bs-toggle="tab"
-                  data-bs-target="#pending-interview-pane" data-status="pending_interview" type="button" role="tab">
-            <i class="bi bi-calendar-check me-2"></i>Con Entrevista Agendada
+                  data-bs-target="#pending-interview-pane" data-status="pending_interview"
+                  type="button" role="tab" aria-controls="pending-interview-pane" aria-selected="true">
+            <i class="bi bi-calendar-check" aria-hidden="true"></i>Con entrevista agendada
             <span class="badge bg-secondary ms-2" id="pendingInterviewCount">0</span>
+            <span class="visually-hidden">aspirantes</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="interview-completed-tab" data-bs-toggle="tab"
-                  data-bs-target="#interview-completed-pane" data-status="interview_completed" type="button" role="tab">
-            <i class="bi bi-hourglass-split me-2"></i>Entrevista Completada
-            <span class="badge bg-warning text-dark ms-2" id="interviewCompletedCount">0</span>
+                  data-bs-target="#interview-completed-pane" data-status="interview_completed"
+                  type="button" role="tab" aria-controls="interview-completed-pane" aria-selected="false">
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i>Entrevista completada
+            <span class="badge bg-warning ms-2" id="interviewCompletedCount">0</span>
+            <span class="visually-hidden">aspirantes</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="deliberation-tab" data-bs-toggle="tab"
-                  data-bs-target="#deliberation-pane" data-status="deliberation" type="button" role="tab">
-            <i class="bi bi-chat-square-dots me-2"></i>En Deliberacion
+                  data-bs-target="#deliberation-pane" data-status="deliberation"
+                  type="button" role="tab" aria-controls="deliberation-pane" aria-selected="false">
+            <i class="bi bi-chat-square-dots" aria-hidden="true"></i>En deliberación
             <span class="badge bg-info ms-2" id="deliberationCount">0</span>
+            <span class="visually-hidden">aspirantes</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="accepted-tab" data-bs-toggle="tab"
-                  data-bs-target="#accepted-pane" data-status="accepted" type="button" role="tab">
-            <i class="bi bi-check-circle me-2"></i>Aceptados
+                  data-bs-target="#accepted-pane" data-status="accepted"
+                  type="button" role="tab" aria-controls="accepted-pane" aria-selected="false">
+            <i class="bi bi-check-circle" aria-hidden="true"></i>Aceptados
             <span class="badge bg-success ms-2" id="acceptedCount">0</span>
+            <span class="visually-hidden">aspirantes</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="rejected-tab" data-bs-toggle="tab"
-                  data-bs-target="#rejected-pane" data-status="rejected" type="button" role="tab">
-            <i class="bi bi-x-circle me-2"></i>Rechazados
+                  data-bs-target="#rejected-pane" data-status="rejected"
+                  type="button" role="tab" aria-controls="rejected-pane" aria-selected="false">
+            <i class="bi bi-x-circle" aria-hidden="true"></i>Rechazados
             <span class="badge bg-danger ms-2" id="rejectedCount">0</span>
+            <span class="visually-hidden">aspirantes</span>
           </button>
         </li>
       </ul>
 
-      <!-- Contenido de tabs -->
+      <!-- Contenido de pestañas -->
       <div class="tab-content" id="statusTabsContent">
-        <!-- Con Entrevista Agendada -->
-        <div class="tab-pane fade show active" id="pending-interview-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">Aspirantes con Entrevista Agendada</h5>
-              <small class="text-muted">Marcar como entrevista completada</small>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="pendingInterviewTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Aspirante</th>
-                      <th>Email</th>
-                      <th>CURP</th>
-                      <th class="text-center">Fecha Registro</th>
-                      <th class="text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="5" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 5">{% for _ in range(5) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+
+        <!-- Con entrevista agendada -->
+        <div class="tab-pane fade show active" id="pending-interview-pane" role="tabpanel"
+             aria-labelledby="pending-interview-tab">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h5 mb-0">Aspirantes con entrevista agendada</h2>
+            <p class="text-secondary small mb-0">Marca la entrevista como completada</p>
           </div>
+          {{ data_table_open('Aspirantes con entrevista agendada, pendientes de marcar como completada',
+                             id='pendingInterviewTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Aspirante</th>
+                <th scope="col">Correo</th>
+                <th scope="col">CURP</th>
+                <th scope="col" class="text-center">Fecha de registro</th>
+                <th scope="col" class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="5" class="p-0">{{ skeleton_table(rows=4, cols=5, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
 
-        <!-- Entrevista Completada -->
-        <div class="tab-pane fade" id="interview-completed-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">Aspirantes con Entrevista Completada</h5>
-              <small class="text-muted">Listos para iniciar deliberacion</small>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="interviewCompletedTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Aspirante</th>
-                      <th>Email</th>
-                      <th>CURP</th>
-                      <th class="text-center">Fecha Registro</th>
-                      <th class="text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="5" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 5">{% for _ in range(5) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        <!-- Entrevista completada -->
+        <div class="tab-pane fade" id="interview-completed-pane" role="tabpanel"
+             aria-labelledby="interview-completed-tab">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h5 mb-0">Aspirantes con entrevista completada</h2>
+            <p class="text-secondary small mb-0">Listos para iniciar deliberación</p>
           </div>
+          {{ data_table_open('Aspirantes con entrevista completada, listos para iniciar deliberación',
+                             id='interviewCompletedTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Aspirante</th>
+                <th scope="col">Correo</th>
+                <th scope="col">CURP</th>
+                <th scope="col" class="text-center">Fecha de registro</th>
+                <th scope="col" class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="5" class="p-0">{{ skeleton_table(rows=4, cols=5, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
 
-        <!-- En Deliberacion -->
-        <div class="tab-pane fade" id="deliberation-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">Aspirantes en Proceso de Deliberacion</h5>
-              <small class="text-muted">Pendientes de decision</small>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="deliberationTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Aspirante</th>
-                      <th>Email</th>
-                      <th class="text-center">Inicio Deliberacion</th>
-                      <th class="text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="4" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 4">{% for _ in range(4) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        <!-- En deliberación -->
+        <div class="tab-pane fade" id="deliberation-pane" role="tabpanel"
+             aria-labelledby="deliberation-tab">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h5 mb-0">Aspirantes en proceso de deliberación</h2>
+            <p class="text-secondary small mb-0">Pendientes de decisión</p>
           </div>
+          {{ data_table_open('Aspirantes en proceso de deliberación, pendientes de decisión',
+                             id='deliberationTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Aspirante</th>
+                <th scope="col">Correo</th>
+                <th scope="col" class="text-center">Inicio de deliberación</th>
+                <th scope="col" class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="4" class="p-0">{{ skeleton_table(rows=4, cols=4, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
 
         <!-- Aceptados -->
-        <div class="tab-pane fade" id="accepted-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">Aspirantes Aceptados</h5>
-              <small class="text-muted">Admitidos al programa</small>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="acceptedTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Aspirante</th>
-                      <th>Email</th>
-                      <th class="text-center">Fecha Decision</th>
-                      <th>Notas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="4" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 4">{% for _ in range(4) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        <div class="tab-pane fade" id="accepted-pane" role="tabpanel" aria-labelledby="accepted-tab">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h5 mb-0">Aspirantes aceptados</h2>
+            <p class="text-secondary small mb-0">Admitidos al programa</p>
           </div>
+          {{ data_table_open('Aspirantes aceptados y admitidos al programa',
+                             id='acceptedTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Aspirante</th>
+                <th scope="col">Correo</th>
+                <th scope="col" class="text-center">Fecha de decisión</th>
+                <th scope="col">Notas</th>
+                <th scope="col" class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="5" class="p-0">{{ skeleton_table(rows=4, cols=5, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
 
         <!-- Rechazados -->
-        <div class="tab-pane fade" id="rejected-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">Aspirantes Rechazados</h5>
-              <small class="text-muted">No admitidos</small>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="rejectedTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Aspirante</th>
-                      <th>Email</th>
-                      <th class="text-center">Tipo</th>
-                      <th class="text-center">Fecha</th>
-                      <th>Notas</th>
-                      <th class="text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="6" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 6">{% for _ in range(6) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        <div class="tab-pane fade" id="rejected-pane" role="tabpanel" aria-labelledby="rejected-tab">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h5 mb-0">Aspirantes rechazados</h2>
+            <p class="text-secondary small mb-0">No admitidos</p>
           </div>
+          {{ data_table_open('Aspirantes rechazados y no admitidos al programa',
+                             id='rejectedTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Aspirante</th>
+                <th scope="col">Correo</th>
+                <th scope="col" class="text-center">Tipo</th>
+                <th scope="col" class="text-center">Fecha</th>
+                <th scope="col">Notas</th>
+                <th scope="col" class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="6" class="p-0">{{ skeleton_table(rows=4, cols=6, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
       </div>
     </div>
@@ -229,13 +222,14 @@
 {% endblock %}
 
 {% block modals %}
-<!-- Modal: Decision de Deliberacion -->
-<div class="modal fade" id="decisionModal" tabindex="-1" data-bs-backdrop="static">
-  <div class="modal-dialog">
+<!-- Modal: Decisión de deliberación -->
+<div class="modal fade" id="decisionModal" tabindex="-1" data-bs-backdrop="static"
+     aria-labelledby="decisionModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="decisionModalTitle">Tomar Decision</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="decisionModalTitle">Tomar decisión</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="decisionUserId">
@@ -243,105 +237,115 @@
         <input type="hidden" id="decisionAction">
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Aspirante</label>
-          <p class="mb-0" id="decisionApplicantName">-</p>
+          <p class="form-label fw-bold mb-1" id="decisionApplicantLabel">Aspirante</p>
+          <p class="mb-0" id="decisionApplicantName" aria-labelledby="decisionApplicantLabel">-</p>
         </div>
 
-        <!-- Seccion para aceptación condicionada -->
-        <div id="acceptSection" style="display: none;">
+        <!-- Sección de aceptación condicionada -->
+        <div id="acceptSection" class="d-none">
           <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" id="acceptIsConditional">
+            <input class="form-check-input" type="checkbox" id="acceptIsConditional"
+                   aria-describedby="acceptIsConditionalHelp">
             <label class="form-check-label fw-bold" for="acceptIsConditional">
               Aceptación condicionada
             </label>
-            <div class="form-text">
+            <div class="form-text" id="acceptIsConditionalHelp">
               Marca esta opción si el aspirante es aceptado bajo condiciones (cursos remediales, documentación pendiente, etc.).
             </div>
           </div>
-          <div class="mb-3" id="dictamenSection" style="display: none;">
+          <div class="mb-3 d-none" id="dictamenSection">
             <label class="form-label fw-bold" for="dictamenFile">
-              Dictamen de Aceptación <span class="text-danger">*</span>
+              Dictamen de aceptación{{ required_mark() }}
             </label>
             <input type="file" class="form-control" id="dictamenFile"
-                   accept=".pdf,.doc,.docx" required>
-            <div class="form-text">
+                   accept=".pdf,.doc,.docx" aria-describedby="dictamenFileHelp" required>
+            <div class="form-text" id="dictamenFileHelp">
               Adjunta el documento oficial con las condiciones de aceptación (PDF preferido).
             </div>
           </div>
         </div>
 
-        <!-- Seccion para rechazo -->
-        <div id="rejectionSection" style="display: none;">
+        <!-- Sección de rechazo -->
+        <div id="rejectionSection" class="d-none">
           <div class="mb-3">
-            <label class="form-label fw-bold">Tipo de Rechazo</label>
+            <label class="form-label fw-bold" for="rejectionType">Tipo de rechazo</label>
             <select class="form-select" id="rejectionType">
               <option value="full">Rechazo definitivo</option>
               <option value="partial">Solicitar correcciones</option>
             </select>
           </div>
-          <div class="mb-3" id="correctionSection" style="display: none;">
+          <div class="mb-3 d-none" id="correctionSection">
             <div class="mb-3">
-              <label class="form-label fw-bold">Documento a corregir <span class="text-muted fw-normal">(opcional)</span></label>
-              <select class="form-select" id="rejectionArchiveSelect" disabled>
+              <label class="form-label fw-bold" for="rejectionArchiveSelect">
+                Documento a corregir <span class="text-secondary fw-normal">(opcional)</span>
+              </label>
+              <select class="form-select" id="rejectionArchiveSelect"
+                      aria-describedby="rejectionArchiveHelp" disabled>
                 <option value="">— Sin documento específico —</option>
               </select>
-              <div class="form-text">Selecciona el documento del expediente que el aspirante debe volver a subir.</div>
+              <div class="form-text" id="rejectionArchiveHelp">
+                Selecciona el documento del expediente que el aspirante debe volver a subir.
+              </div>
             </div>
-            <label class="form-label fw-bold">Descripción de las correcciones</label>
+            <label class="form-label fw-bold" for="correctionRequired">Descripción de las correcciones</label>
             <textarea class="form-control" id="correctionRequired" rows="3"
                       placeholder="Describe las correcciones que debe realizar el aspirante..."></textarea>
           </div>
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Notas (opcional)</label>
+          <label class="form-label fw-bold" for="decisionNotes">Notas (opcional)</label>
           <textarea class="form-control" id="decisionNotes" rows="3"
-                    placeholder="Observaciones sobre la decision..."></textarea>
+                    placeholder="Observaciones sobre la decisión..."></textarea>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="confirmDecisionBtn">Confirmar</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal: Confirmacion de Inicio de Deliberacion -->
-<div class="modal fade" id="startDeliberationModal" tabindex="-1">
-  <div class="modal-dialog">
+<!-- Modal: Confirmación de inicio de deliberación -->
+<div class="modal fade" id="startDeliberationModal" tabindex="-1"
+     aria-labelledby="startDeliberationModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Iniciar Deliberacion</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="startDeliberationModalTitle">
+          <i class="bi bi-play-circle me-2" aria-hidden="true"></i>Iniciar deliberación
+        </h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="startDelibUserId">
         <input type="hidden" id="startDelibProgramId">
-        <p>Deseas iniciar el proceso de deliberacion para <strong id="startDelibApplicantName">-</strong>?</p>
-        <p class="text-muted small">Una vez iniciada, podras tomar una decision de aceptacion o rechazo.</p>
+        <p>¿Deseas iniciar el proceso de deliberación para <strong id="startDelibApplicantName">-</strong>?</p>
+        <p class="text-secondary small mb-0">Una vez iniciada, podrás tomar una decisión de aceptación o rechazo.</p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="confirmStartDelibBtn">Iniciar</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal: Confirmación Genérica -->
-<div class="modal fade" id="confirmModal" tabindex="-1">
-  <div class="modal-dialog">
+<!-- Modal: Confirmación genérica -->
+<div class="modal fade" id="confirmModal" tabindex="-1"
+     aria-labelledby="confirmModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="confirmModalTitle">Confirmar</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="confirmModalTitle">Confirmar</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <p class="mb-0" id="confirmModalMessage"></p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="confirmModalBtn">Confirmar</button>
       </div>
     </div>

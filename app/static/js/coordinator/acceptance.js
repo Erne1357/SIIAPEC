@@ -54,6 +54,52 @@ class AcceptanceManager {
         return Promise.all(tasks);
     }
 
+    /** Estado vacío en tabla, con el componente compartido completo. */
+    _emptyRow(colspan, icon, title, description) {
+        return `
+            <tr>
+                <td colspan="${colspan}">
+                    <div class="empty-state empty-state--inline">
+                        <div class="empty-state__icon"><i class="bi bi-${icon}" aria-hidden="true"></i></div>
+                        <h3 class="empty-state__title">${title}</h3>
+                        <p class="empty-state__description">${description}</p>
+                    </div>
+                </td>
+            </tr>`;
+    }
+
+    /** Estado de error en tabla. */
+    _errorRow(colspan, detail) {
+        return `
+            <tr>
+                <td colspan="${colspan}">
+                    <div class="empty-state empty-state--inline empty-state--error">
+                        <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+                        <h3 class="empty-state__title">No se pudieron cargar los datos</h3>
+                        <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
+                        <p class="empty-state__error-detail">${detail || ''}</p>
+                    </div>
+                </td>
+            </tr>`;
+    }
+
+    /** Fila de carga accesible dentro de un <tbody>. */
+    _loadingRow(colspan, message) {
+        return `
+            <tr>
+                <td colspan="${colspan}" class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">${message}</span>
+                    </div>
+                    <span class="ms-2 text-secondary">${message}</span>
+                </td>
+            </tr>`;
+    }
+
+    _announce(message) {
+        if (window.SIIAP && SIIAP.announce) SIIAP.announce(message);
+    }
+
     bindEvents() {
         if (this.programSelector) {
             this.programSelector.addEventListener('change', () => {
@@ -93,8 +139,7 @@ class AcceptanceManager {
         // Show/hide notes required indicator when selecting reject
         document.querySelectorAll('input[name="reviewReceiptStatus"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
-                const notesRequired = document.getElementById('notesRequired');
-                notesRequired.style.display = e.target.value === 'rejected' ? 'inline' : 'none';
+                this._setNotesRequired('notesRequired', 'reviewReceiptNotes', e.target.value === 'rejected');
             });
         });
 
@@ -116,10 +161,19 @@ class AcceptanceManager {
         // Show/hide notes required when rejecting deferral
         document.querySelectorAll('input[name="reviewDeferralStatus"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
-                const required = document.getElementById('deferralNotesRequired');
-                required.style.display = e.target.value === 'rejected' ? 'inline' : 'none';
+                this._setNotesRequired('deferralNotesRequired', 'reviewDeferralNotes', e.target.value === 'rejected');
             });
         });
+    }
+
+    /**
+     * Muestra/oculta la marca de campo requerido y sincroniza aria-required en
+     * el control: el asterisco por sí solo no comunica obligatoriedad.
+     */
+    _setNotesRequired(markId, textareaId, isRequired) {
+        document.getElementById(markId)?.classList.toggle('d-none', !isRequired);
+        const textarea = document.getElementById(textareaId);
+        if (textarea) textarea.setAttribute('aria-required', isRequired ? 'true' : 'false');
     }
 
     loadCurrentTab() {
@@ -149,25 +203,23 @@ class AcceptanceManager {
             document.getElementById('receiptCount').textContent = stats.receipt_submitted;
             document.getElementById('completedCount').textContent = stats.completed;
 
+            // Tarjetas de indicadores (componente compartido .stat-card).
+            // La tarjeta sin modificador ES el tono neutro; el tono nunca es el
+            // único portador de significado: cada una lleva icono + etiqueta.
             if (this.statsContainer) {
-                this.statsContainer.innerHTML = `
-                    <div class="stat-card stat-pending">
-                        <div class="stat-value">${stats.total_accepted || 0}</div>
-                        <div class="stat-label">Total Aceptados</div>
+                const cards = [
+                    { tone: '',        icon: 'people-fill',            value: stats.total_accepted || 0,    label: 'Total aceptados' },
+                    { tone: 'warning', icon: 'hourglass-split',        value: stats.pending_docs || 0,      label: 'Pendientes' },
+                    { tone: 'info',    icon: 'file-earmark-arrow-up',  value: stats.receipt_submitted || 0, label: 'Boleta recibida' },
+                    { tone: 'success', icon: 'check-all',              value: stats.completed || 0,         label: 'Completados' },
+                ];
+                this.statsContainer.innerHTML = cards.map(c => `
+                    <div class="stat-card${c.tone ? ' stat-card--' + c.tone : ''}">
+                        <i class="bi bi-${c.icon} stat-card__icon" aria-hidden="true"></i>
+                        <p class="stat-card__value">${c.value}</p>
+                        <p class="stat-card__label">${c.label}</p>
                     </div>
-                    <div class="stat-card stat-warning">
-                        <div class="stat-value">${stats.pending_docs || 0}</div>
-                        <div class="stat-label">Pendientes</div>
-                    </div>
-                    <div class="stat-card stat-info">
-                        <div class="stat-value">${stats.receipt_submitted || 0}</div>
-                        <div class="stat-label">Boleta Recibida</div>
-                    </div>
-                    <div class="stat-card stat-success">
-                        <div class="stat-value">${stats.completed || 0}</div>
-                        <div class="stat-label">Completados</div>
-                    </div>
-                `;
+                `).join('');
             }
         } catch (error) {
             console.error('Error loading stats:', error);
@@ -217,7 +269,11 @@ class AcceptanceManager {
 
         const colspan = this._isAllMode() ? 6 : 5;
         if (!applicants.length) {
-            tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay aspirantes pendientes</p></td></tr>`;
+            tbody.innerHTML = this._emptyRow(
+                colspan, 'check2-circle', 'Sin aspirantes pendientes',
+                'Todos los aspirantes aceptados ya tienen su carta y su tira de materias.'
+            );
+            this._announce('Sin aspirantes pendientes de documentos.');
             return;
         }
 
@@ -268,6 +324,7 @@ class AcceptanceManager {
                 </tr>
             `;
         }).join('');
+        this._announce(`${applicants.length} aspirante(s) pendiente(s) de documentos.`);
     }
 
     /**
@@ -282,6 +339,7 @@ class AcceptanceManager {
         if (want && !existing) {
             const th = document.createElement('th');
             th.className = 'program-col';
+            th.scope = 'col';
             th.textContent = 'Programa';
             thead.insertBefore(th, thead.firstChild);
         } else if (!want && existing) {
@@ -296,7 +354,11 @@ class AcceptanceManager {
 
         const colspan = this._isAllMode() ? 7 : 6;
         if (!applicants.length) {
-            tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay boletas pendientes de revision</p></td></tr>`;
+            tbody.innerHTML = this._emptyRow(
+                colspan, 'inbox', 'Sin boletas por revisar',
+                'Aqui aparecerán las boletas de servicios escolares en cuanto los aspirantes las suban.'
+            );
+            this._announce('Sin boletas pendientes de revisión.');
             return;
         }
 
@@ -314,9 +376,7 @@ class AcceptanceManager {
                     <td class="applicant-email">${user.email}</td>
                     <td class="text-center">${this.renderDocBadge(docs.acceptance_letter)}</td>
                     <td class="text-center">${this.renderDocBadge(docs.course_schedule)}</td>
-                    <td class="text-center">
-                        <span class="badge bg-info">Subida</span>
-                    </td>
+                    <td class="text-center">${SIIAP.statusBadge('review', 'Subida', 'sm')}</td>
                     <td class="text-center">
                         <button class="btn btn-sm btn-primary btn-action"
                                 onclick="acceptanceManager.showReviewModal(${receiptDoc.id}, '${user.full_name}', '${receiptDoc.file_path}')">
@@ -326,6 +386,7 @@ class AcceptanceManager {
                 </tr>
             `;
         }).join('');
+        this._announce(`${applicants.length} boleta(s) por revisar.`);
     }
 
     renderCompletedTab(applicants) {
@@ -335,7 +396,11 @@ class AcceptanceManager {
 
         const colspan = this._isAllMode() ? 7 : 6;
         if (!applicants.length) {
-            tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay procesos completados aun</p></td></tr>`;
+            tbody.innerHTML = this._emptyRow(
+                colspan, 'inbox', 'Sin procesos completados',
+                'Ningún aspirante ha completado todavía el proceso de inscripción.'
+            );
+            this._announce('Sin procesos de inscripción completados.');
             return;
         }
 
@@ -347,7 +412,7 @@ class AcceptanceManager {
 
             let controlNumberCell;
             if (user.control_number) {
-                controlNumberCell = `<span class="badge bg-primary fs-6">${user.control_number}</span>`;
+                controlNumberCell = `<span class="badge bg-primary font-monospace">${user.control_number}</span>`;
             } else {
                 controlNumberCell = `
                     <button class="btn btn-sm btn-outline-success btn-action"
@@ -361,13 +426,14 @@ class AcceptanceManager {
                     ${programCell}
                     <td class="applicant-name">${user.full_name}</td>
                     <td class="applicant-email">${user.email}</td>
-                    <td class="text-center"><span class="badge bg-success">Disponible</span></td>
-                    <td class="text-center"><span class="badge bg-success">Disponible</span></td>
-                    <td class="text-center"><span class="badge bg-success">Aprobada</span></td>
+                    <td class="text-center">${SIIAP.statusBadge('approved', 'Disponible', 'sm')}</td>
+                    <td class="text-center">${SIIAP.statusBadge('approved', 'Disponible', 'sm')}</td>
+                    <td class="text-center">${SIIAP.statusBadge('approved', 'Aprobada', 'sm')}</td>
                     <td class="text-center">${controlNumberCell}</td>
                 </tr>
             `;
         }).join('');
+        this._announce(`${applicants.length} proceso(s) completado(s).`);
     }
 
     showAssignControlNumberModal(userId, programId, applicantName) {
@@ -425,23 +491,27 @@ class AcceptanceManager {
         }
     }
 
+    /** Chip de estado documental — usa el componente compartido .status-badge. */
     renderDocBadge(doc) {
         if (!doc || doc.status === 'pending' || !doc.file_path) {
-            return '<span class="badge bg-secondary">Pendiente</span>';
+            return SIIAP.statusBadge('pending', 'Pendiente', 'sm');
         }
-        if (doc.status === 'uploaded' || doc.status === 'approved') {
-            return '<span class="badge bg-success">Subida</span>';
+        if (doc.status === 'approved') {
+            return SIIAP.statusBadge('approved', 'Aprobada', 'sm');
+        }
+        if (doc.status === 'uploaded') {
+            return SIIAP.statusBadge('review', 'Subida', 'sm');
         }
         if (doc.status === 'rejected') {
-            return '<span class="badge bg-danger">Rechazada</span>';
+            return SIIAP.statusBadge('rejected', 'Rechazada', 'sm');
         }
-        return '<span class="badge bg-secondary">-</span>';
+        return SIIAP.statusBadge('pending', 'Sin registro', 'sm');
     }
 
     showUploadModal(userId, programId, applicantName, documentType) {
         const typeLabels = {
-            'acceptance_letter': 'Carta de Aceptacion',
-            'course_schedule': 'Tira de Materias',
+            'acceptance_letter': 'Carta de aceptación',
+            'course_schedule': 'Tira de materias',
         };
 
         document.getElementById('uploadDocUserId').value = userId;
@@ -449,7 +519,7 @@ class AcceptanceManager {
         document.getElementById('uploadDocType').value = documentType;
         document.getElementById('uploadDocApplicantName').textContent = applicantName;
         document.getElementById('uploadDocTypeLabel').textContent = typeLabels[documentType] || documentType;
-        document.getElementById('uploadDocModalTitle').textContent = `Subir ${typeLabels[documentType] || documentType}`;
+        document.getElementById('uploadDocModalTitle').textContent = `Subir ${(typeLabels[documentType] || documentType).toLowerCase()}`;
         document.getElementById('uploadDocFile').value = '';
 
         this.uploadDocModal.show();
@@ -511,7 +581,7 @@ class AcceptanceManager {
         document.getElementById('reviewReceiptDocId').value = docId;
         document.getElementById('reviewReceiptApplicantName').textContent = applicantName;
         document.getElementById('reviewReceiptNotes').value = '';
-        document.getElementById('notesRequired').style.display = 'none';
+        this._setNotesRequired('notesRequired', 'reviewReceiptNotes', false);
 
         // Reset radios
         document.querySelectorAll('input[name="reviewReceiptStatus"]').forEach(r => r.checked = false);
@@ -524,7 +594,15 @@ class AcceptanceManager {
             const phase = parts[1];
             const filename = parts.slice(2).join('/');
             const downloadUrl = `/files/doc/${userId}/${phase}/${filename}`;
-            document.getElementById('viewReceiptBtn').href = downloadUrl;
+            const viewBtn = document.getElementById('viewReceiptBtn');
+            viewBtn.href = downloadUrl;
+            viewBtn.classList.remove('disabled');
+            viewBtn.setAttribute('aria-disabled', 'false');
+        } else {
+            const viewBtn = document.getElementById('viewReceiptBtn');
+            viewBtn.href = '#';
+            viewBtn.classList.add('disabled');
+            viewBtn.setAttribute('aria-disabled', 'true');
         }
 
         this.reviewReceiptModal.show();
@@ -541,7 +619,7 @@ class AcceptanceManager {
         }
 
         if (!status) {
-            showFlash('warning', 'Selecciona una decision (Aprobar o Rechazar)');
+            showFlash('warning', 'Selecciona una decisión (Aprobar o Rechazar)');
             return;
         }
 
@@ -586,7 +664,7 @@ class AcceptanceManager {
         const requestsTbody = document.querySelector('#pendingRequestsTable tbody');
         const deferredCountBadge = document.getElementById('deferredCount');
 
-        if (deferredTbody) deferredTbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Cargando...</td></tr>`;
+        if (deferredTbody) deferredTbody.innerHTML = this._loadingRow(6, 'Cargando aspirantes diferidos…');
 
         try {
             const results = await this._fanFetch(pid => `/api/v1/acceptance/program/${pid}/deferred`);
@@ -604,14 +682,17 @@ class AcceptanceManager {
             // Sección solicitudes pendientes del aspirante
             const pendingSection = document.getElementById('pendingRequestsSection');
             const pendingCount = document.getElementById('pendingRequestsCount');
-            if (pendingSection) pendingSection.style.display = pending_requests.length ? '' : 'none';
+            if (pendingSection) pendingSection.classList.toggle('d-none', !pending_requests.length);
             if (pendingCount) pendingCount.textContent = pending_requests.length;
 
             if (requestsTbody) {
                 this._toggleProgramHeader('pendingRequestsTable');
                 const pCol = this._isAllMode() ? 7 : 6;
                 if (!pending_requests.length) {
-                    requestsTbody.innerHTML = `<tr><td colspan="${pCol}" class="text-center py-3 text-muted">No hay solicitudes pendientes</td></tr>`;
+                    requestsTbody.innerHTML = this._emptyRow(
+                        pCol, 'bell', 'Sin solicitudes pendientes',
+                        'Ningún aspirante ha solicitado diferir su inscripción.'
+                    );
                 } else {
                     requestsTbody.innerHTML = pending_requests.map(p => {
                         const safeName = p.user.full_name.replace(/'/g, "\\'");
@@ -641,15 +722,18 @@ class AcceptanceManager {
                 this._toggleProgramHeader('deferredTable');
                 const dCol = this._isAllMode() ? 7 : 6;
                 if (!deferred.length) {
-                    deferredTbody.innerHTML = `<tr><td colspan="${dCol}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay aspirantes con inscripción diferida</p></td></tr>`;
+                    deferredTbody.innerHTML = this._emptyRow(
+                        dCol, 'calendar-check', 'Sin inscripciones diferidas',
+                        'Ningún aspirante tiene la inscripción diferida a otro periodo.'
+                    );
                 } else {
                     deferredTbody.innerHTML = deferred.map(d => {
                         const safeName = d.user.full_name.replace(/'/g, "\\'");
                         const deferral = d.deferral;
                         const canReactivate = deferral && deferral.deferred_to_period_id;
                         const deferralsLeft = d.can_defer_again
-                            ? `<span class="badge bg-warning text-dark">${d.deferrals_used}/2 usados</span>`
-                            : `<span class="badge bg-danger">Máximo alcanzado</span>`;
+                            ? SIIAP.statusBadge('deliberation', `${d.deferrals_used}/2 usados`, 'sm')
+                            : SIIAP.statusBadge('rejected', 'Máximo alcanzado', 'sm');
                         const reactivateBtn = canReactivate
                             ? `<button class="btn btn-sm btn-success" onclick="acceptanceManager.showReactivateModal(${d.user_program.user_id}, ${d.user_program.program_id}, '${safeName}', '${deferral.deferred_to_period_name || ''}')">
                                    <i class="bi bi-person-check-fill me-1"></i>Reactivar
@@ -672,7 +756,8 @@ class AcceptanceManager {
             }
         } catch (error) {
             console.error('Error loading deferred tab:', error);
-            if (deferredTbody) deferredTbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">Error al cargar los datos</td></tr>`;
+            if (deferredTbody) deferredTbody.innerHTML = this._errorRow(6, error.message);
+            this._announce('No se pudieron cargar los aspirantes diferidos.');
         }
     }
 
@@ -726,7 +811,7 @@ class AcceptanceManager {
         document.getElementById('reviewDeferralPeriod').textContent = periodName || 'Por asignar';
         document.getElementById('reviewDeferralReason').textContent = reason || 'Sin especificar';
         document.getElementById('reviewDeferralNotes').value = '';
-        document.getElementById('deferralNotesRequired').style.display = 'none';
+        this._setNotesRequired('deferralNotesRequired', 'reviewDeferralNotes', false);
         document.querySelectorAll('input[name="reviewDeferralStatus"]').forEach(r => r.checked = false);
         this.reviewDeferralModal.show();
     }

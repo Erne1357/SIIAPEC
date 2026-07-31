@@ -1,124 +1,73 @@
-/* Acceptance & Enrollment Page Styles */
+/*
+ * Acceptance & Enrollment page — page-scoped styles.
+ *
+ * Las tarjetas de estadísticas usan el componente compartido
+ * components/_stat-card.css. La copia local de `.stat-card` que vivía aquí
+ * ganaba por orden de carga y reintroducía un borde lateral de color grueso,
+ * patrón prohibido por las reglas del proyecto: se eliminó.
+ *
+ * Los selectores de tabla van dentro de #acceptancePage para no repintar las
+ * tablas de los modales ni las de otras páginas.
+ */
 
-/* Student-name-link: nombre clickeable que abre expediente */
-.student-name-link {
-    color: var(--color-brand-primary);
-    cursor: pointer;
-    transition: color 0.15s;
-}
-.student-name-link:hover {
-    color: var(--color-brand-primary-700);
-    text-decoration: underline !important;
-}
+/* ==========================================================================
+   Tablas
+   ========================================================================== */
 
-
-/* Stats Cards */
-.stat-card {
-    background: var(--bg-surface);
-    border-radius: var(--radius-md);
-    padding: 12px 16px;
-    border-left: 4px solid var(--color-neutral-500);
-    box-shadow: var(--shadow-1);
-    min-width: 120px;
-}
-
-.stat-card.stat-pending {
-    border-left-color: var(--color-neutral-500);
-}
-
-.stat-card.stat-warning {
-    border-left-color: var(--color-warning);
-}
-
-.stat-card.stat-info {
-    border-left-color: var(--color-info);
-}
-
-.stat-card.stat-success {
-    border-left-color: var(--color-success);
-}
-
-.stat-card .stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    line-height: 1;
-}
-
-.stat-card .stat-label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
+#acceptancePage .table th {
+    font-weight: var(--fw-semibold);
+    font-size: var(--fs-sm);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-secondary);      /* 5.21:1 sobre --bg-surface */
 }
 
-/* Table Styles */
-.table th {
-    font-weight: 600;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
-}
-
-.table td {
+#acceptancePage .table td {
     vertical-align: middle;
 }
 
-.applicant-name {
-    font-weight: 600;
-    color: #212529;
+#acceptancePage .applicant-name {
+    font-weight: var(--fw-semibold);
+    color: var(--text-primary);
 }
 
-.applicant-email {
-    font-size: 0.875rem;
-    color: var(--text-muted);
+#acceptancePage .applicant-email {
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
 }
 
-/* Action Buttons */
-.btn-action {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
+/* ==========================================================================
+   Acciones de fila
+   ========================================================================== */
+
+#acceptancePage .btn-action {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--fs-sm);
 }
 
-.btn-group-actions {
+#acceptancePage .btn-group-actions {
     display: flex;
-    gap: 0.25rem;
+    gap: var(--space-1);
     justify-content: center;
     flex-wrap: wrap;
 }
 
-/* Tab badges */
-.nav-tabs .badge {
-    font-size: 0.7rem;
-    padding: 0.25em 0.5em;
+/* ==========================================================================
+   Contadores de pestaña (cifras, NO estados)
+   ========================================================================== */
+
+#acceptancePage .nav-tabs .badge {
+    font-size: var(--fs-xs);
+    padding: var(--space-1) var(--space-2);
+    font-variant-numeric: tabular-nums;
 }
 
-/* Empty state */
-.empty-state {
-    padding: 3rem;
-    text-align: center;
-    color: var(--text-muted);
-}
+/* ==========================================================================
+   Móvil
+   ========================================================================== */
 
-.empty-state i {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    opacity: 0.5;
-    display: block;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .stat-card {
-        min-width: 100px;
-        padding: 10px 12px;
-    }
-
-    .stat-card .stat-value {
-        font-size: 1.25rem;
-    }
-
-    .btn-group-actions {
+@media (max-width: 767.98px) {
+    #acceptancePage .btn-group-actions {
         flex-direction: column;
     }
 }

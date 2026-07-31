@@ -11,6 +11,13 @@
     if (typeof showFlash === 'function') showFlash(level, msg);
   }
 
+  /** El nombre accesible y el tooltip se mantienen sincronizados: `title` solo
+   *  no es fiable en móvil ni en VoiceOver (WCAG 4.1.2). */
+  function setButtonLabel(btn, label) {
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
+  }
+
   async function loadPhotoStatus() {
     const btn = document.getElementById('btnPhotoAction');
     const statusEl = document.getElementById('photoStatusText');
@@ -26,26 +33,26 @@
       btn.dataset.requested = d.photo_change_requested_at ? '1' : '0';
 
       if (d.can_upload) {
-        btn.innerHTML = '<i class="bi bi-camera-fill"></i>';
-        btn.title = d.has_photo ? 'Subir nueva foto' : 'Subir foto';
+        btn.innerHTML = '<i class="bi bi-camera-fill" aria-hidden="true"></i>';
+        setButtonLabel(btn, d.has_photo ? 'Subir una nueva foto de perfil' : 'Subir tu foto de perfil');
         btn.classList.remove('btn-warning');
         btn.classList.add('btn-primary');
         if (statusEl) {
           statusEl.innerHTML = d.has_photo
-            ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Cambio autorizado</span>'
+            ? '<span class="text-success-strong"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Cambio autorizado</span>'
             : '';
         }
       } else if (d.photo_change_requested_at) {
-        btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-        btn.title = 'Solicitud pendiente';
+        btn.innerHTML = '<i class="bi bi-hourglass-split" aria-hidden="true"></i>';
+        setButtonLabel(btn, 'Solicitud de cambio de foto pendiente');
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-warning');
         if (statusEl) {
-          statusEl.innerHTML = '<span class="text-warning"><i class="bi bi-clock-history me-1"></i>Solicitud pendiente de revisión</span>';
+          statusEl.innerHTML = '<span class="text-warning-strong"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>Solicitud pendiente de revisión</span>';
         }
       } else {
-        btn.innerHTML = '<i class="bi bi-pencil-fill"></i>';
-        btn.title = 'Solicitar cambio';
+        btn.innerHTML = '<i class="bi bi-pencil-fill" aria-hidden="true"></i>';
+        setButtonLabel(btn, 'Solicitar el cambio de tu foto de perfil');
         btn.classList.remove('btn-warning');
         btn.classList.add('btn-primary');
         if (statusEl) statusEl.innerHTML = '';
@@ -95,7 +102,7 @@
       const submitBtn = document.getElementById('btnUploadPhotoSubmit');
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Subiendo...';
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Subiendo…';
       }
 
       const fd = new FormData();
@@ -126,7 +133,7 @@
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
-          submitBtn.innerHTML = '<i class="bi bi-upload me-1"></i>Subir foto';
+          submitBtn.innerHTML = '<i class="bi bi-upload me-1" aria-hidden="true"></i>Subir foto';
         }
       }
     });

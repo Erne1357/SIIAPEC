@@ -15,14 +15,10 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  /* Delega en el helper compartido para que la fecha salga idéntica a la que
+     imprimen los filtros Jinja (|fechahora_es). */
   function fmt(iso) {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return d.toLocaleString('es-MX', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
+    return SIIAP.formatDateTime(iso, 'short', '—');
   }
 
   function flashMsg(level, msg) {
@@ -35,9 +31,11 @@
 
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" class="text-center py-4 text-muted small">
-          <div class="spinner-border spinner-border-sm me-1" role="status"></div>
-          Cargando solicitudes...
+        <td colspan="5" class="text-center py-4">
+          <div class="spinner-border spinner-border-sm text-primary" role="status">
+            <span class="visually-hidden">Cargando solicitudes…</span>
+          </div>
+          <span class="ms-2 text-secondary small">Cargando solicitudes…</span>
         </td>
       </tr>`;
 
@@ -49,10 +47,22 @@
     } catch (e) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="5" class="text-center py-4 text-danger small">
-            ${escHtml(e.message)}
+          <td colspan="5">
+            <div class="empty-state empty-state--inline empty-state--error">
+              <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+              <h3 class="empty-state__title">No se pudieron cargar las solicitudes</h3>
+              <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
+              <p class="empty-state__error-detail">${escHtml(e.message)}</p>
+              <div class="empty-state__actions">
+                <button type="button" class="btn btn-outline-primary" data-action="retry-photo-requests">
+                  <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Reintentar
+                </button>
+              </div>
+            </div>
           </td>
         </tr>`;
+      tbody.querySelector('[data-action="retry-photo-requests"]')
+        ?.addEventListener('click', loadPhotoRequests);
     }
   }
 
@@ -74,8 +84,8 @@
       tbody.innerHTML = `
         <tr>
           <td colspan="5">
-            <div class="empty-state empty-state--compact">
-              <i class="empty-state__icon bi bi-camera"></i>
+            <div class="empty-state empty-state--inline">
+              <div class="empty-state__icon"><i class="bi bi-camera" aria-hidden="true"></i></div>
               <h3 class="empty-state__title">Sin solicitudes pendientes</h3>
               <p class="empty-state__description">
                 No hay estudiantes esperando autorización para cambiar su foto de perfil.
@@ -89,28 +99,28 @@
     tbody.innerHTML = items.map(it => `
       <tr data-user-id="${it.user_id}">
         <td>
-          <img src="${escHtml(it.avatar_url)}" alt="Avatar"
-               class="rounded-circle border" style="width:42px;height:42px;object-fit:cover">
+          <img src="${escHtml(it.avatar_url)}" alt=""
+               class="rounded-circle border avatar-sm">
         </td>
         <td>
           <div class="fw-semibold">${escHtml(it.full_name)}</div>
           ${window.siiapStudentRecordBtn ? `
             <a href="/students/${it.user_id}/record" class="small text-decoration-none">
-              <i class="bi bi-folder2-open me-1"></i>Expediente
+              <i class="bi bi-folder2-open me-1" aria-hidden="true"></i>Expediente<span class="visually-hidden"> de ${escHtml(it.full_name)}</span>
             </a>` : ''}
         </td>
-        <td class="small text-muted">${escHtml(it.email)}</td>
+        <td class="small text-secondary">${escHtml(it.email)}</td>
         <td class="text-center small">${escHtml(fmt(it.requested_at))}</td>
         <td class="text-center">
           <div class="btn-group btn-group-sm">
-            <button class="btn btn-success" data-action="approve" data-user-id="${it.user_id}">
-              <i class="bi bi-check-lg"></i> Habilitar
+            <button type="button" class="btn btn-success" data-action="approve" data-user-id="${it.user_id}">
+              <i class="bi bi-check-lg" aria-hidden="true"></i> Habilitar
             </button>
-            <button class="btn btn-outline-danger" data-action="reject" data-user-id="${it.user_id}">
-              <i class="bi bi-x-lg"></i> Rechazar
+            <button type="button" class="btn btn-outline-danger" data-action="reject" data-user-id="${it.user_id}">
+              <i class="bi bi-x-lg" aria-hidden="true"></i> Rechazar
             </button>
-            <button class="btn btn-outline-primary" data-action="upload" data-user-id="${it.user_id}">
-              <i class="bi bi-upload"></i> Subir foto
+            <button type="button" class="btn btn-outline-primary" data-action="upload" data-user-id="${it.user_id}">
+              <i class="bi bi-upload" aria-hidden="true"></i> Subir foto
             </button>
           </div>
         </td>

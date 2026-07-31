@@ -1,87 +1,88 @@
+{% from '_macros.html' import async_region, skeleton_text_block, icon_button %}
 <div class="row">
     <div class="col-md-4">
-        <div class="card mb-4 shadow-sm">
+        <section class="card mb-4 shadow-sm" aria-labelledby="personalInfoTitle">
             <div class="card-header">
-                <h5 class="mb-0">Información Personal</h5>
+                <h2 class="h5 mb-0" id="personalInfoTitle">Información personal</h2>
             </div>
             <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label text-muted small">Nombre Completo</label>
-                    <p class="mb-0">{{ current_user.first_name }} {{ current_user.last_name }} {{ current_user.mother_last_name }}</p>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label text-muted small">Nombre de Usuario</label>
-                    <p class="mb-0">{{ current_user.username }}</p>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label text-muted small">Correo Electrónico</label>
-                    <p class="mb-0">{{ current_user.email }}</p>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label text-muted small">Fecha de Registro</label>
-                    <p class="mb-0">{{ current_user.registration_date.strftime('%d/%m/%Y %H:%M') }}</p>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label text-muted small">Último Acceso</label>
-                    <p class="mb-0">{{ current_user.last_login.strftime('%d/%m/%Y %H:%M') }}</p>
-                </div>
+                <dl class="mb-0">
+                    <div class="profile-data-list">
+                        <dt class="profile-data-list__term">Nombre completo</dt>
+                        <dd class="profile-data-list__value">{{ current_user.first_name }} {{ current_user.last_name }} {{ current_user.mother_last_name }}</dd>
+                    </div>
+                    <div class="profile-data-list">
+                        <dt class="profile-data-list__term">Nombre de usuario</dt>
+                        <dd class="profile-data-list__value">{{ current_user.username }}</dd>
+                    </div>
+                    <div class="profile-data-list">
+                        <dt class="profile-data-list__term">Correo electrónico</dt>
+                        <dd class="profile-data-list__value">{{ current_user.email }}</dd>
+                    </div>
+                    <div class="profile-data-list">
+                        <dt class="profile-data-list__term">Fecha de registro</dt>
+                        <dd class="profile-data-list__value">{{ current_user.registration_date|fechahora_es('short') }}</dd>
+                    </div>
+                    <div class="profile-data-list mb-0">
+                        <dt class="profile-data-list__term">Último acceso</dt>
+                        <dd class="profile-data-list__value">{{ current_user.last_login|fechahora_es('short') }}</dd>
+                    </div>
+                </dl>
             </div>
-        </div>
+        </section>
 
-        <div class="card mb-4 shadow-sm">
+        <section class="card mb-4 shadow-sm" aria-labelledby="accountInfoTitle">
             <div class="card-header">
-                <h5 class="mb-0">Información de Cuenta</h5>
+                <h2 class="h5 mb-0" id="accountInfoTitle">Información de cuenta</h2>
             </div>
             <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label text-muted small">Rol</label>
-                    <p class="mb-0">{{ role_label or '—' }}</p>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label text-muted small">Tipo de Usuario</label>
-                    <p class="mb-0">{{ 'Interno' if current_user.is_internal else 'Externo' }}</p>
-                </div>
-                {% if current_user.scolarship_type and current_user.scolarship_type != 'none'%}
-                <div class="mb-3">
-                    <label class="form-label text-muted small">Tipo de Beca</label>
-                    <p class="mb-0">{{ current_user.scolarship_type }}</p>
-                </div>
-                {% endif %}
+                <dl class="mb-0">
+                    <div class="profile-data-list">
+                        <dt class="profile-data-list__term">Rol</dt>
+                        <dd class="profile-data-list__value">{{ role_label or '—' }}</dd>
+                    </div>
+                    <div class="profile-data-list{% if not (current_user.scolarship_type and current_user.scolarship_type != 'none') %} mb-0{% endif %}">
+                        <dt class="profile-data-list__term">Tipo de usuario</dt>
+                        <dd class="profile-data-list__value">{{ 'Interno' if current_user.is_internal else 'Externo' }}</dd>
+                    </div>
+                    {% if current_user.scolarship_type and current_user.scolarship_type != 'none' %}
+                    <div class="profile-data-list mb-0">
+                        <dt class="profile-data-list__term">Tipo de beca</dt>
+                        <dd class="profile-data-list__value">{{ current_user.scolarship_type }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
             </div>
-        </div>
+        </section>
     </div>
 
     <div class="col-md-8">
-        <div class="card mb-4 shadow-sm">
-            <div class="card-header d-flex align-items-center justify-content-between">
-                <h5 class="mb-0">Próximos Eventos</h5>
-                <button type="button" class="btn btn-link btn-sm p-0" id="btnRefreshUpcoming"
-                        title="Actualizar">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
+        <section class="card mb-4 shadow-sm" aria-labelledby="upcomingEventsTitle">
+            <div class="card-header d-flex align-items-center justify-content-between gap-2">
+                <h2 class="h5 mb-0" id="upcomingEventsTitle">Próximos eventos</h2>
+                {{ icon_button('arrow-clockwise', 'Actualizar próximos eventos',
+                               cls='btn btn-sm btn-outline-secondary profile-refresh-btn',
+                               id='btnRefreshUpcoming') }}
             </div>
-            <div class="card-body" id="profileUpcomingEventsContainer">
-                <div class="text-center py-3 text-muted small">
-                    <div class="spinner-border spinner-border-sm me-1" role="status"></div>
-                    Cargando eventos...
-                </div>
+            <div class="card-body">
+                {% call async_region('profileUpcomingEventsContainer', 'Próximos eventos') %}
+                  {{ skeleton_text_block(lines=3) }}
+                {% endcall %}
             </div>
-        </div>
+        </section>
 
-        <div class="card mb-4 shadow-sm">
-            <div class="card-header d-flex align-items-center justify-content-between">
-                <h5 class="mb-0">Actividad Reciente</h5>
-                <button type="button" class="btn btn-link btn-sm p-0" id="btnRefreshActivity"
-                        title="Actualizar">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
+        <section class="card mb-4 shadow-sm" aria-labelledby="recentActivityTitle">
+            <div class="card-header d-flex align-items-center justify-content-between gap-2">
+                <h2 class="h5 mb-0" id="recentActivityTitle">Actividad reciente</h2>
+                {{ icon_button('arrow-clockwise', 'Actualizar actividad reciente',
+                               cls='btn btn-sm btn-outline-secondary profile-refresh-btn',
+                               id='btnRefreshActivity') }}
             </div>
-            <div class="card-body" id="profileActivityContainer">
-                <div class="text-center py-3 text-muted small">
-                    <div class="spinner-border spinner-border-sm me-1" role="status"></div>
-                    Cargando actividad...
-                </div>
+            <div class="card-body">
+                {% call async_region('profileActivityContainer', 'Actividad reciente') %}
+                  {{ skeleton_text_block(lines=3) }}
+                {% endcall %}
             </div>
-        </div>
+        </section>
     </div>
 </div>

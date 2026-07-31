@@ -1,77 +1,143 @@
 /* app/static/css/user/dashboard.css
  * Estilos compartidos para los dashboards de usuario (applicant / student /
- * program_admin / postgraduate_admin). Reemplaza los <style> inline y los
- * style="..." dispersos en las plantillas.
+ * program_admin / postgraduate_admin).
+ *
+ * NO se declaran aquí: los tamaños de icono (.icon-*), avatares, .tap-target ni
+ * las utilidades de ancho — viven tokenizados en base.css. Tampoco las pestañas
+ * (.nav-tabs / .nav-link): viven en components/_nav.css, que carga ANTES de esta
+ * hoja; redeclararlas aquí mataría el componente compartido.
  */
 
 /* ── Tarjetas de acciones rápidas ──────────────────────────────────────── */
 .quick-action-card {
-  transition: all 0.3s ease;
+  transition: box-shadow var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
   cursor: pointer;
 }
 
-.quick-action-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+.quick-action-card:hover,
+.quick-action-card:focus-within {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-4);
 }
 
-/* Variante deshabilitada (cuando el admin selecciona "Todos los programas") */
+/* Variante deshabilitada (cuando el admin selecciona "Todos los programas").
+   pointer-events: none impide que el hover la levante y parezca clicable. */
 .quick-action-card-disabled {
-  opacity: 0.6;
+  opacity: 0.65;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
-/* ── KPI cards (postgraduate admin) ────────────────────────────────────── */
-.kpi-card {
-  transition: all 0.3s ease;
+/* ── Acción principal del dashboard ────────────────────────────────────── */
+/* Una sola tarjeta por vista comunica el siguiente paso; las demás acciones
+   bajan a una fila de enlaces secundarios (.quick-action-links). */
+.quick-action-primary {
+  border: 1px solid var(--border-brand-subtle);
+  background-color: var(--color-brand-primary-50);
 }
 
-.kpi-card:hover {
-  transform: scale(1.02);
-}
-
-/* Pestañas con color primario para rol activo */
-.nav-tabs .nav-link {
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.nav-tabs .nav-link.active {
+.quick-action-primary__title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
   color: var(--color-brand-primary);
-  font-weight: 600;
+  margin-bottom: var(--space-1);
 }
 
-/* ── Iconos grandes (reemplaza style="font-size: 2.5rem;" inline) ─────── */
-.icon-xl    { font-size: 2rem; }
-.icon-2xl   { font-size: 2.5rem; }
-.icon-3xl   { font-size: 3rem; }
-.icon-5xl   { font-size: 5rem; }
+.quick-action-primary__hint {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-4);
+}
+
+.quick-action-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.quick-action-links .btn {
+  min-height: var(--tap-min);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 
 /* ── Banner del aspirante aceptado / en progreso ──────────────────────── */
+/* Sin border-left de color: el tono se comunica con fondo suave + borde de 1px
+   completo + icono (WCAG 1.4.1). */
 .applicant-banner {
-  background: linear-gradient(135deg, var(--color-brand-primary-50) 0%, var(--bg-surface-sunken) 100%);
-  border-left: 4px solid var(--color-brand-primary);
+  background-color: var(--color-brand-primary-50);
+  border: 1px solid var(--border-brand-subtle);
 }
 
 .applicant-banner-icon {
-  font-size: 2rem;
+  font-size: var(--fs-2xl);
 }
 
-/* Tarjetas "Aceptación" y "Diferido" con borde lateral de color */
-.card-accent-success { border-left: 4px solid var(--color-success) !important; }
-.card-accent-warning { border-left: 4px solid var(--color-warning) !important; }
-.card-accent-danger  { border-left: 4px solid var(--color-danger) !important; }
-.card-accent-info    { border-left: 4px solid var(--color-info) !important; }
-.card-accent-primary { border-left: 4px solid var(--color-brand-primary) !important; }
+/* Tarjetas de sección teñidas por estado (aceptación / diferimiento) */
+.card-accent-success { border: 1px solid var(--border-success-subtle); }
+.card-accent-warning { border: 1px solid var(--border-warning-subtle); }
+.card-accent-danger  { border: 1px solid var(--border-danger-subtle); }
+.card-accent-info    { border: 1px solid var(--border-info-subtle); }
+.card-accent-primary { border: 1px solid var(--border-brand-subtle); }
 
-/* Barra de progreso del aspirante */
+/* ── Tarjetas del flujo de aceptación (applicant_dashboard.js) ────────── */
+.acceptance-doc-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface);
+}
+
+.acceptance-doc-card__title {
+  margin-bottom: 0;
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+}
+
+.acceptance-doc-card__note {
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.acceptance-doc-card--success {
+  background-color: var(--color-success-100);
+  border-color: var(--border-success-subtle);
+}
+
+.acceptance-doc-card--info {
+  background-color: var(--color-info-100);
+  border-color: var(--border-info-subtle);
+}
+
+.acceptance-doc-card--warning {
+  background-color: var(--color-warning-100);
+  border-color: var(--border-warning-subtle);
+}
+
+.acceptance-doc-card--danger {
+  background-color: var(--color-danger-100);
+  border-color: var(--border-danger-subtle);
+}
+
+/* ── Barra de progreso del aspirante ──────────────────────────────────── */
 .progress-admission {
-  height: 25px;
-  border-radius: 8px;
+  height: var(--space-6);
+  border-radius: var(--radius-md);
 }
 
+/* El porcentaje es el único valor genuinamente dinámico: llega desde Jinja como
+   custom property --seg-width y se aplica aquí, no con un style="width:" suelto. */
 .progress-admission .progress-bar {
-  font-weight: 600;
+  width: var(--seg-width, 0%);
+  font-weight: var(--fw-semibold);
 }
 
 /* ── Selector de programa (program admin) ─────────────────────────────── */
@@ -80,19 +146,18 @@
   min-width: 250px;
 }
 
+@media (max-width: 575.98px) {
+  .program-selector {
+    width: 100%;
+    min-width: 0;
+    max-width: 250px;
+  }
+}
+
 /* ── Inputs de upload dentro de tarjetas (student dashboard) ──────────── */
+.doc-upload-group   { min-width: 260px; }
 .doc-upload-input   { max-width: 180px; }
 .leave-upload-input { max-width: 200px; }
-
-/* ── Auditoría (permissions.html) ─────────────────────────────────────── */
-.audit-log-body {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.audit-meta {
-  font-size: 0.75rem;
-}
 
 /* Toast stack superior-derecho (permissions.html, applicant_dashboard.js) */
 .toast-stack-top,

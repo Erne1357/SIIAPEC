@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% from '_macros.html' import required_mark %}
+
 {% block title %}Expediente · {{ target_user.first_name }} {{ target_user.last_name }}{% endblock %}
 
 {% block styles %}
@@ -7,50 +9,100 @@
 
 {% block content %}
 <div class="container-xl py-4" id="studentRecordPage">
-  <!-- Header -->
+  <!-- Encabezado -->
   <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-3 mb-4">
     <a href="{{ url_for('pages_coordinator.dashboard') }}"
        id="recordBackLink"
        class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left me-1"></i>Volver
+      <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Volver
     </a>
     <div class="flex-grow-1">
+      {# Se renderiza en servidor: si el fetch falla o tarda, la página
+         conserva su encabezado. El JS sólo lo refresca. #}
       <h1 class="h3 mb-1" id="recordHeaderName">
-        <span class="placeholder-glow"><span class="placeholder col-6"></span></span>
+        {{ target_user.first_name }} {{ target_user.last_name }}
       </h1>
-      <p class="text-muted mb-0 small" id="recordHeaderMeta"></p>
+      <p class="text-secondary mb-0 small" id="recordHeaderMeta">{{ target_user.email }}</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-      <a href="/api/v1/students/{{ target_user.id }}/record/pdf" target="_blank"
+      <a href="{{ url_for('api_student_record.export_record_pdf', user_id=target_user.id) }}"
+         target="_blank" rel="noopener"
          class="btn btn-outline-primary btn-sm">
-        <i class="bi bi-file-earmark-pdf me-1"></i>Exportar PDF
+        <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Exportar PDF
+        <span class="visually-hidden">(se abre en una pestaña nueva)</span>
       </a>
     </div>
   </div>
 
-  <!-- Tabs -->
+  <!-- Pestañas -->
   <ul class="nav nav-tabs mb-3" id="recordTabs" role="tablist">
-    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-info" type="button"><i class="bi bi-person me-1"></i>Información</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-academic" type="button"><i class="bi bi-mortarboard me-1"></i>Académico</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-documents" type="button"><i class="bi bi-folder2-open me-1"></i>Documentos</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-acceptance" type="button"><i class="bi bi-file-earmark-check me-1"></i>Aceptación</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-semesters" type="button"><i class="bi bi-list-ol me-1"></i>Semestres</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-interview" type="button"><i class="bi bi-chat-dots me-1"></i>Entrevista</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-events" type="button"><i class="bi bi-calendar-event me-1"></i>Eventos</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-deferrals" type="button"><i class="bi bi-pause-circle me-1"></i>Diferimientos</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-history" type="button"><i class="bi bi-clock-history me-1"></i>Historial</button></li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="tab-info-btn" data-bs-toggle="tab" data-bs-target="#tab-info"
+              type="button" role="tab" aria-controls="tab-info" aria-selected="true">
+        <i class="bi bi-person" aria-hidden="true"></i>Información
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-academic-btn" data-bs-toggle="tab" data-bs-target="#tab-academic"
+              type="button" role="tab" aria-controls="tab-academic" aria-selected="false">
+        <i class="bi bi-mortarboard" aria-hidden="true"></i>Académico
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-documents-btn" data-bs-toggle="tab" data-bs-target="#tab-documents"
+              type="button" role="tab" aria-controls="tab-documents" aria-selected="false">
+        <i class="bi bi-folder2-open" aria-hidden="true"></i>Documentos
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-acceptance-btn" data-bs-toggle="tab" data-bs-target="#tab-acceptance"
+              type="button" role="tab" aria-controls="tab-acceptance" aria-selected="false">
+        <i class="bi bi-file-earmark-check" aria-hidden="true"></i>Aceptación
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-semesters-btn" data-bs-toggle="tab" data-bs-target="#tab-semesters"
+              type="button" role="tab" aria-controls="tab-semesters" aria-selected="false">
+        <i class="bi bi-list-ol" aria-hidden="true"></i>Semestres
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-interview-btn" data-bs-toggle="tab" data-bs-target="#tab-interview"
+              type="button" role="tab" aria-controls="tab-interview" aria-selected="false">
+        <i class="bi bi-chat-dots" aria-hidden="true"></i>Entrevista
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-events-btn" data-bs-toggle="tab" data-bs-target="#tab-events"
+              type="button" role="tab" aria-controls="tab-events" aria-selected="false">
+        <i class="bi bi-calendar-event" aria-hidden="true"></i>Eventos
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-deferrals-btn" data-bs-toggle="tab" data-bs-target="#tab-deferrals"
+              type="button" role="tab" aria-controls="tab-deferrals" aria-selected="false">
+        <i class="bi bi-pause-circle" aria-hidden="true"></i>Diferimientos
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-history-btn" data-bs-toggle="tab" data-bs-target="#tab-history"
+              type="button" role="tab" aria-controls="tab-history" aria-selected="false">
+        <i class="bi bi-clock-history" aria-hidden="true"></i>Historial
+      </button>
+    </li>
   </ul>
 
   <div class="tab-content">
-    <div class="tab-pane fade show active" id="tab-info" role="tabpanel">
+    <div class="tab-pane fade show active" id="tab-info" role="tabpanel" aria-labelledby="tab-info-btn">
       <div class="row g-3">
         <div class="col-md-4">
           <div class="card shadow-sm">
             <div class="card-body text-center">
-              <img id="recordAvatar" class="rounded-circle border border-3 border-light shadow profile-avatar mb-3"
-                   src="{{ target_user.avatar_url }}" alt="Foto">
-              <h5 class="mb-1" id="recordFullName">—</h5>
-              <p class="text-muted small mb-2" id="recordRole">—</p>
+              <img id="recordAvatar" class="rounded-circle border border-3 border-light shadow avatar-xl mb-3"
+                   src="{{ target_user.avatar_url }}"
+                   alt="Foto de perfil de {{ target_user.first_name }} {{ target_user.last_name }}">
+              <h2 class="h5 mb-1" id="recordFullName">{{ target_user.first_name }} {{ target_user.last_name }}</h2>
+              <p class="text-secondary small mb-2" id="recordRole">—</p>
               <div id="recordPhotoActions"></div>
             </div>
           </div>
@@ -58,14 +110,17 @@
         <div class="col-md-8">
           <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">Información personal</h5>
+              <h2 class="h5 mb-0">Información personal</h2>
               <button type="button" class="btn btn-primary btn-sm d-none" id="btnEditPersonalInfo">
-                <i class="bi bi-pencil-fill me-1"></i>Editar
+                <i class="bi bi-pencil-fill me-1" aria-hidden="true"></i>Editar
               </button>
             </div>
             <div class="card-body" id="recordPersonalInfo">
-              <div class="text-center py-3 text-muted small">
-                <div class="spinner-border spinner-border-sm me-1" role="status"></div>Cargando...
+              <div class="text-center py-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                  <span class="visually-hidden">Cargando información personal…</span>
+                </div>
+                <span class="ms-2 text-secondary small">Cargando…</span>
               </div>
             </div>
           </div>
@@ -73,64 +128,64 @@
       </div>
     </div>
 
-    <div class="tab-pane fade" id="tab-academic" role="tabpanel">
+    <div class="tab-pane fade" id="tab-academic" role="tabpanel" aria-labelledby="tab-academic-btn">
       <div class="card shadow-sm" id="recordAcademic">
-        <div class="card-body text-muted small">Cargando...</div>
+        <div class="card-body text-secondary small">Cargando…</div>
       </div>
     </div>
 
-    <div class="tab-pane fade" id="tab-documents" role="tabpanel">
+    <div class="tab-pane fade" id="tab-documents" role="tabpanel" aria-labelledby="tab-documents-btn">
       <div class="card shadow-sm">
         <div class="card-body" id="recordDocuments">
-          <div class="text-center py-3 text-muted small">Cargando documentos...</div>
+          <div class="text-center py-3 text-secondary small">Cargando documentos…</div>
         </div>
       </div>
     </div>
 
-    <div class="tab-pane fade" id="tab-acceptance" role="tabpanel">
+    <div class="tab-pane fade" id="tab-acceptance" role="tabpanel" aria-labelledby="tab-acceptance-btn">
       <div class="card shadow-sm">
         <div class="card-body" id="recordAcceptance">
-          <div class="text-center py-3 text-muted small">Cargando...</div>
+          <div class="text-center py-3 text-secondary small">Cargando…</div>
         </div>
       </div>
     </div>
 
-    <div class="tab-pane fade" id="tab-semesters" role="tabpanel">
+    <div class="tab-pane fade" id="tab-semesters" role="tabpanel" aria-labelledby="tab-semesters-btn">
       <div class="card shadow-sm">
         <div class="card-body" id="recordSemesters">
-          <div class="text-center py-3 text-muted small">Cargando...</div>
+          <div class="text-center py-3 text-secondary small">Cargando…</div>
         </div>
       </div>
     </div>
 
-    <div class="tab-pane fade" id="tab-interview" role="tabpanel">
+    <div class="tab-pane fade" id="tab-interview" role="tabpanel" aria-labelledby="tab-interview-btn">
       <div class="card shadow-sm">
         <div class="card-body" id="recordInterview">
-          <div class="text-center py-3 text-muted small">Cargando...</div>
+          <div class="text-center py-3 text-secondary small">Cargando…</div>
         </div>
       </div>
     </div>
 
-    <div class="tab-pane fade" id="tab-events" role="tabpanel">
+    <div class="tab-pane fade" id="tab-events" role="tabpanel" aria-labelledby="tab-events-btn">
       <div class="card shadow-sm">
         <div class="card-body" id="recordEvents">
-          <div class="text-center py-3 text-muted small">Cargando...</div>
+          <div class="text-center py-3 text-secondary small">Cargando…</div>
         </div>
       </div>
     </div>
 
-    <div class="tab-pane fade" id="tab-deferrals" role="tabpanel">
+    <div class="tab-pane fade" id="tab-deferrals" role="tabpanel" aria-labelledby="tab-deferrals-btn">
       <div class="card shadow-sm">
         <div class="card-body" id="recordDeferrals">
-          <div class="text-center py-3 text-muted small">Cargando...</div>
+          <div class="text-center py-3 text-secondary small">Cargando…</div>
         </div>
       </div>
     </div>
 
-    <div class="tab-pane fade" id="tab-history" role="tabpanel">
+    <div class="tab-pane fade" id="tab-history" role="tabpanel" aria-labelledby="tab-history-btn">
       <div class="card shadow-sm">
         <div class="card-body" id="recordHistory">
-          <div class="text-center py-3 text-muted small">Cargando historial...</div>
+          <div class="text-center py-3 text-secondary small">Cargando historial…</div>
         </div>
       </div>
     </div>
@@ -140,72 +195,82 @@
 
 {% block modals %}
 <!-- Modal: editar información personal -->
-<div class="modal fade" id="editPersonalInfoModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl">
+<div class="modal fade" id="editPersonalInfoModal" tabindex="-1"
+     aria-labelledby="editPersonalInfoModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Editar información personal</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="editPersonalInfoModalTitle">Editar información personal</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form id="editPersonalInfoForm">
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-12 col-md-6">
-              <label class="form-label">Teléfono</label>
-              <input type="tel" class="form-control" name="phone">
+              <label class="form-label" for="editPhone">Teléfono</label>
+              <input type="tel" class="form-control" id="editPhone" name="phone" autocomplete="tel">
             </div>
             <div class="col-12 col-md-6">
-              <label class="form-label">Celular</label>
-              <input type="tel" class="form-control" name="mobile_phone">
+              <label class="form-label" for="editMobilePhone">Celular</label>
+              <input type="tel" class="form-control" id="editMobilePhone" name="mobile_phone" autocomplete="tel">
             </div>
             <div class="col-12">
-              <label class="form-label">Dirección</label>
-              <textarea class="form-control" name="address" rows="2"></textarea>
+              <label class="form-label" for="editAddress">Dirección</label>
+              <textarea class="form-control" id="editAddress" name="address" rows="2"></textarea>
             </div>
             <div class="col-12 col-md-6">
-              <label class="form-label">CURP</label>
-              <input type="text" class="form-control" name="curp" maxlength="18">
+              <label class="form-label" for="editCurp">CURP</label>
+              <input type="text" class="form-control" id="editCurp" name="curp" maxlength="18">
             </div>
             <div class="col-12 col-md-6">
-              <label class="form-label">RFC</label>
-              <input type="text" class="form-control" name="rfc" maxlength="13">
+              <label class="form-label" for="editRfc">RFC</label>
+              <input type="text" class="form-control" id="editRfc" name="rfc" maxlength="13">
             </div>
             <div class="col-12 col-md-6">
-              <label class="form-label">NSS</label>
-              <input type="text" class="form-control" name="nss">
+              <label class="form-label" for="editNss">NSS</label>
+              <input type="text" class="form-control" id="editNss" name="nss">
             </div>
             <div class="col-12 col-md-6">
-              <label class="form-label">Cédula profesional</label>
-              <input type="text" class="form-control" name="cedula_profesional">
+              <label class="form-label" for="editCedulaProfesional">Cédula profesional</label>
+              <input type="text" class="form-control" id="editCedulaProfesional" name="cedula_profesional">
             </div>
             <div class="col-12 col-md-6">
-              <label class="form-label">Fecha de nacimiento</label>
-              <input type="date" class="form-control" name="birth_date">
+              <label class="form-label" for="editBirthDate">Fecha de nacimiento</label>
+              <input type="date" class="form-control" id="editBirthDate" name="birth_date">
             </div>
             <div class="col-12 col-md-6">
-              <label class="form-label">Lugar de nacimiento</label>
-              <input type="text" class="form-control" name="birth_place">
+              <label class="form-label" for="editBirthPlace">Lugar de nacimiento</label>
+              <input type="text" class="form-control" id="editBirthPlace" name="birth_place">
             </div>
-            <hr class="my-2">
-            <h6 class="mb-2">Contacto de emergencia</h6>
-            <div class="col-12 col-md-6">
-              <label class="form-label">Nombre</label>
-              <input type="text" class="form-control" name="emergency_contact_name">
-            </div>
-            <div class="col-12 col-md-6">
-              <label class="form-label">Teléfono</label>
-              <input type="tel" class="form-control" name="emergency_contact_phone">
-            </div>
+
+            {# El separador y el subtítulo van dentro de una columna: como hijos
+               directos de .row se convertían en ítems flex sin gutter. #}
             <div class="col-12">
-              <label class="form-label">Parentesco</label>
-              <input type="text" class="form-control" name="emergency_contact_relationship">
+              <hr class="my-2">
+              <fieldset>
+                <legend class="h6 mb-2">Contacto de emergencia</legend>
+                <div class="row g-3">
+                  <div class="col-12 col-md-6">
+                    <label class="form-label" for="editEmergencyName">Nombre</label>
+                    <input type="text" class="form-control" id="editEmergencyName" name="emergency_contact_name">
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label" for="editEmergencyPhone">Teléfono del contacto</label>
+                    <input type="tel" class="form-control" id="editEmergencyPhone" name="emergency_contact_phone">
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label" for="editEmergencyRelationship">Parentesco</label>
+                    <input type="text" class="form-control" id="editEmergencyRelationship" name="emergency_contact_relationship">
+                  </div>
+                </div>
+              </fieldset>
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" class="btn btn-primary">
-            <i class="bi bi-check-lg me-1"></i>Guardar cambios
+            <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Guardar cambios
           </button>
         </div>
       </form>
@@ -214,24 +279,28 @@
 </div>
 
 <!-- Modal: subir foto del estudiante (coordinador) -->
-<div class="modal fade" id="coordUploadPhotoModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+<div class="modal fade" id="coordUploadPhotoModal" tabindex="-1"
+     aria-labelledby="coordUploadPhotoModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Subir foto del estudiante</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="coordUploadPhotoModalTitle">Subir foto del estudiante</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form id="coordUploadPhotoForm" enctype="multipart/form-data">
         <div class="modal-body">
           <div class="mb-3">
-            <label class="form-label">Foto</label>
-            <input type="file" class="form-control" name="photo" accept="image/jpeg,image/png,image/webp" required>
+            <label class="form-label" for="coordUploadPhotoFile">Foto{{ required_mark() }}</label>
+            <input type="file" class="form-control" id="coordUploadPhotoFile" name="photo"
+                   accept="image/jpeg,image/png,image/webp"
+                   aria-describedby="coordUploadPhotoFileHelp" required aria-required="true">
+            <div class="form-text" id="coordUploadPhotoFileHelp">Formatos permitidos: JPG, PNG o WebP.</div>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" class="btn btn-primary">
-            <i class="bi bi-upload me-1"></i>Subir
+            <i class="bi bi-upload me-1" aria-hidden="true"></i>Subir
           </button>
         </div>
       </form>

@@ -1,30 +1,32 @@
 {% extends 'base.html' %}
-{% block title %}Aceptacion e Inscripcion{% endblock %}
+{% from '_macros.html' import data_table_open, data_table_close, skeleton_table, required_mark %}
+
+{% block title %}Aceptación e Inscripción{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/coordinator/acceptance.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+<div class="container-fluid py-4" id="acceptancePage">
   <div class="row">
     <div class="col-12">
-      <!-- Header -->
+      <!-- Encabezado -->
       <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
         <div>
           <h1 class="h3 mb-2">
-            <i class="bi bi-file-earmark-check-fill me-2"></i>Aceptacion e Inscripcion
+            <i class="bi bi-file-earmark-check-fill me-2" aria-hidden="true"></i>Aceptación e Inscripción
           </h1>
-          <p class="text-muted mb-0">Gestiona los documentos de aceptacion de aspirantes admitidos</p>
+          <p class="text-secondary mb-0">Gestiona los documentos de aceptación de aspirantes admitidos</p>
         </div>
       </div>
 
-      <!-- Selector de programa -->
+      <!-- Selector de programa e indicadores -->
       <div class="card mb-4">
         <div class="card-body">
-          <div class="row align-items-center">
+          <div class="row align-items-center g-3">
             <div class="col-md-4">
-              <label class="form-label fw-bold">Programa</label>
+              <label class="form-label fw-bold" for="programSelector">Programa</label>
               <select class="form-select" id="programSelector">
                 <option value="" {% if not selected_program %}selected{% endif %}>Todos los programas</option>
                 {% for program in coordinator_programs %}
@@ -35,194 +37,183 @@
               </select>
             </div>
             <div class="col-md-8">
-              <div id="statsContainer" class="d-flex flex-wrap gap-3 mt-3 mt-md-0">
-                <!-- Stats se cargan por JS -->
+              <div id="statsContainer" class="d-flex flex-wrap gap-3"
+                   role="group" aria-label="Indicadores de aceptación">
+                <!-- Las tarjetas de indicadores se cargan por JS -->
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Tabs por estado de documentos -->
+      <!-- Pestañas por estado de documentos -->
       <ul class="nav nav-tabs mb-4" id="acceptanceTabs" role="tablist">
         <li class="nav-item" role="presentation">
           <button class="nav-link active" id="pending-docs-tab" data-bs-toggle="tab"
-                  data-bs-target="#pending-docs-pane" data-tab="pending_docs" type="button" role="tab">
-            <i class="bi bi-hourglass-split me-2"></i>Pendientes de Documentos
-            <span class="badge bg-warning text-dark ms-2" id="pendingDocsCount">0</span>
+                  data-bs-target="#pending-docs-pane" data-tab="pending_docs"
+                  type="button" role="tab" aria-controls="pending-docs-pane" aria-selected="true">
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i>Pendientes de documentos
+            <span class="badge bg-warning ms-2" id="pendingDocsCount">0</span>
+            <span class="visually-hidden">aspirantes</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="receipt-tab" data-bs-toggle="tab"
-                  data-bs-target="#receipt-pane" data-tab="receipt_submitted" type="button" role="tab">
-            <i class="bi bi-file-earmark-arrow-up me-2"></i>Boleta Recibida
+                  data-bs-target="#receipt-pane" data-tab="receipt_submitted"
+                  type="button" role="tab" aria-controls="receipt-pane" aria-selected="false">
+            <i class="bi bi-file-earmark-arrow-up" aria-hidden="true"></i>Boleta recibida
             <span class="badge bg-info ms-2" id="receiptCount">0</span>
+            <span class="visually-hidden">aspirantes</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="completed-tab" data-bs-toggle="tab"
-                  data-bs-target="#completed-pane" data-tab="completed" type="button" role="tab">
-            <i class="bi bi-check-all me-2"></i>Completados
+                  data-bs-target="#completed-pane" data-tab="completed"
+                  type="button" role="tab" aria-controls="completed-pane" aria-selected="false">
+            <i class="bi bi-check-all" aria-hidden="true"></i>Completados
             <span class="badge bg-success ms-2" id="completedCount">0</span>
+            <span class="visually-hidden">aspirantes</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="deferred-tab" data-bs-toggle="tab"
-                  data-bs-target="#deferred-pane" type="button" role="tab">
-            <i class="bi bi-arrow-clockwise me-2"></i>Diferidos
+                  data-bs-target="#deferred-pane"
+                  type="button" role="tab" aria-controls="deferred-pane" aria-selected="false">
+            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Diferidos
             <span class="badge bg-secondary ms-2" id="deferredCount">0</span>
+            <span class="visually-hidden">aspirantes</span>
           </button>
         </li>
       </ul>
 
-      <!-- Contenido de tabs -->
+      <!-- Contenido de pestañas -->
       <div class="tab-content" id="acceptanceTabsContent">
 
-        <!-- Tab: Pendientes de Documentos -->
-        <div class="tab-pane fade show active" id="pending-docs-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">Aspirantes Pendientes de Documentos</h5>
-              <small class="text-muted">Sube la carta de aceptacion y tira de materias</small>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="pendingDocsTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Aspirante</th>
-                      <th>Email</th>
-                      <th class="text-center">Carta de Aceptacion</th>
-                      <th class="text-center">Tira de Materias</th>
-                      <th class="text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="6" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 6">{% for _ in range(6) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        <!-- Pestaña: Pendientes de documentos -->
+        <div class="tab-pane fade show active" id="pending-docs-pane" role="tabpanel"
+             aria-labelledby="pending-docs-tab">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h5 mb-0">Aspirantes pendientes de documentos</h2>
+            <p class="text-secondary small mb-0">Sube la carta de aceptación y la tira de materias</p>
           </div>
+          {{ data_table_open('Aspirantes pendientes de la carta de aceptación y la tira de materias',
+                             id='pendingDocsTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Aspirante</th>
+                <th scope="col">Correo</th>
+                <th scope="col" class="text-center">Carta de aceptación</th>
+                <th scope="col" class="text-center">Tira de materias</th>
+                <th scope="col" class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="5" class="p-0">{{ skeleton_table(rows=4, cols=5, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
 
-        <!-- Tab: Boleta Recibida -->
-        <div class="tab-pane fade" id="receipt-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">Boleta de Servicios Escolares Recibida</h5>
-              <small class="text-muted">Revisa y aprueba o rechaza la boleta</small>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="receiptTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Aspirante</th>
-                      <th>Email</th>
-                      <th class="text-center">Carta</th>
-                      <th class="text-center">Tira de Materias</th>
-                      <th class="text-center">Boleta</th>
-                      <th class="text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="6" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 6">{% for _ in range(6) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        <!-- Pestaña: Boleta recibida -->
+        <div class="tab-pane fade" id="receipt-pane" role="tabpanel" aria-labelledby="receipt-tab">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h5 mb-0">Boleta de servicios escolares recibida</h2>
+            <p class="text-secondary small mb-0">Revisa y aprueba o rechaza la boleta</p>
           </div>
+          {{ data_table_open('Aspirantes con boleta de servicios escolares pendiente de revisión',
+                             id='receiptTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Aspirante</th>
+                <th scope="col">Correo</th>
+                <th scope="col" class="text-center">Carta</th>
+                <th scope="col" class="text-center">Tira de materias</th>
+                <th scope="col" class="text-center">Boleta</th>
+                <th scope="col" class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="6" class="p-0">{{ skeleton_table(rows=4, cols=6, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
 
-        <!-- Tab: Completados -->
-        <div class="tab-pane fade" id="completed-pane" role="tabpanel">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">Proceso de Inscripcion Completado</h5>
-              <small class="text-muted">Asigna el número de control para completar la inscripcion</small>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="completedTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Aspirante</th>
-                      <th>Email</th>
-                      <th class="text-center">Carta</th>
-                      <th class="text-center">Tira de Materias</th>
-                      <th class="text-center">Boleta</th>
-                      <th class="text-center">Número de Control</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="6" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 6">{% for _ in range(6) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        <!-- Pestaña: Completados -->
+        <div class="tab-pane fade" id="completed-pane" role="tabpanel" aria-labelledby="completed-tab">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h5 mb-0">Proceso de inscripción completado</h2>
+            <p class="text-secondary small mb-0">Asigna el número de control para completar la inscripción</p>
           </div>
+          {{ data_table_open('Aspirantes con el proceso de inscripción completado',
+                             id='completedTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Aspirante</th>
+                <th scope="col">Correo</th>
+                <th scope="col" class="text-center">Carta</th>
+                <th scope="col" class="text-center">Tira de materias</th>
+                <th scope="col" class="text-center">Boleta</th>
+                <th scope="col" class="text-center">Número de control</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="6" class="p-0">{{ skeleton_table(rows=4, cols=6, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
         </div>
 
-        <!-- Tab: Diferidos -->
-        <div class="tab-pane fade" id="deferred-pane" role="tabpanel">
+        <!-- Pestaña: Diferidos -->
+        <div class="tab-pane fade" id="deferred-pane" role="tabpanel" aria-labelledby="deferred-tab">
 
           <!-- Solicitudes pendientes del aspirante -->
-          <div id="pendingRequestsSection" class="mb-4" style="display:none;">
-            <div class="card border-warning">
-              <div class="card-header bg-warning-subtle d-flex align-items-center gap-2">
-                <i class="bi bi-bell-fill text-warning"></i>
-                <strong>Solicitudes de Diferimiento Pendientes</strong>
-                <span class="badge bg-warning text-dark ms-auto" id="pendingRequestsCount">0</span>
-              </div>
-              <div class="card-body p-0">
-                <div class="table-responsive">
-                  <table class="table table-hover mb-0" id="pendingRequestsTable">
-                    <thead class="table-light">
-                      <tr>
-                        <th>Aspirante</th>
-                        <th>Email</th>
-                        <th>Diferimiento #</th>
-                        <th>Periodo destino</th>
-                        <th>Motivo</th>
-                        <th class="text-center">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr><td colspan="6" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(3) %}<div class="skeleton-row" style="--cols: 6">{% for _ in range(6) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+          <section id="pendingRequestsSection" class="mb-4 d-none"
+                   aria-labelledby="pendingRequestsHeading">
+            <div class="alert alert-warning d-flex align-items-center gap-2 mb-3">
+              <i class="bi bi-bell-fill flex-shrink-0" aria-hidden="true"></i>
+              <h2 class="h5 mb-0 flex-grow-1" id="pendingRequestsHeading">
+                Solicitudes de diferimiento pendientes
+              </h2>
+              <span class="badge bg-warning" id="pendingRequestsCount">0</span>
+              <span class="visually-hidden">solicitudes</span>
             </div>
-          </div>
+            {{ data_table_open('Solicitudes de diferimiento enviadas por los aspirantes',
+                               id='pendingRequestsTable', table_class='table-hover align-middle') }}
+              <thead class="table-light">
+                <tr>
+                  <th scope="col">Aspirante</th>
+                  <th scope="col">Correo</th>
+                  <th scope="col" class="text-center">Diferimiento n.º</th>
+                  <th scope="col">Periodo destino</th>
+                  <th scope="col">Motivo</th>
+                  <th scope="col" class="text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="6" class="p-0">{{ skeleton_table(rows=3, cols=6, with_header=false) }}</td></tr>
+              </tbody>
+            {{ data_table_close() }}
+          </section>
 
           <!-- Aspirantes diferidos activos -->
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">Aspirantes con Inscripción Diferida</h5>
-              <small class="text-muted">Reactiva al aspirante cuando el nuevo periodo esté activo</small>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0" id="deferredTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Aspirante</th>
-                      <th>Email</th>
-                      <th class="text-center">Diferimiento #</th>
-                      <th>Periodo original</th>
-                      <th>Periodo destino</th>
-                      <th class="text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="6" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 6">{% for _ in range(6) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h5 mb-0">Aspirantes con inscripción diferida</h2>
+            <p class="text-secondary small mb-0">Reactiva al aspirante cuando el nuevo periodo esté activo</p>
           </div>
+          {{ data_table_open('Aspirantes con la inscripción diferida a un periodo posterior',
+                             id='deferredTable', table_class='table-hover align-middle') }}
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Aspirante</th>
+                <th scope="col">Correo</th>
+                <th scope="col" class="text-center">Diferimiento n.º</th>
+                <th scope="col">Periodo original</th>
+                <th scope="col">Periodo destino</th>
+                <th scope="col" class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="6" class="p-0">{{ skeleton_table(rows=4, cols=6, with_header=false) }}</td></tr>
+            </tbody>
+          {{ data_table_close() }}
 
         </div>
 
@@ -233,13 +224,14 @@
 {% endblock %}
 
 {% block modals %}
-<!-- Modal: Subir Documento (coordinador) -->
-<div class="modal fade" id="uploadDocModal" tabindex="-1" data-bs-backdrop="static">
-  <div class="modal-dialog">
+<!-- Modal: Subir documento (coordinador) -->
+<div class="modal fade" id="uploadDocModal" tabindex="-1" data-bs-backdrop="static"
+     aria-labelledby="uploadDocModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="uploadDocModalTitle">Subir Documento</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="uploadDocModalTitle">Subir documento</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="uploadDocUserId">
@@ -247,225 +239,234 @@
         <input type="hidden" id="uploadDocType">
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Aspirante</label>
-          <p class="mb-0" id="uploadDocApplicantName">-</p>
+          <p class="form-label fw-bold mb-1" id="uploadDocApplicantLabel">Aspirante</p>
+          <p class="mb-0" id="uploadDocApplicantName" aria-labelledby="uploadDocApplicantLabel">-</p>
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Tipo de Documento</label>
-          <p class="mb-0 text-primary" id="uploadDocTypeLabel">-</p>
+          <p class="form-label fw-bold mb-1" id="uploadDocTypeHeading">Tipo de documento</p>
+          <p class="mb-0 text-brand-primary" id="uploadDocTypeLabel" aria-labelledby="uploadDocTypeHeading">-</p>
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Archivo <span class="text-danger">*</span></label>
-          <input type="file" class="form-control" id="uploadDocFile" accept=".pdf,.doc,.docx">
-          <div class="form-text">Formatos permitidos: PDF, DOC, DOCX. Tamaño maximo: 3 MB.</div>
+          <label class="form-label fw-bold" for="uploadDocFile">Archivo{{ required_mark() }}</label>
+          <input type="file" class="form-control" id="uploadDocFile" accept=".pdf,.doc,.docx"
+                 aria-describedby="uploadDocFileHelp" required aria-required="true">
+          <div class="form-text" id="uploadDocFileHelp">Formatos permitidos: PDF, DOC, DOCX. Tamaño máximo: 3 MB.</div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="confirmUploadDocBtn">
-          <span class="spinner-border spinner-border-sm d-none me-2" id="uploadDocSpinner"></span>
-          Subir Documento
+          <span class="spinner-border spinner-border-sm d-none me-2" id="uploadDocSpinner" aria-hidden="true"></span>
+          Subir documento
         </button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal: Revisar Boleta -->
-<div class="modal fade" id="reviewReceiptModal" tabindex="-1" data-bs-backdrop="static">
-  <div class="modal-dialog">
+<!-- Modal: Revisar boleta -->
+<div class="modal fade" id="reviewReceiptModal" tabindex="-1" data-bs-backdrop="static"
+     aria-labelledby="reviewReceiptModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Revisar Boleta de Servicios Escolares</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="reviewReceiptModalTitle">Revisar boleta de servicios escolares</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="reviewReceiptDocId">
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Aspirante</label>
-          <p class="mb-0" id="reviewReceiptApplicantName">-</p>
+          <p class="form-label fw-bold mb-1" id="reviewReceiptApplicantLabel">Aspirante</p>
+          <p class="mb-0" id="reviewReceiptApplicantName" aria-labelledby="reviewReceiptApplicantLabel">-</p>
         </div>
 
         <div class="mb-3">
-          <a href="#" class="btn btn-outline-primary btn-sm" id="viewReceiptBtn" target="_blank">
-            <i class="bi bi-eye me-1"></i>Ver Boleta
+          <a href="#" class="btn btn-outline-primary btn-sm disabled" id="viewReceiptBtn"
+             target="_blank" rel="noopener" aria-disabled="true">
+            <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver boleta
+            <span class="visually-hidden">(se abre en una pestaña nueva)</span>
           </a>
         </div>
 
-        <div class="mb-3">
-          <label class="form-label fw-bold">Decision <span class="text-danger">*</span></label>
+        <fieldset class="mb-3">
+          <legend class="form-label fw-bold">Decisión{{ required_mark() }}</legend>
           <div class="d-flex gap-3">
             <div class="form-check">
               <input class="form-check-input" type="radio" name="reviewReceiptStatus" id="reviewApprove" value="approved">
-              <label class="form-check-label text-success fw-bold" for="reviewApprove">Aprobar</label>
+              <label class="form-check-label text-success-strong fw-bold" for="reviewApprove">Aprobar</label>
             </div>
             <div class="form-check">
               <input class="form-check-input" type="radio" name="reviewReceiptStatus" id="reviewReject" value="rejected">
-              <label class="form-check-label text-danger fw-bold" for="reviewReject">Rechazar</label>
+              <label class="form-check-label text-danger-strong fw-bold" for="reviewReject">Rechazar</label>
             </div>
           </div>
-        </div>
+        </fieldset>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Notas <span id="notesRequired" class="text-danger" style="display:none;">*</span></label>
+          <label class="form-label fw-bold" for="reviewReceiptNotes">
+            Notas <span id="notesRequired" class="d-none">{{ required_mark() }}</span>
+          </label>
           <textarea class="form-control" id="reviewReceiptNotes" rows="3"
                     placeholder="Observaciones sobre la boleta..."></textarea>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="confirmReviewReceiptBtn">Confirmar</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal: Asignar Número de Control -->
-<div class="modal fade" id="assignControlNumberModal" tabindex="-1" data-bs-backdrop="static">
-  <div class="modal-dialog">
+<!-- Modal: Asignar número de control -->
+<div class="modal fade" id="assignControlNumberModal" tabindex="-1" data-bs-backdrop="static"
+     aria-labelledby="assignControlNumberModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-hash me-2"></i>Asignar Número de Control</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="assignControlNumberModalTitle">
+          <i class="bi bi-hash me-2" aria-hidden="true"></i>Asignar número de control
+        </h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="assignCtrlUserId">
         <input type="hidden" id="assignCtrlProgramId">
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Aspirante</label>
-          <p class="mb-0" id="assignCtrlApplicantName">-</p>
+          <p class="form-label fw-bold mb-1" id="assignCtrlApplicantLabel">Aspirante</p>
+          <p class="mb-0" id="assignCtrlApplicantName" aria-labelledby="assignCtrlApplicantLabel">-</p>
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Número de Control <span class="text-danger">*</span></label>
+          <label class="form-label fw-bold" for="assignCtrlNumber">Número de control{{ required_mark() }}</label>
           <input type="text" class="form-control" id="assignCtrlNumber"
-                 placeholder="Ej: M21111182" maxlength="20">
-          <div class="form-text">Este número también se usará como nombre de usuario del aspirante.</div>
+                 placeholder="Ej: M21111182" maxlength="20"
+                 aria-describedby="assignCtrlNumberHelp" required aria-required="true">
+          <div class="form-text" id="assignCtrlNumberHelp">Este número también se usará como nombre de usuario del aspirante.</div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-success" id="confirmAssignCtrlBtn">
-          <i class="bi bi-check-lg me-1"></i>Asignar
+          <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Asignar
         </button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal: Diferir Aspirante (coordinador inicia) -->
-<div class="modal fade" id="deferApplicantModal" tabindex="-1" data-bs-backdrop="static">
-  <div class="modal-dialog">
+<!-- Modal: Diferir aspirante (lo inicia el coordinador) -->
+<div class="modal fade" id="deferApplicantModal" tabindex="-1" data-bs-backdrop="static"
+     aria-labelledby="deferApplicantModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-arrow-clockwise me-2"></i>Diferir Inscripción</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="deferApplicantModalTitle">
+          <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Diferir inscripción
+        </h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="deferUserId">
         <input type="hidden" id="deferProgramId">
 
         <div class="alert alert-warning d-flex gap-2 align-items-start mb-3">
-          <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
           <div>
-            <strong>Atención:</strong> Al diferir la inscripción, se conservará la carta de aceptación del aspirante,
+            <strong>Atención:</strong> al diferir la inscripción se conservará la carta de aceptación del aspirante,
             pero se requerirá subir una nueva tira de materias y boleta de servicios escolares en el nuevo periodo.
           </div>
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Aspirante</label>
-          <p class="mb-0" id="deferApplicantName">-</p>
+          <p class="form-label fw-bold mb-1" id="deferApplicantLabel">Aspirante</p>
+          <p class="mb-0" id="deferApplicantName" aria-labelledby="deferApplicantLabel">-</p>
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Periodo destino</label>
-          <p class="mb-0 text-primary" id="deferNextPeriodInfo">
-            <i class="bi bi-info-circle me-1"></i>Se asignará automáticamente al siguiente periodo disponible.
+          <p class="form-label fw-bold mb-1" id="deferNextPeriodLabel">Periodo destino</p>
+          <p class="mb-0 text-brand-primary" id="deferNextPeriodInfo" aria-labelledby="deferNextPeriodLabel">
+            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Se asignará automáticamente al siguiente periodo disponible.
           </p>
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Motivo (opcional)</label>
+          <label class="form-label fw-bold" for="deferReason">Motivo (opcional)</label>
           <textarea class="form-control" id="deferReason" rows="3"
                     placeholder="Razón del diferimiento..."></textarea>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-warning" id="confirmDeferBtn">
-          <span class="spinner-border spinner-border-sm d-none me-2" id="deferSpinner"></span>
-          <i class="bi bi-arrow-clockwise me-1"></i>Confirmar Diferimiento
+          <span class="spinner-border spinner-border-sm d-none me-2" id="deferSpinner" aria-hidden="true"></span>
+          <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Confirmar diferimiento
         </button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal: Revisar Solicitud de Diferimiento (del aspirante) -->
-<div class="modal fade" id="reviewDeferralModal" tabindex="-1" data-bs-backdrop="static">
-  <div class="modal-dialog">
+<!-- Modal: Revisar solicitud de diferimiento (del aspirante) -->
+<div class="modal fade" id="reviewDeferralModal" tabindex="-1" data-bs-backdrop="static"
+     aria-labelledby="reviewDeferralModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-arrow-clockwise me-2"></i>Revisar Solicitud de Diferimiento</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="reviewDeferralModalTitle">
+          <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Revisar solicitud de diferimiento
+        </h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="reviewDeferralId">
 
-        <div class="mb-3">
-          <label class="form-label fw-bold">Aspirante</label>
-          <p class="mb-0" id="reviewDeferralApplicantName">-</p>
-        </div>
+        <dl class="row mb-3">
+          <dt class="col-sm-5 form-label fw-bold mb-1">Aspirante</dt>
+          <dd class="col-sm-7 mb-2" id="reviewDeferralApplicantName">-</dd>
 
-        <div class="mb-3">
-          <label class="form-label fw-bold">Diferimiento #</label>
-          <p class="mb-0" id="reviewDeferralNumber">-</p>
-        </div>
+          <dt class="col-sm-5 form-label fw-bold mb-1">Diferimiento n.º</dt>
+          <dd class="col-sm-7 mb-2" id="reviewDeferralNumber">-</dd>
 
-        <div class="mb-3">
-          <label class="form-label fw-bold">Periodo destino</label>
-          <p class="mb-0 text-primary" id="reviewDeferralPeriod">-</p>
-        </div>
+          <dt class="col-sm-5 form-label fw-bold mb-1">Periodo destino</dt>
+          <dd class="col-sm-7 mb-2 text-brand-primary" id="reviewDeferralPeriod">-</dd>
 
-        <div class="mb-3">
-          <label class="form-label fw-bold">Motivo del aspirante</label>
-          <p class="mb-0 fst-italic text-muted" id="reviewDeferralReason">Sin especificar</p>
-        </div>
+          <dt class="col-sm-5 form-label fw-bold mb-1">Motivo del aspirante</dt>
+          <dd class="col-sm-7 mb-0 fst-italic text-secondary" id="reviewDeferralReason">Sin especificar</dd>
+        </dl>
 
-        <div class="mb-3">
-          <label class="form-label fw-bold">Decisión <span class="text-danger">*</span></label>
+        <fieldset class="mb-3">
+          <legend class="form-label fw-bold">Decisión{{ required_mark() }}</legend>
           <div class="d-flex gap-3">
             <div class="form-check">
               <input class="form-check-input" type="radio" name="reviewDeferralStatus"
                      id="reviewDeferralApprove" value="approved">
-              <label class="form-check-label text-success fw-bold" for="reviewDeferralApprove">Aprobar</label>
+              <label class="form-check-label text-success-strong fw-bold" for="reviewDeferralApprove">Aprobar</label>
             </div>
             <div class="form-check">
               <input class="form-check-input" type="radio" name="reviewDeferralStatus"
                      id="reviewDeferralReject" value="rejected">
-              <label class="form-check-label text-danger fw-bold" for="reviewDeferralReject">Rechazar</label>
+              <label class="form-check-label text-danger-strong fw-bold" for="reviewDeferralReject">Rechazar</label>
             </div>
           </div>
-        </div>
+        </fieldset>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">
-            Notas
-            <span id="deferralNotesRequired" class="text-danger" style="display:none;">*</span>
+          <label class="form-label fw-bold" for="reviewDeferralNotes">
+            Notas <span id="deferralNotesRequired" class="d-none">{{ required_mark() }}</span>
           </label>
           <textarea class="form-control" id="reviewDeferralNotes" rows="3"
                     placeholder="Observaciones..."></textarea>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="confirmReviewDeferralBtn">
-          <span class="spinner-border spinner-border-sm d-none me-2" id="reviewDeferralSpinner"></span>
+          <span class="spinner-border spinner-border-sm d-none me-2" id="reviewDeferralSpinner" aria-hidden="true"></span>
           Confirmar
         </button>
       </div>
@@ -473,41 +474,42 @@
   </div>
 </div>
 
-<!-- Modal: Reactivar Aspirante Diferido -->
-<div class="modal fade" id="reactivateModal" tabindex="-1" data-bs-backdrop="static">
-  <div class="modal-dialog">
+<!-- Modal: Reactivar aspirante diferido -->
+<div class="modal fade" id="reactivateModal" tabindex="-1" data-bs-backdrop="static"
+     aria-labelledby="reactivateModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-person-check-fill me-2"></i>Reactivar Inscripción</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title h5" id="reactivateModalTitle">
+          <i class="bi bi-person-check-fill me-2" aria-hidden="true"></i>Reactivar inscripción
+        </h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="reactivateUserId">
         <input type="hidden" id="reactivateProgramId">
 
         <div class="alert alert-info d-flex gap-2 align-items-start mb-3">
-          <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+          <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
           <div>
-            Al reactivar, el aspirante volverá a estado <strong>Aceptado</strong> en el nuevo periodo.
+            Al reactivar, el aspirante volverá al estado <strong>Aceptado</strong> en el nuevo periodo.
             Deberás subir una nueva tira de materias y el aspirante deberá volver a subir su boleta.
           </div>
         </div>
 
-        <div class="mb-3">
-          <label class="form-label fw-bold">Aspirante</label>
-          <p class="mb-0" id="reactivateApplicantName">-</p>
-        </div>
+        <dl class="row mb-0">
+          <dt class="col-sm-5 form-label fw-bold mb-1">Aspirante</dt>
+          <dd class="col-sm-7 mb-2" id="reactivateApplicantName">-</dd>
 
-        <div class="mb-3">
-          <label class="form-label fw-bold">Nuevo periodo de admisión</label>
-          <p class="mb-0 text-success fw-bold" id="reactivatePeriodName">-</p>
-        </div>
+          <dt class="col-sm-5 form-label fw-bold mb-1">Nuevo periodo de admisión</dt>
+          <dd class="col-sm-7 mb-0 text-success-strong fw-bold" id="reactivatePeriodName">-</dd>
+        </dl>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-success" id="confirmReactivateBtn">
-          <span class="spinner-border spinner-border-sm d-none me-2" id="reactivateSpinner"></span>
-          <i class="bi bi-person-check-fill me-1"></i>Reactivar
+          <span class="spinner-border spinner-border-sm d-none me-2" id="reactivateSpinner" aria-hidden="true"></span>
+          <i class="bi bi-person-check-fill me-1" aria-hidden="true"></i>Reactivar
         </button>
       </div>
     </div>

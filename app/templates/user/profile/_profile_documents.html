@@ -1,15 +1,15 @@
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">
-            <i class="bi bi-file-earmark-text me-2"></i>
+{% from '_macros.html' import async_region, skeleton_table %}
+<section class="card" aria-labelledby="documentsHistoryTitle">
+    <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <h2 class="h5 mb-0" id="documentsHistoryTitle">
+            <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>
             Documentos históricos
-        </h5>
+        </h2>
         <small class="text-muted">Agrupados por fase y semestre</small>
     </div>
-    <div class="card-body" id="profileDocumentsHistoryContainer">
-        <div class="text-center py-3 text-muted small">
-            <div class="spinner-border spinner-border-sm me-1" role="status"></div>
-            Cargando documentos...
-        </div>
+    <div class="card-body">
+        {% call async_region('profileDocumentsHistoryContainer', 'Documentos históricos') %}
+          {{ skeleton_table(rows=4, cols=3) }}
+        {% endcall %}
     </div>
-</div>
+</section>

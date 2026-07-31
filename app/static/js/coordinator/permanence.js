@@ -57,6 +57,7 @@ class PermanenceManager {
     if (want && !existing) {
       const th = document.createElement('th');
       th.className = 'program-col';
+      th.scope = 'col';
       th.textContent = 'Programa';
       thead.insertBefore(th, thead.firstChild);
     } else if (!want && existing) {
@@ -84,6 +85,38 @@ class PermanenceManager {
         el.classList.remove('disabled');
       }
     });
+  }
+
+  /** Chip de estado con el componente compartido .status-badge. */
+  static statusBadge(key, label) {
+    return SIIAP.statusBadge(key, label, 'sm');
+  }
+
+  /** Chip del estado de una inscripción semestral. */
+  static semesterStatusBadge(status) {
+    const map = {
+      active:    ['in_progress', 'Activo'],
+      pending:   ['pending',     'Pendiente'],
+      completed: ['approved',    'Completado'],
+      on_leave:  ['deferred',    'Baja temporal'],
+      dropped:   ['rejected',    'Baja definitiva'],
+    };
+    const [key, label] = map[status] || ['pending', SIIAP.statusLabel(status)];
+    return SIIAP.statusBadge(key, label, 'sm');
+  }
+
+  /** Estado vacío dentro de una tabla, con el componente completo. */
+  static emptyRow(colspan, icon, title, description) {
+    return `
+      <tr>
+        <td colspan="${colspan}">
+          <div class="empty-state empty-state--inline">
+            <div class="empty-state__icon"><i class="bi bi-${icon}" aria-hidden="true"></i></div>
+            <h3 class="empty-state__title">${title}</h3>
+            <p class="empty-state__description">${description}</p>
+          </div>
+        </td>
+      </tr>`;
   }
 
   bindEvents() {
@@ -251,7 +284,7 @@ class PermanenceManager {
       const badge = document.getElementById('deadlinesBadge');
       if (badge) {
         badge.textContent = deadlines.length;
-        badge.style.display = deadlines.length ? '' : 'none';
+        badge.classList.toggle('d-none', !deadlines.length);
       }
 
       if (!deadlines.length) {
@@ -274,19 +307,20 @@ class PermanenceManager {
   renderStats(stats) {
     const container = document.getElementById('statsContainer');
     if (!container) return;
+    // Tarjetas de indicadores (componente compartido .stat-card). La tarjeta
+    // sin modificador ES el tono neutro; el color nunca va solo: siempre
+    // acompañado de icono y etiqueta.
     const items = [
-      { label: 'Total estudiantes', value: stats.total_students, icon: 'bi-people-fill', color: 'primary' },
-      { label: 'Confirmados', value: stats.confirmed, icon: 'bi-check-circle-fill', color: 'success' },
-      { label: 'Pendientes', value: stats.pending, icon: 'bi-hourglass-split', color: 'warning' },
-      { label: 'Baja temporal', value: stats.on_leave, icon: 'bi-pause-circle-fill', color: 'secondary' },
+      { label: 'Total de estudiantes', value: stats.total_students, icon: 'people-fill',       tone: '' },
+      { label: 'Confirmados',          value: stats.confirmed,      icon: 'check-circle-fill', tone: 'success' },
+      { label: 'Pendientes',           value: stats.pending,        icon: 'hourglass-split',   tone: 'warning' },
+      { label: 'Baja temporal',        value: stats.on_leave,       icon: 'pause-circle-fill', tone: 'info' },
     ];
     container.innerHTML = items.map(i => `
-      <div class="card border-0 shadow-sm px-3 py-2 d-flex flex-row align-items-center gap-2">
-        <i class="bi ${i.icon} text-${i.color} fs-4"></i>
-        <div>
-          <div class="fw-bold fs-5 lh-1">${i.value}</div>
-          <div class="small text-muted">${i.label}</div>
-        </div>
+      <div class="stat-card${i.tone ? ' stat-card--' + i.tone : ''}">
+        <i class="bi bi-${i.icon} stat-card__icon" aria-hidden="true"></i>
+        <p class="stat-card__value">${i.value || 0}</p>
+        <p class="stat-card__label">${i.label}</p>
       </div>
     `).join('');
   }
@@ -303,6 +337,7 @@ class PermanenceManager {
       if (this._isAllMode() && !existing) {
         const th = document.createElement('th');
         th.className = 'program-col';
+        th.scope = 'col';
         th.textContent = 'Programa';
         headerRow.insertBefore(th, headerRow.firstChild);
       } else if (!this._isAllMode() && existing) {
@@ -319,7 +354,6 @@ class PermanenceManager {
     table.classList.remove('d-none');
 
     tbody.innerHTML = students.map((s, i) => this.renderStudentRow(s, i)).join('');
-
   }
 
   renderStudentRow(s, index) {
@@ -327,9 +361,9 @@ class PermanenceManager {
     const user = s.user;
     const ce = s.current_enrollment;
 
-    const semesterBadge = `<span class="badge bg-info text-dark">Sem. ${up.current_semester || 1}</span>`;
+    const semesterBadge = `<span class="badge bg-info">${up.current_semester || 1}</span><span class="visually-hidden"> semestre</span>`;
 
-    let periodCell = '<span class="text-muted small">—</span>';
+    let periodCell = '<span class="text-secondary small">—</span>';
     if (s.current_period) {
       periodCell = `<span class="small">${s.current_period.name}</span>`;
     }
@@ -337,53 +371,50 @@ class PermanenceManager {
     let statusCell = '';
     let actionCell = '';
 
+    const safeFullName = this.escapeHtml(user.full_name);
+
     if (!this.activePeriodId) {
-      statusCell = '<span class="badge bg-secondary">Sin periodo activo</span>';
+      statusCell = PermanenceManager.statusBadge('pending', 'Sin periodo activo');
       actionCell = `
-        <button class="btn btn-sm btn-outline-info"
-          onclick="permanenceManager.showHistoryByIndex(${index})" title="Ver historial">
-          <i class="bi bi-clock-history"></i>
+        <button type="button" class="btn btn-sm btn-outline-info tap-target"
+          onclick="permanenceManager.showHistoryByIndex(${index})"
+          title="Ver historial" aria-label="Ver historial de ${safeFullName}">
+          <i class="bi bi-clock-history" aria-hidden="true"></i>
         </button>`;
     } else if (!ce) {
-      statusCell = '<span class="badge bg-warning text-dark">Pendiente confirmación</span>';
+      statusCell = PermanenceManager.statusBadge('pending', 'Pendiente de confirmación');
       actionCell = `
         <a href="#pane-enrollment" class="btn btn-sm btn-outline-warning" data-bs-toggle="tab" data-bs-target="#pane-enrollment"
-          onclick="document.getElementById('tab-enrollment').click()" title="Confirmar en pestaña Inscripción">
-          <i class="bi bi-arrow-right-short"></i>Inscripción
+          onclick="document.getElementById('tab-enrollment').click()" title="Confirmar en la pestaña Inscripción">
+          <i class="bi bi-arrow-right-short" aria-hidden="true"></i>Inscripción
         </a>`;
     } else {
-      const statusMap = {
-        active: ['bg-success', 'Activo'],
-        completed: ['bg-primary', 'Completado'],
-        on_leave: ['bg-secondary', 'Baja temporal'],
-        dropped: ['bg-danger', 'Baja definitiva'],
-        pending: ['bg-warning text-dark', 'Pendiente'],
-      };
-      const [cls, label] = statusMap[ce.status] || ['bg-secondary', ce.status];
-      statusCell = `<span class="badge ${cls}">${label}</span>`;
+      statusCell = PermanenceManager.semesterStatusBadge(ce.status);
       actionCell = `
         <div class="d-flex gap-1 justify-content-center">
-          <button class="btn btn-sm btn-outline-secondary"
-            onclick="permanenceManager.showUpdateStatusModal(${ce.id}, '${this.escapeHtml(user.full_name)}', '${ce.status}')"
-            title="Cambiar estado">
-            <i class="bi bi-pencil"></i>
+          <button type="button" class="btn btn-sm btn-outline-secondary tap-target"
+            onclick="permanenceManager.showUpdateStatusModal(${ce.id}, '${safeFullName}', '${ce.status}')"
+            title="Cambiar estado" aria-label="Cambiar el estado de ${safeFullName}">
+            <i class="bi bi-pencil" aria-hidden="true"></i>
           </button>
-          <button class="btn btn-sm btn-outline-info"
-            onclick="permanenceManager.showHistoryByIndex(${index})" title="Historial">
-            <i class="bi bi-clock-history"></i>
+          <button type="button" class="btn btn-sm btn-outline-info tap-target"
+            onclick="permanenceManager.showHistoryByIndex(${index})"
+            title="Historial" aria-label="Ver historial de ${safeFullName}">
+            <i class="bi bi-clock-history" aria-hidden="true"></i>
           </button>
         </div>`;
     }
 
     // Columna SECIHTI
     const conacytBadge = up.has_conacyt_scholarship
-      ? `<span class="badge bg-success" title="Becario SECIHTI activo"><i class="bi bi-patch-check-fill"></i></span>`
-      : `<span class="badge bg-light text-muted border">—</span>`;
+      ? PermanenceManager.statusBadge('approved', 'Becario')
+      : PermanenceManager.statusBadge('pending', 'Sin beca');
     const conacytToggle = `
-      <button class="btn btn-sm ${up.has_conacyt_scholarship ? 'btn-outline-success' : 'btn-outline-secondary'} ms-1"
-        title="${up.has_conacyt_scholarship ? 'Quitar beca CONACyT' : 'Marcar como becario CONACyT'}"
+      <button type="button" class="btn btn-sm ${up.has_conacyt_scholarship ? 'btn-outline-success' : 'btn-outline-secondary'} ms-1 tap-target"
+        title="${up.has_conacyt_scholarship ? 'Quitar beca SECIHTI' : 'Marcar como becario SECIHTI'}"
+        aria-label="${up.has_conacyt_scholarship ? 'Quitar la beca SECIHTI a' : 'Marcar como becario SECIHTI a'} ${safeFullName}"
         onclick="permanenceManager.toggleConacyt(${up.id}, ${!up.has_conacyt_scholarship})">
-        <i class="bi bi-toggles"></i>
+        <i class="bi bi-toggles" aria-hidden="true"></i>
       </button>`;
 
     const programCell = this._isAllMode()
@@ -397,7 +428,7 @@ class PermanenceManager {
           <div class="small text-muted">${this.escapeHtml(user.email)}</div>
         </td>
         <td class="text-center">
-          <span class="badge bg-dark font-monospace">${user.control_number || '—'}</span>
+          <span class="badge bg-secondary font-monospace">${user.control_number || '—'}</span>
         </td>
         <td class="text-center">${semesterBadge}</td>
         <td class="text-center">${periodCell}</td>
@@ -409,15 +440,15 @@ class PermanenceManager {
 
   renderDeadlineCard(dl, pendingDocs = []) {
     const statusBadge = dl.is_currently_open
-      ? '<span class="badge bg-success"><i class="bi bi-unlock-fill me-1"></i>Abierta</span>'
-      : '<span class="badge bg-secondary"><i class="bi bi-lock-fill me-1"></i>Cerrada</span>';
+      ? PermanenceManager.statusBadge('approved', 'Abierta')
+      : PermanenceManager.statusBadge('pending', 'Cerrada');
 
     const closesAt = dl.closes_at
-      ? `Cierra: ${new Date(dl.closes_at).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })}`
+      ? `Cierra: ${SIIAP.formatDate(dl.closes_at, 'short', '—')}`
       : 'Sin fecha límite';
 
     const opensAt = dl.opens_at
-      ? `Abre: ${new Date(dl.opens_at).toLocaleDateString('es-MX', { day:'2-digit', month:'short' })}`
+      ? `Abre: ${SIIAP.formatDate(dl.opens_at, 'short', '—')}`
       : '';
 
     const toggleIcon = dl.is_open ? 'bi-lock-fill' : 'bi-unlock-fill';
@@ -430,14 +461,13 @@ class PermanenceManager {
     // metadatos (programa, ventana, semestre, periodo, historial).
     const pendingSection = pendingDocs.length ? `
       <div class="border-top mt-2 pt-2 d-flex align-items-center gap-2 flex-wrap">
-        <span class="badge bg-warning text-dark">
-          <i class="bi bi-hourglass-split me-1"></i>${pendingDocs.length} pendiente(s) de revisión
-        </span>
+        ${PermanenceManager.statusBadge('review', `${pendingDocs.length} pendiente(s) de revisión`)}
         <a href="/admin/review/submissions?phase=permanence&status=review"
            class="btn btn-sm btn-outline-warning" target="_blank" rel="noopener">
-          <i class="bi bi-clipboard2-check me-1"></i>Ir a revisión
+          <i class="bi bi-clipboard2-check me-1" aria-hidden="true"></i>Ir a revisión
+          <span class="visually-hidden">(se abre en una pestaña nueva)</span>
         </a>
-        <span class="small text-muted">La revisión se centraliza en el panel de Documentos.</span>
+        <span class="small text-secondary">La revisión se centraliza en el panel de Documentos.</span>
       </div>` : '';
 
     return `
@@ -455,28 +485,31 @@ class PermanenceManager {
             </div>
             <div class="d-flex align-items-center gap-2">
               ${statusBadge}
-              <span class="badge bg-light text-dark border">
-                ${dl.stats.total} entregas
-                ${dl.stats.approved ? `· <span class="text-success">${dl.stats.approved} ✓</span>` : ''}
+              <span class="badge bg-secondary">
+                ${dl.stats.total} entregas${dl.stats.approved ? ` · ${dl.stats.approved} aprobadas` : ''}
               </span>
               ${dl.is_archived ? `
-                <span class="badge bg-secondary"><i class="bi bi-archive-fill me-1"></i>Archivada</span>
-                <button class="btn btn-sm btn-outline-success" title="Restaurar ventana"
+                ${PermanenceManager.statusBadge('deferred', 'Archivada')}
+                <button type="button" class="btn btn-sm btn-outline-success tap-target" title="Restaurar ventana"
+                  aria-label="Restaurar la ventana ${this.escapeHtml(dl.label)}"
                   onclick="permanenceManager.restoreDeadline(${dl.id})">
-                  <i class="bi bi-arrow-counterclockwise"></i>
+                  <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
                 </button>
               ` : `
-                <button class="btn btn-sm btn-outline-primary" title="Editar ventana"
+                <button type="button" class="btn btn-sm btn-outline-primary tap-target" title="Editar ventana"
+                  aria-label="Editar la ventana ${this.escapeHtml(dl.label)}"
                   onclick="permanenceManager.openEditDeadlineModal(${dl.id})">
-                  <i class="bi bi-pencil"></i>
+                  <i class="bi bi-pencil" aria-hidden="true"></i>
                 </button>
-                <button class="btn btn-sm ${toggleCls}" title="${toggleTitle}"
+                <button type="button" class="btn btn-sm ${toggleCls} tap-target" title="${toggleTitle}"
+                  aria-label="${toggleTitle}: ${this.escapeHtml(dl.label)}"
                   onclick="permanenceManager.toggleDeadline(${dl.id}, ${!dl.is_open})">
-                  <i class="bi ${toggleIcon}"></i>
+                  <i class="bi ${toggleIcon}" aria-hidden="true"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-warning" title="Archivar ventana"
+                <button type="button" class="btn btn-sm btn-outline-warning tap-target" title="Archivar ventana"
+                  aria-label="Archivar la ventana ${this.escapeHtml(dl.label)}"
                   onclick="permanenceManager.archiveDeadline(${dl.id}, '${this.escapeHtml(dl.label)}')">
-                  <i class="bi bi-archive"></i>
+                  <i class="bi bi-archive" aria-hidden="true"></i>
                 </button>
               `}
             </div>
@@ -494,13 +527,13 @@ class PermanenceManager {
    */
   showConfirmModal(userProgramId, studentName, mode = 'confirm', proofUrlArg = '') {
     const TITLES = {
-      confirm: ['Confirmar Inscripción Semestral', 'Esto confirmará la inscripción del estudiante en el periodo activo.', 'Confirmar Inscripción', 'btn-success'],
-      advance: ['Avanzar Semestre Manualmente', 'Avanzará al estudiante al siguiente semestre en el periodo activo aunque tenga rezagos. El semestre anterior se cerrará como completado en la misma operación.', 'Avanzar Semestre', 'btn-primary'],
-      reinstate: ['Reincorporar Estudiante', 'Crea un nuevo semestre activo en el periodo actual saliendo de la baja temporal.', 'Reincorporar', 'btn-warning'],
+      confirm: ['Confirmar inscripción semestral', 'Esto confirmará la inscripción del estudiante en el periodo activo.', 'Confirmar inscripción', 'btn-success'],
+      advance: ['Avanzar semestre manualmente', 'Avanzará al estudiante al siguiente semestre en el periodo activo aunque tenga rezagos. El semestre anterior se cerrará como completado en la misma operación.', 'Avanzar semestre', 'btn-primary'],
+      reinstate: ['Reincorporar estudiante', 'Crea un nuevo semestre activo en el periodo actual saliendo de la baja temporal.', 'Reincorporar', 'btn-warning'],
     };
     const [title, desc, btnLabel, btnCls] = TITLES[mode] || TITLES.confirm;
     document.getElementById('confirmEnrollTitle').innerHTML =
-      `<i class="bi bi-check-circle-fill text-success me-2"></i>${title}`;
+      `<i class="bi bi-check-circle-fill text-success-strong me-2" aria-hidden="true"></i>${title}`;
     document.getElementById('confirmEnrollDescription').textContent = desc;
     document.getElementById('confirmEnrollBtnLabel').textContent = btnLabel;
 
@@ -526,10 +559,14 @@ class PermanenceManager {
     }
     if (proofUrl) {
       link.href = proofUrl;
+      link.classList.remove('disabled');
+      link.setAttribute('aria-disabled', 'false');
       wrap.classList.remove('d-none');
     } else {
       wrap.classList.add('d-none');
-      link.removeAttribute('href');
+      link.href = '#';
+      link.classList.add('disabled');
+      link.setAttribute('aria-disabled', 'true');
     }
 
     new bootstrap.Modal(document.getElementById('confirmEnrollmentModal')).show();
@@ -606,7 +643,7 @@ class PermanenceManager {
       const badge = document.getElementById('enrollmentBadge');
       if (badge) {
         badge.textContent = totalActionable;
-        badge.style.display = totalActionable ? '' : 'none';
+        badge.classList.toggle('d-none', !totalActionable);
       }
     } catch (e) {
       showFlash('danger', `Error al cargar inscripciones: ${e.message}`);
@@ -628,7 +665,10 @@ class PermanenceManager {
       //       onLeave/behind=5 (estudiante, n°ctrl, sem, periodo, acciones)
       const cols = 5;
       const colspan = this._isAllMode() ? cols + 1 : cols;
-      tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-3 text-muted small">Sin pendientes.</td></tr>`;
+      tbody.innerHTML = PermanenceManager.emptyRow(
+        colspan, 'check2-circle', 'Sin pendientes',
+        'No hay estudiantes en esta situación para el periodo activo.'
+      );
       return;
     }
 
@@ -654,11 +694,12 @@ class PermanenceManager {
       if (mode === 'confirm') {
         const nextSem = (last?.semester_number || 0) + 1;
         const proofCell = ceProofUrl
-          ? `<a href="${ceProofUrl}" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2"
-                title="Ver comprobante. Recuerda checar el SII para confirmar la inscripción.">
-              <i class="bi bi-file-earmark-pdf"></i> Pago
+          ? `<a href="${ceProofUrl}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0 px-2"
+                title="Ver comprobante. Recuerda revisar el SII para confirmar la inscripción.">
+              <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Pago
+              <span class="visually-hidden">(se abre en una pestaña nueva)</span>
             </a>`
-          : '<span class="text-muted small">Sin pago</span>';
+          : '<span class="text-secondary small">Sin pago</span>';
         middleCols = `
           <td class="text-center"><span class="badge bg-info">${nextSem}</span></td>
           <td class="text-center">${proofCell}</td>
@@ -666,7 +707,7 @@ class PermanenceManager {
       } else if (mode === 'reinstate' || mode === 'advance') {
         middleCols = `
           <td class="text-center"><span class="badge bg-info">${last?.semester_number || '—'}</span></td>
-          <td class="small text-muted">${last?.period_name || '—'} <span class="badge bg-light text-dark border">${last?.period_code || ''}</span></td>
+          <td class="small text-secondary">${last?.period_name || '—'} <span class="badge bg-secondary">${last?.period_code || ''}</span></td>
         `;
       }
 
@@ -681,18 +722,18 @@ class PermanenceManager {
                onclick="permanenceManager.showStudentExpediente(${u.id})"
                title="Ver expediente">
               ${this.escapeHtml(u.full_name)}
-              <i class="bi bi-box-arrow-up-right small ms-1 text-muted"></i>
+              <i class="bi bi-box-arrow-up-right small ms-1 text-secondary" aria-hidden="true"></i>
             </a>
-            <div class="small text-muted">${this.escapeHtml(u.email)}</div>
+            <div class="small text-secondary">${this.escapeHtml(u.email)}</div>
           </td>
           <td class="text-center">
-            <span class="badge bg-dark font-monospace">${u.control_number || '—'}</span>
+            <span class="badge bg-secondary font-monospace">${u.control_number || '—'}</span>
           </td>
           ${middleCols}
           <td class="text-center">
-            <button class="btn btn-sm ${btnCls}"
+            <button type="button" class="btn btn-sm ${btnCls}"
               onclick="permanenceManager.showConfirmModal(${r.user_program.id}, '${safeName}', '${mode}', '${safeProofUrl}')">
-              <i class="bi bi-check-lg me-1"></i>${btnLabel}
+              <i class="bi bi-check-lg me-1" aria-hidden="true"></i>${btnLabel}
             </button>
             ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(u.id) : ''}
           </td>
@@ -708,7 +749,10 @@ class PermanenceManager {
 
     if (!rows.length) {
       const colspan = this._isAllMode() ? 6 : 5;
-      tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-3 text-muted small">Sin confirmados aún.</td></tr>`;
+      tbody.innerHTML = PermanenceManager.emptyRow(
+        colspan, 'inbox', 'Sin confirmados todavía',
+        'Aquí aparecerán los estudiantes conforme confirmes su inscripción.'
+      );
       return;
     }
 
@@ -718,15 +762,19 @@ class PermanenceManager {
       const programCell = this._isAllMode()
         ? `<td class="text-muted small">${this.escapeHtml(r.__program_name || '')}</td>` : '';
       const proofCell = ce?.payment_proof_url
-        ? `<a href="${ce.payment_proof_url}" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-file-earmark-pdf"></i></a>`
-        : '<span class="text-muted small">—</span>';
+        ? `<a href="${ce.payment_proof_url}" target="_blank" rel="noopener"
+              class="btn btn-sm btn-outline-secondary py-0 px-2 tap-target"
+              title="Ver comprobante de pago" aria-label="Ver el comprobante de pago de ${this.escapeHtml(u.full_name)} (se abre en una pestaña nueva)">
+              <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i></a>`
+        : '<span class="text-secondary small">—</span>';
       const completeBtn = ce && ce.status === 'active'
-        ? `<button class="btn btn-sm btn-outline-primary py-0 px-2"
+        ? `<button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 tap-target"
              onclick="permanenceManager.markCompletedFromOverview(${ce.id}, '${this.escapeHtml(u.full_name).replace(/'/g, "\\'")}')"
-             title="Marcar semestre como completado">
-             <i class="bi bi-check2-all"></i>
+             title="Marcar semestre como completado"
+             aria-label="Marcar como completado el semestre de ${this.escapeHtml(u.full_name)}">
+             <i class="bi bi-check2-all" aria-hidden="true"></i>
            </button>`
-        : '<span class="text-muted small">—</span>';
+        : '<span class="text-secondary small">—</span>';
 
       return `
         <tr>
@@ -736,12 +784,12 @@ class PermanenceManager {
                onclick="permanenceManager.showStudentExpediente(${u.id})"
                title="Ver expediente">
               ${this.escapeHtml(u.full_name)}
-              <i class="bi bi-box-arrow-up-right small ms-1 text-muted"></i>
+              <i class="bi bi-box-arrow-up-right small ms-1 text-secondary" aria-hidden="true"></i>
             </a>
-            <div class="small text-muted">${this.escapeHtml(u.email)}</div>
+            <div class="small text-secondary">${this.escapeHtml(u.email)}</div>
           </td>
           <td class="text-center">
-            <span class="badge bg-dark font-monospace">${u.control_number || '—'}</span>
+            <span class="badge bg-secondary font-monospace">${u.control_number || '—'}</span>
           </td>
           <td class="text-center"><span class="badge bg-info">${ce?.semester_number || '—'}</span></td>
           <td class="text-center">${proofCell}</td>
@@ -828,43 +876,40 @@ class PermanenceManager {
     }
 
     // Tarjetas resumen
-    const statusMap = {
-      active: ['bg-success', 'Activo', 'bi-play-circle-fill'],
-      pending: ['bg-warning text-dark', 'Pendiente', 'bi-hourglass-split'],
-      completed: ['bg-primary', 'Completado', 'bi-check-circle-fill'],
-      on_leave: ['bg-secondary', 'Baja temporal', 'bi-pause-circle-fill'],
-      dropped: ['bg-danger', 'Baja definitiva', 'bi-x-circle-fill'],
+    const ENROLLMENT_ICONS = {
+      active: 'bi-play-circle-fill',
+      pending: 'bi-hourglass-split',
+      completed: 'bi-check-circle-fill',
+      on_leave: 'bi-pause-circle-fill',
+      dropped: 'bi-x-circle-fill',
     };
-    const enrStatus = current_enrollment
-      ? (statusMap[current_enrollment.status] || ['bg-secondary', current_enrollment.status, 'bi-circle'])
-      : ['bg-warning text-dark', 'Sin inscripción', 'bi-dash-circle'];
+    const enrBadge = current_enrollment
+      ? PermanenceManager.semesterStatusBadge(current_enrollment.status)
+      : PermanenceManager.statusBadge('pending', 'Sin inscripción');
+    const enrIcon = current_enrollment
+      ? (ENROLLMENT_ICONS[current_enrollment.status] || 'bi-circle')
+      : 'bi-dash-circle';
 
     document.getElementById('expSummaryCards').innerHTML = `
       <div class="col-6 col-md-4">
-        <div class="card text-center h-100">
-          <div class="card-body py-3">
-            <i class="bi bi-bookmark-star-fill fs-3 text-info mb-1"></i>
-            <div class="fw-bold fs-4 lh-1">${user_program.current_semester}</div>
-            <div class="small text-muted mt-1">Semestre actual</div>
-          </div>
+        <div class="stat-card stat-card--info h-100">
+          <i class="bi bi-bookmark-star-fill stat-card__icon" aria-hidden="true"></i>
+          <p class="stat-card__value">${user_program.current_semester}</p>
+          <p class="stat-card__label">Semestre actual</p>
         </div>
       </div>
       <div class="col-6 col-md-4">
-        <div class="card text-center h-100">
-          <div class="card-body py-3">
-            <i class="bi bi-calendar-event-fill fs-3 text-primary mb-1"></i>
-            <div class="fw-bold lh-1 small">${active_period ? this.escapeHtml(active_period.name) : '—'}</div>
-            <div class="small text-muted">${active_period ? active_period.code : 'Sin periodo activo'}</div>
-          </div>
+        <div class="stat-card stat-card--brand h-100">
+          <i class="bi bi-calendar-event-fill stat-card__icon" aria-hidden="true"></i>
+          <p class="kpi-value kpi-value--sm">${active_period ? this.escapeHtml(active_period.name) : '—'}</p>
+          <p class="stat-card__label">${active_period ? active_period.code : 'Sin periodo activo'}</p>
         </div>
       </div>
       <div class="col-12 col-md-4">
-        <div class="card text-center h-100">
-          <div class="card-body py-3">
-            <i class="bi ${enrStatus[2]} fs-3 mb-1"></i>
-            <div><span class="badge ${enrStatus[0]}">${enrStatus[1]}</span></div>
-            <div class="small text-muted mt-1">Inscripción semestral</div>
-          </div>
+        <div class="stat-card h-100">
+          <i class="bi ${enrIcon} stat-card__icon" aria-hidden="true"></i>
+          <p class="mb-0">${enrBadge}</p>
+          <p class="stat-card__label">Inscripción semestral</p>
         </div>
       </div>
     `;
@@ -875,25 +920,23 @@ class PermanenceManager {
       enrBody.innerHTML = '<p class="text-muted mb-0">No hay periodo académico activo.</p>';
     } else if (!current_enrollment) {
       enrBody.innerHTML = `
-        <div class="d-flex align-items-center gap-2">
-          <span class="badge bg-warning text-dark">Pendiente de confirmación</span>
-          <span class="small text-muted">Sin inscripción registrada para el periodo activo.</span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          ${PermanenceManager.statusBadge('pending', 'Pendiente de confirmación')}
+          <span class="small text-secondary">Sin inscripción registrada para el periodo activo.</span>
         </div>`;
     } else {
       const confirmedIcon = current_enrollment.enrollment_confirmed
-        ? '<i class="bi bi-check-circle-fill text-success me-1"></i>Confirmado'
-        : '<i class="bi bi-dash-circle text-warning me-1"></i>Sin confirmar';
-      const confirmedAt = current_enrollment.confirmed_at
-        ? new Date(current_enrollment.confirmed_at).toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'})
-        : '—';
+        ? '<i class="bi bi-check-circle-fill text-success-strong me-1" aria-hidden="true"></i>Confirmado'
+        : '<i class="bi bi-dash-circle text-warning-strong me-1" aria-hidden="true"></i>Sin confirmar';
+      const confirmedAt = SIIAP.formatDate(current_enrollment.confirmed_at, 'short', '—');
       enrBody.innerHTML = `
         <div class="d-flex flex-wrap gap-3 align-items-center">
           <div><strong>Sem. ${current_enrollment.semester_number}</strong></div>
-          <div><span class="badge ${enrStatus[0]}">${enrStatus[1]}</span></div>
+          <div>${enrBadge}</div>
           <div class="small">${confirmedIcon}</div>
-          <div class="small text-muted">Fecha: ${confirmedAt}</div>
+          <div class="small text-secondary">Fecha: ${confirmedAt}</div>
         </div>
-        ${current_enrollment.notes ? `<div class="small text-muted mt-2"><strong>Notas:</strong> ${this.escapeHtml(current_enrollment.notes)}</div>` : ''}
+        ${current_enrollment.notes ? `<div class="small text-secondary mt-2"><strong>Notas:</strong> ${this.escapeHtml(current_enrollment.notes)}</div>` : ''}
       `;
     }
 
@@ -906,34 +949,41 @@ class PermanenceManager {
     // Historial
     const hBody = document.getElementById('expHistoryBody');
     if (!semester_history || !semester_history.length) {
-      hBody.innerHTML = '<p class="text-muted text-center py-3 mb-0">Sin historial semestral registrado.</p>';
+      hBody.innerHTML = `
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-clock-history" aria-hidden="true"></i></div>
+          <h4 class="empty-state__title">Sin historial semestral</h4>
+          <p class="empty-state__description">Aún no se registran semestres para este estudiante.</p>
+        </div>`;
     } else {
       hBody.innerHTML = `
-        <table class="table table-sm mb-0">
+        <div class="siiap-table-wrapper">
+        <table class="table siiap-table table-sm align-middle mb-0">
+          <caption class="visually-hidden">Historial de semestres del estudiante</caption>
           <thead class="table-light">
             <tr>
-              <th class="text-center">Sem.</th>
-              <th>Periodo</th>
-              <th class="text-center">Estado</th>
-              <th class="text-center">Confirmado</th>
+              <th scope="col" class="text-center">Sem.</th>
+              <th scope="col">Periodo</th>
+              <th scope="col" class="text-center">Estado</th>
+              <th scope="col" class="text-center">Confirmado</th>
             </tr>
           </thead>
           <tbody>
             ${semester_history.map(h => {
-              const m = statusMap[h.status] || ['bg-secondary', h.status];
               const cIcon = h.enrollment_confirmed
-                ? '<i class="bi bi-check-circle-fill text-success"></i>'
-                : '<i class="bi bi-dash-circle text-muted"></i>';
+                ? '<i class="bi bi-check-circle-fill text-success-strong" aria-hidden="true"></i><span class="visually-hidden">Confirmado</span>'
+                : '<i class="bi bi-dash-circle text-secondary" aria-hidden="true"></i><span class="visually-hidden">Sin confirmar</span>';
               return `
                 <tr>
                   <td class="text-center fw-bold">${h.semester_number}</td>
-                  <td>${this.escapeHtml(h.period_name)} <span class="badge bg-light text-dark border">${h.period_code}</span></td>
-                  <td class="text-center"><span class="badge ${m[0]}">${m[1]}</span></td>
+                  <td>${this.escapeHtml(h.period_name)} <span class="badge bg-secondary">${h.period_code}</span></td>
+                  <td class="text-center">${PermanenceManager.semesterStatusBadge(h.status)}</td>
                   <td class="text-center">${cIcon}</td>
                 </tr>`;
             }).join('')}
           </tbody>
-        </table>`;
+        </table>
+        </div>`;
     }
 
     document.getElementById('expModalSpinner').classList.add('d-none');
@@ -984,41 +1034,41 @@ class PermanenceManager {
     document.getElementById('historyStudentName').textContent = studentName;
     const container = document.getElementById('historyContent');
     if (!history.length) {
-      container.innerHTML = '<p class="text-muted text-center py-3">Sin historial semestral registrado.</p>';
-    } else {
-      const statusMap = {
-        active: ['bg-success', 'Activo'],
-        completed: ['bg-primary', 'Completado'],
-        on_leave: ['bg-secondary', 'Baja temporal'],
-        dropped: ['bg-danger', 'Baja definitiva'],
-        pending: ['bg-warning text-dark', 'Pendiente'],
-      };
       container.innerHTML = `
-        <table class="table table-sm table-bordered">
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-clock-history" aria-hidden="true"></i></div>
+          <h3 class="empty-state__title">Sin historial semestral</h3>
+          <p class="empty-state__description">Aún no se registran semestres para este estudiante.</p>
+        </div>`;
+    } else {
+      container.innerHTML = `
+        <div class="siiap-table-wrapper">
+        <table class="table siiap-table table-sm align-middle mb-0">
+          <caption class="visually-hidden">Historial de semestres del estudiante</caption>
           <thead class="table-light">
             <tr>
-              <th class="text-center">Semestre</th>
-              <th>Periodo</th>
-              <th class="text-center">Estado</th>
-              <th class="text-center">Confirmado</th>
+              <th scope="col" class="text-center">Semestre</th>
+              <th scope="col">Periodo</th>
+              <th scope="col" class="text-center">Estado</th>
+              <th scope="col" class="text-center">Confirmado</th>
             </tr>
           </thead>
           <tbody>
             ${history.map(h => {
-              const [cls, label] = statusMap[h.status] || ['bg-secondary', h.status];
               const confirmed = h.enrollment_confirmed
-                ? '<i class="bi bi-check-circle-fill text-success"></i>'
-                : '<i class="bi bi-dash-circle text-muted"></i>';
+                ? '<i class="bi bi-check-circle-fill text-success-strong" aria-hidden="true"></i><span class="visually-hidden">Confirmado</span>'
+                : '<i class="bi bi-dash-circle text-secondary" aria-hidden="true"></i><span class="visually-hidden">Sin confirmar</span>';
               return `
                 <tr>
                   <td class="text-center fw-bold">Sem. ${h.semester_number}</td>
-                  <td>${this.escapeHtml(h.period_name)} <span class="badge bg-light text-dark border">${h.period_code}</span></td>
-                  <td class="text-center"><span class="badge ${cls}">${label}</span></td>
+                  <td>${this.escapeHtml(h.period_name)} <span class="badge bg-secondary">${h.period_code}</span></td>
+                  <td class="text-center">${PermanenceManager.semesterStatusBadge(h.status)}</td>
                   <td class="text-center">${confirmed}</td>
                 </tr>`;
             }).join('')}
           </tbody>
-        </table>`;
+        </table>
+        </div>`;
     }
     new bootstrap.Modal(document.getElementById('historyModal')).show();
   }
@@ -1046,7 +1096,7 @@ class PermanenceManager {
       const badge = document.getElementById('leaveBadge');
       if (badge) {
         badge.textContent = requests.length;
-        badge.style.display = requests.length ? '' : 'none';
+        badge.classList.toggle('d-none', !requests.length);
       }
 
       if (!requests.length) {
@@ -1055,7 +1105,13 @@ class PermanenceManager {
         this.renderLeaveRequests(requests);
       }
     } catch (e) {
-      if (list) list.innerHTML = `<div class="alert alert-danger m-2 small">Error al cargar solicitudes: ${e.message}</div>`;
+      if (list) list.innerHTML = `
+        <div class="empty-state empty-state--compact empty-state--error">
+          <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+          <h3 class="empty-state__title">No se pudieron cargar las solicitudes</h3>
+          <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
+          <p class="empty-state__error-detail">${this.escapeHtml(e.message)}</p>
+        </div>`;
     } finally {
       loading?.classList.add('d-none');
     }
@@ -1066,26 +1122,26 @@ class PermanenceManager {
     if (!list) return;
     list.innerHTML = requests.map(r => {
       const sub = r.submission;
-      const uploadDate = sub.upload_date
-        ? new Date(sub.upload_date).toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'})
-        : '—';
+      const uploadDate = SIIAP.formatDate(sub.upload_date, 'short', '—');
       return `
         <div class="border rounded p-3 mb-2 d-flex flex-wrap align-items-center gap-3">
           <div class="flex-grow-1">
             <div class="fw-semibold">${this.escapeHtml(r.user.full_name)}</div>
-            <div class="small text-muted">
-              N° Control: ${this.escapeHtml(r.user.control_number || '—')}
+            <div class="small text-secondary">
+              N.º de control: ${this.escapeHtml(r.user.control_number || '—')}
               &nbsp;·&nbsp; Semestre ${r.current_semester || '—'}
               &nbsp;·&nbsp; Subida: ${uploadDate}
             </div>
           </div>
           <div class="d-flex gap-2 flex-shrink-0">
-            ${r.file_url ? `<a href="${r.file_url}" target="_blank" class="btn btn-sm btn-outline-secondary">
-              <i class="bi bi-file-earmark-text me-1"></i>Ver
+            ${r.file_url ? `<a href="${r.file_url}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Ver
+              <span class="visually-hidden">la solicitud de ${this.escapeHtml(r.user.full_name)} (se abre en una pestaña nueva)</span>
             </a>` : ''}
-            <button class="btn btn-sm btn-success"
+            <button type="button" class="btn btn-sm btn-success"
               onclick="permanenceManager.showLeaveModal(${sub.id}, '${this.escapeHtml(r.user.full_name)}', ${r.current_semester || 0}, '${r.file_url || ''}')">
-              <i class="bi bi-check-lg me-1"></i>Revisar
+              <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Revisar
+              <span class="visually-hidden">la solicitud de ${this.escapeHtml(r.user.full_name)}</span>
             </button>
           </div>
         </div>`;
@@ -1100,7 +1156,8 @@ class PermanenceManager {
     const fileLink = document.getElementById('leaveFileLink');
     if (fileLink) {
       fileLink.href = fileUrl || '#';
-      fileLink.style.display = fileUrl ? '' : 'none';
+      fileLink.classList.toggle('disabled', !fileUrl);
+      fileLink.setAttribute('aria-disabled', fileUrl ? 'false' : 'true');
     }
     new bootstrap.Modal(document.getElementById('processLeaveModal')).show();
   }
@@ -1408,6 +1465,7 @@ class PermanenceManager {
       (s.user.email || '').toLowerCase().includes(q)
     );
     this.renderTable(filtered);
+    SIIAP.announce(`${filtered.length} estudiante(s) coinciden con la búsqueda.`);
   }
 
   showLoading(show) {

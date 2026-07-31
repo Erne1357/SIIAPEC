@@ -1,23 +1,35 @@
-<!-- Dashboard para Postgraduate Admin -->
+{# Dashboard para Postgraduate Admin #}
+{% from '_macros.html' import role_banner, empty_state, async_region, skeleton_text_block, data_table_open, data_table_close, icon_button %}
+
+{{ role_banner(
+  user=current_user,
+  role_key='postgraduate_admin',
+  context_line=(metrics.total_programs ~ ' programa(s) activo(s)' if metrics else 'Administración de posgrado'),
+  next_action=(
+    'Tienes ' ~ metrics.pending_reviews ~ ' documento(s) por revisar en todos los programas'
+    if metrics and metrics.pending_reviews and metrics.pending_reviews > 0
+    else 'Sin documentos pendientes de revisión. Revisa los recordatorios del sistema.'
+  )
+) }}
 
 <!-- Pestañas de navegación -->
-<ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+<ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist" aria-label="Secciones del panel de posgrado">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview"
                 type="button" role="tab" aria-controls="overview" aria-selected="true">
-            <i class="bi bi-speedometer2 me-2"></i>Vista General
+            <i class="bi bi-speedometer2" aria-hidden="true"></i>Vista general
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="programs-tab" data-bs-toggle="tab" data-bs-target="#programs"
                 type="button" role="tab" aria-controls="programs" aria-selected="false">
-            <i class="bi bi-mortarboard me-2"></i>Programas
+            <i class="bi bi-mortarboard" aria-hidden="true"></i>Programas
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="reminders-tab" data-bs-toggle="tab" data-bs-target="#reminders"
                 type="button" role="tab" aria-controls="reminders" aria-selected="false">
-            <i class="bi bi-bell me-2"></i>Recordatorios
+            <i class="bi bi-bell" aria-hidden="true"></i>Recordatorios
         </button>
     </li>
 </ul>
@@ -25,262 +37,188 @@
 <!-- Contenido de las pestañas -->
 <div class="tab-content" id="adminTabsContent">
     <!-- ============ PESTAÑA: VISTA GENERAL ============ -->
-    <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
-        <!-- Acciones Rápidas -->
-        <div class="row mb-4">
+    <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab" tabindex="0">
+        <!-- Acción principal + accesos secundarios -->
+        <section class="row mb-4" aria-labelledby="postgradActionsTitle">
             <div class="col-12">
-                <h5 class="mb-3 fw-bold text-secondary">
-                    <i class="bi bi-lightning-charge-fill me-2"></i>Acciones Rápidas
-                </h5>
-                <div class="row g-3">
-                    <!-- Gestionar Usuarios -->
-                    <div class="col-md-3 col-sm-6">
-                        <a href="{{ url_for('pages_admin.pages_settings.users') }}"
-                           class="text-decoration-none">
-                            <div class="card h-100 border-0 shadow-sm quick-action-card">
-                                <div class="card-body text-center py-4">
-                                    <div class="mb-3">
-                                        <i class="bi bi-people-fill text-primary icon-2xl"></i>
-                                    </div>
-                                    <h6 class="mb-1 fw-bold">Gestionar Usuarios</h6>
-                                    <small class="text-muted">Administrar usuarios</small>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
+                <h2 class="h5 mb-3 fw-bold" id="postgradActionsTitle">
+                    <i class="bi bi-lightning-charge-fill me-2" aria-hidden="true"></i>¿Qué quieres hacer?
+                </h2>
 
-                    <!-- Configuración de Correos -->
-                    <div class="col-md-3 col-sm-6">
-                        <a href="{{ url_for('pages_admin.pages_emails.email_config') }}"
-                           class="text-decoration-none">
-                            <div class="card h-100 border-0 shadow-sm quick-action-card">
-                                <div class="card-body text-center py-4">
-                                    <div class="mb-3">
-                                        <i class="bi bi-envelope-fill text-success icon-2xl"></i>
-                                    </div>
-                                    <h6 class="mb-1 fw-bold">Configurar Correos</h6>
-                                    <small class="text-muted">Microsoft Graph</small>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-
-                    <!-- Ver Todos los Programas -->
-                    <div class="col-md-3 col-sm-6">
-                        <a href="{{ url_for('program.list_programs') }}"
-                           class="text-decoration-none">
-                            <div class="card h-100 border-0 shadow-sm quick-action-card">
-                                <div class="card-body text-center py-4">
-                                    <div class="mb-3">
-                                        <i class="bi bi-mortarboard text-info icon-2xl"></i>
-                                    </div>
-                                    <h6 class="mb-1 fw-bold">Ver Programas</h6>
-                                    <small class="text-muted">Todos los programas</small>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-
-                    <!-- Configuración General -->
-                    <div class="col-md-3 col-sm-6">
-                        <a href="{{ url_for('pages_admin.pages_settings.index') }}"
-                           class="text-decoration-none">
-                            <div class="card h-100 border-0 shadow-sm quick-action-card">
-                                <div class="card-body text-center py-4">
-                                    <div class="mb-3">
-                                        <i class="bi bi-gear-fill text-warning icon-2xl"></i>
-                                    </div>
-                                    <h6 class="mb-1 fw-bold">Configuración</h6>
-                                    <small class="text-muted">Ajustes del sistema</small>
-                                </div>
-                            </div>
+                <div class="card quick-action-primary mb-3">
+                    <div class="card-body">
+                        <p class="quick-action-primary__title mb-1">
+                            <i class="bi bi-people-fill me-2" aria-hidden="true"></i>Gestionar usuarios
+                        </p>
+                        <p class="quick-action-primary__hint">
+                            Altas, roles y números de control de toda la comunidad de posgrado.
+                        </p>
+                        <a href="{{ url_for('pages_admin.pages_settings.users') }}" class="btn btn-primary btn-lg">
+                            <i class="bi bi-people-fill me-2" aria-hidden="true"></i>Ir a usuarios
                         </a>
                     </div>
                 </div>
+
+                <div class="quick-action-links">
+                    <a href="{{ url_for('pages_admin.pages_emails.email_config') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-envelope-fill" aria-hidden="true"></i>Configurar correos
+                    </a>
+                    <a href="{{ url_for('program.list_programs') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-mortarboard" aria-hidden="true"></i>Ver programas
+                    </a>
+                    <a href="{{ url_for('pages_admin.pages_settings.index') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-gear-fill" aria-hidden="true"></i>Ajustes del sistema
+                    </a>
+                </div>
             </div>
-        </div>
+        </section>
 
         <!-- KPIs Globales -->
-        <div class="row mb-4">
+        <section class="row mb-4" aria-label="Indicadores globales de posgrado">
             <div class="col-md-3 col-sm-6 mb-3">
-                <div class="card border-0 shadow-sm h-100 kpi-card">
-                    <div class="card-body text-center">
-                        <div class="mb-2">
-                            <i class="bi bi-grid-3x3-gap-fill text-primary icon-2xl"></i>
-                        </div>
-                        <h2 class="mb-0 fw-bold text-primary">{{ metrics.total_programs }}</h2>
-                        <p class="text-muted mb-0 small">Programas Activos</p>
-                    </div>
+                <div class="stat-card stat-card--brand h-100">
+                    <i class="bi bi-grid-3x3-gap-fill stat-card__icon" aria-hidden="true"></i>
+                    <p class="stat-card__value">{{ metrics.total_programs }}</p>
+                    <p class="stat-card__label">Programas activos</p>
                 </div>
             </div>
 
             <div class="col-md-3 col-sm-6 mb-3">
-                <div class="card border-0 shadow-sm h-100 kpi-card">
-                    <div class="card-body text-center">
-                        <div class="mb-2">
-                            <i class="bi bi-person-lines-fill text-info icon-2xl"></i>
-                        </div>
-                        <h2 class="mb-0 fw-bold text-info">{{ metrics.total_applicants }}</h2>
-                        <p class="text-muted mb-0 small">Solicitantes Totales</p>
-                    </div>
+                <div class="stat-card stat-card--info h-100">
+                    <i class="bi bi-person-lines-fill stat-card__icon" aria-hidden="true"></i>
+                    <p class="stat-card__value">{{ metrics.total_applicants }}</p>
+                    <p class="stat-card__label">Solicitantes totales</p>
                 </div>
             </div>
 
             <div class="col-md-3 col-sm-6 mb-3">
-                <div class="card border-0 shadow-sm h-100 kpi-card">
-                    <div class="card-body text-center">
-                        <div class="mb-2">
-                            <i class="bi bi-mortarboard-fill text-success icon-2xl"></i>
-                        </div>
-                        <h2 class="mb-0 fw-bold text-success">{{ metrics.total_students }}</h2>
-                        <p class="text-muted mb-0 small">Estudiantes Activos</p>
-                    </div>
+                <div class="stat-card stat-card--success h-100">
+                    <i class="bi bi-mortarboard-fill stat-card__icon" aria-hidden="true"></i>
+                    <p class="stat-card__value">{{ metrics.total_students }}</p>
+                    <p class="stat-card__label">Estudiantes activos</p>
                 </div>
             </div>
 
             <div class="col-md-3 col-sm-6 mb-3">
-                <div class="card border-0 shadow-sm h-100 kpi-card">
-                    <div class="card-body text-center">
-                        <div class="mb-2">
-                            <i class="bi bi-hourglass-split text-warning icon-2xl"></i>
-                        </div>
-                        <h2 class="mb-0 fw-bold text-warning">{{ metrics.pending_reviews }}</h2>
-                        <p class="text-muted mb-0 small">Documentos Pendientes</p>
-                    </div>
+                <div class="stat-card stat-card--warning h-100">
+                    <i class="bi bi-hourglass-split stat-card__icon" aria-hidden="true"></i>
+                    <p class="stat-card__value">{{ metrics.pending_reviews }}</p>
+                    <p class="stat-card__label">Documentos pendientes</p>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- Resumen Ejecutivo -->
         <div class="row">
             <div class="col-12">
-                <div class="card border-0 shadow">
-                    <div class="card-header bg-white border-0 pt-4 pb-3">
-                        <h5 class="mb-0 fw-bold">
-                            <i class="bi bi-bar-chart-fill text-primary me-2"></i>Resumen Ejecutivo
-                        </h5>
+                <section class="card" aria-labelledby="executiveSummaryTitle">
+                    <div class="card-header bg-transparent pt-4 pb-3">
+                        <h2 class="h5 mb-0 fw-bold" id="executiveSummaryTitle">
+                            <i class="bi bi-bar-chart-fill text-brand-primary me-2" aria-hidden="true"></i>Resumen ejecutivo
+                        </h2>
                     </div>
                     <div class="card-body">
                         <div class="row text-center">
                             <div class="col-md-4 mb-3">
-                                <div class="p-3 bg-light rounded">
-                                    <h4 class="mb-0 text-primary fw-bold">
-                                        {{ ((metrics.total_students / (metrics.total_applicants if metrics.total_applicants > 0 else 1)) * 100)|round|int }}%
-                                    </h4>
-                                    <small class="text-muted">Tasa de Admisión</small>
-                                </div>
+                                <p class="kpi-value kpi-value--sm text-brand-primary">
+                                    {{ ((metrics.total_students / (metrics.total_applicants if metrics.total_applicants > 0 else 1)) * 100)|round|int }}%
+                                </p>
+                                <p class="kpi-label">Tasa de admisión</p>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <div class="p-3 bg-light rounded">
-                                    <h4 class="mb-0 text-success fw-bold">
-                                        {{ (metrics.total_applicants / (metrics.total_programs if metrics.total_programs > 0 else 1))|round|int }}
-                                    </h4>
-                                    <small class="text-muted">Promedio por Programa</small>
-                                </div>
+                                <p class="kpi-value kpi-value--sm text-success-strong">
+                                    {{ (metrics.total_applicants / (metrics.total_programs if metrics.total_programs > 0 else 1))|round|int }}
+                                </p>
+                                <p class="kpi-label">Promedio de solicitantes por programa</p>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <div class="p-3 bg-light rounded">
-                                    <h4 class="mb-0 text-warning fw-bold">
-                                        {{ metrics.interviews_pending }}
-                                    </h4>
-                                    <small class="text-muted">Entrevistas Pendientes</small>
-                                </div>
+                                <p class="kpi-value kpi-value--sm text-warning-strong">
+                                    {{ metrics.interviews_pending }}
+                                </p>
+                                <p class="kpi-label">Entrevistas pendientes</p>
                             </div>
                         </div>
                     </div>
-                </div>
+                </section>
             </div>
         </div>
     </div>
 
     <!-- ============ PESTAÑA: PROGRAMAS ============ -->
-    <div class="tab-pane fade" id="programs" role="tabpanel" aria-labelledby="programs-tab">
+    <div class="tab-pane fade" id="programs" role="tabpanel" aria-labelledby="programs-tab" tabindex="0">
         <div class="row">
             <div class="col-12">
-                <div class="card border-0 shadow">
-                    <div class="card-header bg-white border-0 pt-4 pb-3">
-                        <h5 class="mb-0 fw-bold">
-                            <i class="bi bi-mortarboard text-primary me-2"></i>Estadísticas por Programa
-                        </h5>
+                <section class="card" aria-labelledby="programStatsTitle">
+                    <div class="card-header bg-transparent pt-4 pb-3">
+                        <h2 class="h5 mb-0 fw-bold" id="programStatsTitle">
+                            <i class="bi bi-mortarboard text-brand-primary me-2" aria-hidden="true"></i>Estadísticas por programa
+                        </h2>
                     </div>
                     <div class="card-body">
                         {% if metrics.programs_stats %}
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Programa</th>
-                                        <th class="text-center">Solicitantes</th>
-                                        <th class="text-center">Docs. Pendientes</th>
-                                        <th class="text-center">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for prog in metrics.programs_stats %}
-                                    <tr>
-                                        <td>
-                                            <strong>{{ prog.name }}</strong>
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-primary rounded-pill">{{ prog.applicants }}</span>
-                                        </td>
-                                        <td class="text-center">
-                                            {% if prog.pending_docs > 0 %}
-                                                <span class="badge bg-warning text-dark rounded-pill">{{ prog.pending_docs }}</span>
-                                            {% else %}
-                                                <span class="badge bg-success rounded-pill">0</span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="text-center">
-                                            <a href="{{ url_for('program.view_program', slug=prog.slug) }}"
-                                               class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-eye"></i> Ver
-                                            </a>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
+                        {{ data_table_open('Estadísticas de solicitantes y documentos pendientes por programa', table_class='table-hover align-middle') }}
+                            <thead>
+                                <tr>
+                                    <th scope="col">Programa</th>
+                                    <th scope="col" class="text-center">Solicitantes</th>
+                                    <th scope="col" class="text-center">Documentos pendientes</th>
+                                    <th scope="col" class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for prog in metrics.programs_stats %}
+                                <tr>
+                                    <th scope="row" class="fw-semibold">{{ prog.name }}</th>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary rounded-pill">{{ prog.applicants }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if prog.pending_docs > 0 %}
+                                            <span class="badge bg-warning rounded-pill">{{ prog.pending_docs }}</span>
+                                        {% else %}
+                                            <span class="badge bg-success rounded-pill">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {{ icon_button('eye', 'Ver el programa ' ~ prog.name,
+                                                       cls='btn btn-sm btn-outline-primary',
+                                                       href=url_for('program.view_program', slug=prog.slug)) }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        {{ data_table_close() }}
                         {% else %}
-                        <div class="text-center py-4">
-                            <i class="bi bi-inbox text-muted icon-3xl"></i>
-                            <p class="text-muted mt-3 mb-0">No hay programas registrados</p>
-                        </div>
+                        {{ empty_state(
+                             icon='inbox',
+                             title='No hay programas registrados',
+                             description='Cuando se den de alta programas de posgrado aparecerán aquí.',
+                             compact=true
+                           ) }}
                         {% endif %}
                     </div>
-                </div>
+                </section>
             </div>
         </div>
     </div>
 
     <!-- ============ PESTAÑA: RECORDATORIOS ============ -->
-    <div class="tab-pane fade" id="reminders" role="tabpanel" aria-labelledby="reminders-tab">
+    <div class="tab-pane fade" id="reminders" role="tabpanel" aria-labelledby="reminders-tab" tabindex="0">
         <div class="row">
             <div class="col-12">
-                <div class="card border-0 shadow">
-                    <div class="card-header bg-white border-0 pt-4 pb-3">
-                        <h5 class="mb-0 fw-bold">
-                            <i class="bi bi-bell text-warning me-2"></i>Recordatorios del Sistema
-                        </h5>
+                <section class="card" aria-labelledby="remindersTitle">
+                    <div class="card-header bg-transparent pt-4 pb-3">
+                        <h2 class="h5 mb-0 fw-bold" id="remindersTitle">
+                            <i class="bi bi-bell text-warning-strong me-2" aria-hidden="true"></i>Recordatorios del sistema
+                        </h2>
                     </div>
                     <div class="card-body" id="reminders-container">
-                        <!-- Spinner de carga mientras verificamos -->
-                        <div class="text-center py-4" id="loading-reminders">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Cargando...</span>
-                            </div>
-                            <p class="text-muted mt-3">Verificando configuración...</p>
-                        </div>
-
-                        <!-- Contenedor de recordatorios -->
-                        <div id="reminders-list" class="d-none">
-                            <!-- Los recordatorios se cargarán aquí con JavaScript -->
-                        </div>
+                        {% call async_region('reminders-list', 'Recordatorios del sistema') %}
+                          {{ skeleton_text_block(lines=3) }}
+                        {% endcall %}
                     </div>
-                </div>
+                </section>
             </div>
         </div>
     </div>
 </div>
-
