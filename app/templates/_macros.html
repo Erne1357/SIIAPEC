@@ -2,31 +2,40 @@
   app/templates/_macros.html
   Componentes reutilizables del sistema de diseño SIIAP.
   Importar con: {% from '_macros.html' import <macro> %}
+
+  Los macros de esta librería existen para que los defectos estructurales
+  (labels sin `for`, botones de cierre sin `aria-label`, tablas sin `<caption>`
+  ni `scope`, contenedores asíncronos sin `aria-live`, botones de solo icono sin
+  nombre accesible) sean imposibles de reintroducir. Prefiere SIEMPRE el macro
+  antes que escribir el markup a mano.
 #}
 
 {# === SKELETON LOADERS === #}
 
+{# cols admite 2..8; el ancho de columna lo resuelve .skeleton-row--cols-N #}
 {% macro skeleton_table(rows=5, cols=4, with_header=true) %}
+  {% set safe_cols = [[cols|int, 2]|max, 8]|min %}
 <div class="skeleton-table" aria-hidden="true">
   {% if with_header %}
-  <div class="skeleton-row skeleton-row--header" style="--cols: {{ cols }}">
-    {% for _ in range(cols) %}<span class="skeleton skeleton-cell"></span>{% endfor %}
+  <div class="skeleton-row skeleton-row--header skeleton-row--cols-{{ safe_cols }}">
+    {% for _ in range(safe_cols) %}<span class="skeleton skeleton-cell"></span>{% endfor %}
   </div>
   {% endif %}
   {% for _ in range(rows) %}
-  <div class="skeleton-row" style="--cols: {{ cols }}">
-    {% for _ in range(cols) %}<span class="skeleton skeleton-cell"></span>{% endfor %}
+  <div class="skeleton-row skeleton-row--cols-{{ safe_cols }}">
+    {% for _ in range(safe_cols) %}<span class="skeleton skeleton-cell"></span>{% endfor %}
   </div>
   {% endfor %}
 </div>
 {% endmacro %}
 
 
-{% macro skeleton_cards(count=3, height='200px', col_class='col-md-4') %}
+{# size admite 'sm' | 'md' | 'lg' -> .skeleton-card--{size} #}
+{% macro skeleton_cards(count=3, size='md', col_class='col-md-4') %}
 <div class="row g-3" aria-hidden="true">
   {% for _ in range(count) %}
   <div class="{{ col_class }}">
-    <div class="skeleton skeleton-card" style="height: {{ height }};"></div>
+    <div class="skeleton skeleton-card skeleton-card--{{ size }}"></div>
   </div>
   {% endfor %}
 </div>
@@ -42,13 +51,134 @@
 {% endmacro %}
 
 
+{# === REGIÓN ASÍNCRONA ===
+   Envuelve cualquier zona que se rellena por fetch. Anuncia el cambio a los
+   lectores de pantalla (WCAG 4.1.3). El JS debe poner aria-busy="false" al
+   terminar (SIIAP.setBusy lo hace) para que el skeleton interno se oculte.
+
+   Uso:
+     {% call async_region('applicantsList', 'Listado de aspirantes') %}
+       {{ skeleton_table(rows=5, cols=6) }}
+     {% endcall %}
+#}
+{% macro async_region(id, label) %}
+<div id="{{ id }}" class="skeleton-region" role="region" aria-live="polite"
+     aria-busy="true" aria-label="{{ label }}">
+  {%- if caller %}{{ caller() }}{% endif -%}
+</div>
+{% endmacro %}
+
+
 {# === MARCA DE CAMPO REQUERIDO === #}
 
 {% macro required_mark() %}<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>{% endmacro %}
 
 
+{# === CAMPO DE FORMULARIO ===
+   Garantiza label ↔ control enlazados por id y texto de ayuda expuesto vía
+   aria-describedby. type admite cualquier tipo de <input>, además de
+   'textarea' y 'select' (este último requiere `options`).
+
+   options: lista de tuplas (valor, etiqueta) o de dicts {'value':…, 'label':…}.
+
+   Uso:
+     {{ field('userEmail', 'Correo institucional', type='email',
+              required=true, autocomplete='email',
+              help='Se usará para notificaciones del sistema.') }}
+#}
+{% macro field(id, label, type='text', name=none, required=false, help=none,
+               autocomplete=none, placeholder=none, value=none, options=none,
+               rows=3, disabled=false, readonly=false,
+               wrapper_class='mb-3', control_class='') %}
+  {% set field_name = name or id %}
+  {% set help_id = (id ~ 'Help') if help else none %}
+<div class="{{ wrapper_class }}">
+  <label class="form-label" for="{{ id }}">{{ label }}{% if required %}{{ required_mark() }}{% endif %}</label>
+  {%- if type == 'textarea' %}
+  <textarea class="form-control {{ control_class }}" id="{{ id }}" name="{{ field_name }}" rows="{{ rows }}"
+    {%- if placeholder %} placeholder="{{ placeholder }}"{% endif %}
+    {%- if help_id %} aria-describedby="{{ help_id }}"{% endif %}
+    {%- if required %} required{% endif %}
+    {%- if disabled %} disabled{% endif %}
+    {%- if readonly %} readonly{% endif %}>{{ value if value is not none else '' }}</textarea>
+  {%- elif type == 'select' %}
+  <select class="form-select {{ control_class }}" id="{{ id }}" name="{{ field_name }}"
+    {%- if help_id %} aria-describedby="{{ help_id }}"{% endif %}
+    {%- if required %} required{% endif %}
+    {%- if disabled %} disabled{% endif %}>
+    {%- if placeholder %}<option value="">{{ placeholder }}</option>{% endif %}
+    {%- for opt in options or [] %}
+      {%- set opt_value = opt.value if opt is mapping else opt[0] %}
+      {%- set opt_label = opt.label if opt is mapping else opt[1] %}
+    <option value="{{ opt_value }}"{% if value is not none and value|string == opt_value|string %} selected{% endif %}>{{ opt_label }}</option>
+    {%- endfor %}
+  </select>
+  {%- else %}
+  <input type="{{ type }}" class="form-control {{ control_class }}" id="{{ id }}" name="{{ field_name }}"
+    {%- if value is not none %} value="{{ value }}"{% endif %}
+    {%- if placeholder %} placeholder="{{ placeholder }}"{% endif %}
+    {%- if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}
+    {%- if help_id %} aria-describedby="{{ help_id }}"{% endif %}
+    {%- if required %} required{% endif %}
+    {%- if disabled %} disabled{% endif %}
+    {%- if readonly %} readonly{% endif %}>
+  {%- endif %}
+  {%- if help %}
+  <div id="{{ help_id }}" class="form-text">{{ help }}</div>
+  {%- endif %}
+</div>
+{% endmacro %}
+
+
+{# === BOTÓN DE SOLO ICONO ===
+   Siempre emite nombre accesible en español y objetivo táctil de 44px.
+   Los kwargs extra se vuelcan como atributos, cambiando '_' por '-'
+   (data_bs_toggle='modal' -> data-bs-toggle="modal").
+
+   Uso:
+     {{ icon_button('trash', 'Eliminar solicitud',
+                    cls='btn btn-sm btn-outline-danger',
+                    data_bs_toggle='modal', data_bs_target='#deleteModal') }}
+#}
+{% macro icon_button(icon, label, cls='btn btn-sm btn-outline-secondary', href=none) %}
+{%- set attrs = kwargs -%}
+{%- if href -%}
+<a href="{{ href }}" class="{{ cls }} tap-target" aria-label="{{ label }}" title="{{ label }}"
+   {%- for key, val in attrs.items() %} {{ key|replace('_', '-') }}="{{ val }}"{% endfor %}><i class="bi bi-{{ icon }}" aria-hidden="true"></i></a>
+{%- else -%}
+<button type="button" class="{{ cls }} tap-target" aria-label="{{ label }}" title="{{ label }}"
+   {%- for key, val in attrs.items() %} {{ key|replace('_', '-') }}="{{ val }}"{% endfor %}><i class="bi bi-{{ icon }}" aria-hidden="true"></i></button>
+{%- endif -%}
+{% endmacro %}
+
+
+{# === TABLA DE DATOS ===
+   Abre/cierra el wrapper con scroll hint (.siiap-table-wrapper, auto-inicializado
+   por js/utils/data-table.js en DOMContentLoaded) y obliga a un <caption>.
+   El <caption> es el nombre accesible de la tabla: siempre en español y
+   descriptivo. Las cabeceras deben llevar scope="col" / scope="row".
+
+   Uso:
+     {{ data_table_open('Aspirantes del programa', table_class='table-hover align-middle') }}
+       <thead><tr><th scope="col">Nombre</th></tr></thead>
+       <tbody>…</tbody>
+     {{ data_table_close() }}
+#}
+{% macro data_table_open(caption, id=none, table_class='', wrapper_class='') %}
+<div class="siiap-table-wrapper {{ wrapper_class }}">
+  <table class="table siiap-table mb-0 {{ table_class }}"{% if id %} id="{{ id }}"{% endif %}>
+    <caption class="visually-hidden">{{ caption }}</caption>
+{% endmacro %}
+
+{% macro data_table_close() %}
+  </table>
+</div>
+{% endmacro %}
+
+
 {# === STATUS BADGE === #}
-{# Mapa de estados (sincronizado con app/static/js/utils/status.js) #}
+{# Mapa de estados — mantener byte a byte paralelo con
+   app/static/js/utils/status.js (STATUS_META). #}
 
 {% set _STATUS_META = {
   'in_progress':         {'icon': 'arrow-repeat',         'label': 'En proceso'},
@@ -60,6 +190,7 @@
   'deferred':            {'icon': 'arrow-right-circle',   'label': 'Diferido'},
   'enrolled':            {'icon': 'mortarboard-fill',     'label': 'Inscrito'},
   'pending':             {'icon': 'clock',                'label': 'Pendiente'},
+  'review':              {'icon': 'eye-fill',             'label': 'En revisión'},
 } %}
 
 {% macro status_badge(status, label=none, size='') %}
@@ -72,20 +203,32 @@
 {% endmacro %}
 
 
-{# === EMPTY STATE === #}
+{# === EMPTY STATE ===
+   variant='error' añade el modificador .empty-state--error y, con retry_id,
+   un botón de reintento. variant='inline' para estados dentro de un <td>. #}
 
 {% macro empty_state(icon='inbox', title='Sin resultados',
                      description='', action_label=none, action_url=none,
-                     compact=false) %}
-<div class="empty-state {% if compact %}empty-state--compact{% endif %}">
+                     compact=false, variant=none, retry_id=none,
+                     error_detail=none) %}
+<div class="empty-state{% if compact %} empty-state--compact{% endif %}{% if variant %} empty-state--{{ variant }}{% endif %}">
   <div class="empty-state__icon"><i class="bi bi-{{ icon }}" aria-hidden="true"></i></div>
   <h3 class="empty-state__title">{{ title }}</h3>
   {% if description %}<p class="empty-state__description">{{ description }}</p>{% endif %}
-  {% if action_label %}
+  {% if error_detail %}<p class="empty-state__error-detail">{{ error_detail }}</p>{% endif %}
+  {% if action_label or retry_id %}
     <div class="empty-state__actions">
-      <a href="{{ action_url or '#' }}" class="btn btn-primary">
-        <span class="btn-label">{{ action_label }}</span>
-      </a>
+      {% if retry_id %}
+        <button type="button" id="{{ retry_id }}" class="btn btn-outline-primary">
+          <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>
+          <span class="btn-label">Reintentar</span>
+        </button>
+      {% endif %}
+      {% if action_label %}
+        <a href="{{ action_url or '#' }}" class="btn btn-primary">
+          <span class="btn-label">{{ action_label }}</span>
+        </a>
+      {% endif %}
     </div>
   {% endif %}
 </div>
@@ -136,17 +279,20 @@
       </p>
       {% if next_action %}
         <p class="role-banner__next-action">
-          <i class="bi bi-arrow-right-circle-fill"></i>
+          <i class="bi bi-arrow-right-circle-fill" aria-hidden="true"></i>
           <span><strong>Próximo paso:</strong> {{ next_action }}</span>
         </p>
       {% endif %}
     </div>
     {% if progress is not none %}
       <div class="role-banner__progress">
+        {# --progress es un valor genuinamente dinámico: única excepción
+           permitida al inline style. Va SIN unidad (0-100) porque
+           _role-banner.css lo consume dentro de un scaleX(). #}
         <div class="role-banner__progress-bar" role="progressbar"
              aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"
              aria-label="Progreso global">
-          <span style="width: {{ progress }}%"></span>
+          <span style="--progress: {{ progress }}"></span>
         </div>
         <span class="role-banner__progress-label">{{ progress }}% completado</span>
       </div>
@@ -155,18 +301,58 @@
 {% endmacro %}
 
 
+{# === MODAL BASE ===
+   Cascarón accesible: aria-labelledby apuntando al título, título como <h2>
+   (con clase .h5 para conservar el tamaño visual sin romper la jerarquía) y
+   botón de cierre con aria-label="Cerrar" en español.
+
+   El cuerpo y el pie se pasan con {% call(section) %}; el pie es opcional.
+
+   Uso:
+     {% call(section) modal_shell('editUserModal', 'Editar usuario', size='lg', icon='pencil') %}
+       {% if section == 'body' %}
+         {{ field('editUserName', 'Nombre completo', required=true) }}
+       {% elif section == 'footer' %}
+         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+         <button type="submit" class="btn btn-primary" form="editUserForm">Guardar</button>
+       {% endif %}
+     {% endcall %}
+#}
+{% macro modal_shell(id, title, size='', icon=none, centered=true, scrollable=false) %}
+{% set modal_body = caller('body') if caller else '' %}
+{% set modal_footer = caller('footer') if caller else '' %}
+<div class="modal fade" id="{{ id }}" tabindex="-1" aria-labelledby="{{ id }}Title" aria-hidden="true">
+  <div class="modal-dialog{% if centered %} modal-dialog-centered{% endif %}{% if scrollable %} modal-dialog-scrollable{% endif %}{% if size %} modal-{{ size }}{% endif %}">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="{{ id }}Title">
+          {%- if icon %}<i class="bi bi-{{ icon }} me-2" aria-hidden="true"></i>{% endif -%}
+          {{ title }}
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">{{ modal_body }}</div>
+      {%- if modal_footer|trim %}
+      <div class="modal-footer">{{ modal_footer }}</div>
+      {%- endif %}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+
 {# === CONFIRM MODAL === #}
 
 {% macro confirm_modal(id, title, body, confirm_label='Confirmar',
                        confirm_variant='primary', consequence=none,
                        icon='question-circle') %}
-<div class="modal fade" id="{{ id }}" tabindex="-1" role="dialog" aria-labelledby="{{ id }}-title">
+<div class="modal fade" id="{{ id }}" tabindex="-1" aria-labelledby="{{ id }}-title" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="{{ id }}-title">
+        <h2 class="modal-title h5" id="{{ id }}-title">
           <i class="bi bi-{{ icon }} me-2" aria-hidden="true"></i>{{ title }}
-        </h5>
+        </h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">

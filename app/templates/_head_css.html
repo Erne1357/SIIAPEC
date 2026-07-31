@@ -1,0 +1,37 @@
+{#
+  app/templates/_head_css.html
+  Núcleo CSS compartido por base.html y auth_base.html.
+
+  Orden obligatorio y no negociable:
+    1. _tokens.css      — variables de diseño (debe ir antes que cualquier hoja).
+    2. base.css         — cimientos de layout, reset y utilidades globales.
+    3. components/*.css — librería BEM reutilizable.
+
+  Las hojas propias de cada layout (session, menu_colors, notifications,
+  auth/common) y las de cada página ({% block styles %}) van SIEMPRE DESPUÉS
+  de este include, para que puedan sobrescribir al sistema y no al revés.
+
+  Antes existían dos listas divergentes: auth_base.html no cargaba base.css ni
+  ningún componente, así que .empty-state, .status-badge y .skeleton se
+  renderizaban sin estilo en todas las pantallas sin sesión. Este parcial es
+  el único lugar donde se declara el núcleo: no duplicar estos <link>.
+#}
+
+{# --- 1. Tokens de diseño --- #}
+<link href="{{ url_for('static', filename='css/_tokens.css') }}?v={{ static_version }}" rel="stylesheet">
+
+{# --- 2. Cimientos --- #}
+<link href="{{ url_for('static', filename='css/base.css') }}?v={{ static_version }}" rel="stylesheet">
+
+{# --- 3. Componentes BEM (orden alfabético; son bloques independientes) --- #}
+<link href="{{ url_for('static', filename='css/components/_auth-hero.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/components/_data-table.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/components/_empty-state.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/components/_event-cover.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/components/_events-widget.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/components/_nav.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/components/_role-banner.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/components/_skeleton.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/components/_stat-card.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/components/_status-badge.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/components/_stepper.css') }}?v={{ static_version }}" rel="stylesheet">

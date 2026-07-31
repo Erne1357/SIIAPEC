@@ -17,23 +17,27 @@ function showFlash(level, message) {
     'info': 'info'
   };
  
+  // Bootstrap Icons: la app nunca carga Font Awesome, así que un mapa fa-*
+  // dejaba los flashes sin icono (WCAG 1.4.1: el color era el único indicador).
   const iconTypes = {
-    'success': 'fa-check-circle',
-    'danger': 'fa-exclamation-circle',
-    'warning': 'fa-exclamation-triangle',
-    'info': 'fa-info-circle'
+    'success': 'bi-check-circle-fill',
+    'danger': 'bi-exclamation-circle-fill',
+    'warning': 'bi-exclamation-triangle-fill',
+    'info': 'bi-info-circle-fill'
   };
 
   const alertType = alertTypes[level] || 'info';
-  const iconClass = iconTypes[alertType] || 'fa-info-circle';
+  const iconClass = iconTypes[alertType] || 'bi-info-circle-fill';
 
+  // Sin role="alert": #flash-container ya es role="region" aria-live="polite".
+  // Anidar una región assertive dentro de una polite hace que NVDA y JAWS
+  // anuncien el mismo aviso dos veces.
   const alertEl = document.createElement('div');
   alertEl.className = `alert alert-${alertType} alert-dismissible fade show`;
-  alertEl.setAttribute('role', 'alert');
   alertEl.innerHTML = `
-    <strong><i class="fas ${iconClass} me-1"></i></strong>
+    <i class="bi ${iconClass} me-2" aria-hidden="true"></i>
     ${escapeHtml(message)}
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    <button type="button" class="btn-close tap-target" data-bs-dismiss="alert" aria-label="Cerrar"></button>
   `;
 
   container.appendChild(alertEl);

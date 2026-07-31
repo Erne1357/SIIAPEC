@@ -6,7 +6,7 @@ from flask_migrate import Migrate
 from flask_bootstrap import Bootstrap
 from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import timedelta
-from app.utils.datetime_utils import now_local
+from app.utils.datetime_utils import now_local, format_date_es, format_datetime_es
 from app.config import Config
 from app.utils.csrf import generate_csrf_token, validate_csrf_for_api
 from app.extensions import socketio
@@ -312,6 +312,9 @@ def create_app(test_config=None):
         return {
             "static_version": app.config.get("STATIC_VERSION", "1.0.0"),
             "csrf_token": generate_csrf_token,
+            # Expuesto para que las plantillas no escriban el año a mano
+            # (pie de página de base.html / auth_base.html).
+            "now_local": now_local,
             "has_perm": has_perm,
             "role_label": role_label,
             "role_badge_class": role_badge_class,
@@ -371,6 +374,16 @@ def create_app(test_config=None):
         if not value:
             return '—'
         return _ES_ACCEPTANCE_DOC.get(value, value)
+
+    @app.template_filter('fecha_es')
+    def _fecha_es_filter(value, style='long'):
+        """Render a date in Spanish: 'long' | 'short' | 'numeric'."""
+        return format_date_es(value, style)
+
+    @app.template_filter('fechahora_es')
+    def _fechahora_es_filter(value, style='long', include_time=True):
+        """Render a datetime in Spanish wrapped in a semantic <time> element."""
+        return format_datetime_es(value, style, include_time)
 
     @app.route('/')
     def index():
