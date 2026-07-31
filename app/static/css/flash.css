@@ -1,16 +1,28 @@
-/* === VARIABLES PARA FLASH === */
-:root {
-  --header-h: 80px;
-}
+/*
+ * flash.css — toasts de mensajes del sistema (#flash-container, _flash.html).
+ *
+ * Notas:
+ *  - Este archivo YA NO declara --header-h ni --footer-h: la altura de la
+ *    cabecera vive en _tokens.css y se reasigna en un único bloque de media
+ *    queries en base.css. Tres archivos declarando la misma variable era la
+ *    causa del escalón de 70px sin token.
+ *  - @keyframes con prefijo siiap-<componente>-<efecto>: los nombres son
+ *    globales al documento y colisionaban entre hojas.
+ *  - flash.js elimina el nodo con un setTimeout de 500ms, no con animationend,
+ *    así que anular la animación en prefers-reduced-motion es seguro.
+ */
 
-/* === FLASH CONTAINER (TOP-RIGHT ANIMATED) === */
+/* ==========================================================================
+   CONTENEDOR (fijo arriba a la derecha, bajo el header)
+   ========================================================================== */
+
 .flash-container {
   position: fixed;
-  top: calc(var(--header-h) + 1rem);
-  right: 1rem;
+  top: calc(var(--header-h) + var(--space-4));
+  right: var(--space-4);
   left: auto;
   transform: none;
-  z-index: var(--z-toast) !important;
+  z-index: var(--z-toast);
   width: auto;
   max-width: 400px;
   min-width: 300px;
@@ -19,51 +31,60 @@
 
 .flash-container .alert {
   pointer-events: all;
-  margin-bottom: 0.75rem;
-  animation: slideInRight 0.4s ease-out;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-  border-radius: 0.5rem;
-  border-left: 4px solid;
-  display: block !important;
-  opacity: 1 !important;
-  visibility: visible !important;
   position: relative;
-  background-color: #fff !important;
+  margin-bottom: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-4);
+  animation: siiap-flash-slide-in var(--duration-slow) var(--ease-out);
 }
 
-/* === COLORES DE BORDES Y FONDOS POR TIPO (paleta TECNM via tokens) === */
+/* ==========================================================================
+   COLOR POR TIPO (paleta TECNM vía tokens)
+   Se sustituye el border-left de 4px por un borde completo de 1px teñido:
+   el proyecto prohíbe bordes laterales de color de más de 1px y el fondo
+   suave ya comunica el tipo. Todos los pares superan 5.6:1.
+   ========================================================================== */
+
 .flash-container .alert-success {
-  border-left-color: var(--color-success);
-  background-color: var(--color-success-100) !important;
-  color: #0e6e3a !important;
+  background-color: var(--color-success-100);
+  border-color: var(--border-success-subtle);
+  color: var(--color-success-700);
 }
 
 .flash-container .alert-danger {
-  border-left-color: var(--color-danger);
-  background-color: var(--color-danger-100) !important;
-  color: var(--color-brand-accent-600) !important;
+  background-color: var(--color-danger-100);
+  border-color: var(--border-danger-subtle);
+  color: var(--color-danger-700);
 }
 
 .flash-container .alert-warning {
-  border-left-color: var(--color-warning);
-  background-color: var(--color-warning-100) !important;
-  color: #6b4f00 !important;
+  background-color: var(--color-warning-100);
+  border-color: var(--border-warning-subtle);
+  color: var(--color-warning-700);
 }
 
 .flash-container .alert-info {
-  border-left-color: var(--color-info);
-  background-color: var(--color-info-100) !important;
-  color: var(--color-brand-secondary) !important;
+  background-color: var(--color-info-100);
+  border-color: var(--border-info-subtle);
+  color: var(--color-info-700);
 }
 
-/* === ASEGURAR VISIBILIDAD DEL CONTENIDO === */
+/* El icono y el énfasis heredan el color del tipo */
 .flash-container .alert strong,
 .flash-container .alert i {
-  color: inherit !important;
+  color: inherit;
 }
 
+/* .btn-close es content-box en Bootstrap; se fuerza border-box para que el
+   objetivo táctil sea exactamente 44px sin crecer con el padding. */
 .flash-container .alert .btn-close {
   position: relative;
+  box-sizing: border-box;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
   opacity: 0.8;
 }
 
@@ -71,8 +92,11 @@
   opacity: 1;
 }
 
-/* === ANIMACIONES DESDE LA DERECHA === */
-@keyframes slideInRight {
+/* ==========================================================================
+   ANIMACIONES (entrada desde la derecha / salida hacia la derecha)
+   ========================================================================== */
+
+@keyframes siiap-flash-slide-in {
   from {
     opacity: 0;
     transform: translateX(100%);
@@ -84,10 +108,10 @@
 }
 
 .flash-container .alert.fade-out {
-  animation: slideOutRight 0.5s ease-out forwards;
+  animation: siiap-flash-slide-out var(--duration-slow) var(--ease-out) forwards;
 }
 
-@keyframes slideOutRight {
+@keyframes siiap-flash-slide-out {
   from {
     opacity: 1;
     transform: translateX(0);
@@ -98,42 +122,52 @@
   }
 }
 
-/* === RESPONSIVE === */
+/* ==========================================================================
+   RESPONSIVO
+   ========================================================================== */
+
 @media (max-width: 991.98px) {
-  :root {
-    --header-h: 72px;
-  }
-  
   .flash-container {
-    top: calc(var(--header-h) + 0.75rem);
-    right: 0.75rem;
+    top: calc(var(--header-h) + var(--space-3));
+    right: var(--space-3);
     max-width: 350px;
     min-width: 280px;
   }
 }
 
-@media (max-width: 767.98px) {
-  :root {
-    --header-h: 70px;
-  }
-}
-
 @media (max-width: 575.98px) {
-  :root {
-    --header-h: 64px;
-  }
-  
   .flash-container {
-    top: calc(var(--header-h) + 0.5rem);
-    right: 0.5rem;
-    left: 0.5rem;
+    top: calc(var(--header-h) + var(--space-2));
+    right: var(--space-2);
+    left: var(--space-2);
     max-width: none;
     min-width: auto;
   }
-  
+
   .flash-container .alert {
-    font-size: 0.85rem;
-    padding: 0.65rem 0.85rem;
-    margin-bottom: 0.5rem;
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-2);
+    font-size: var(--fs-sm);
+  }
+}
+
+/* ==========================================================================
+   MOVIMIENTO REDUCIDO
+   Se conserva el desvanecido (confirma que el toast se va) y se elimina el
+   desplazamiento horizontal.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .flash-container .alert {
+    animation: none;
+  }
+
+  .flash-container .alert.fade-out {
+    animation: siiap-flash-fade-out var(--duration-fast) var(--ease-out) forwards;
+  }
+
+  @keyframes siiap-flash-fade-out {
+    from { opacity: 1; }
+    to   { opacity: 0; }
   }
 }

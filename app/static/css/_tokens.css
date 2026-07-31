@@ -4,8 +4,8 @@
  * radios, sombras, z-index y movimiento. Cargar ANTES de base.css.
  *
  * Convención: --<categoría>-<variante>-<modificador>
- * Las variables --bg--tecnm, --rojoTec y --azulFuerte se preservan en base.css
- * por compatibilidad retroactiva. Nuevo código debe usar --color-brand-*.
+ * Los alias legacy --bg--tecnm / --rojoTec / --azulFuerte fueron ELIMINADOS.
+ * Usar --color-brand-primary / --color-brand-accent / --color-brand-secondary.
  */
 
 :root {
@@ -49,6 +49,28 @@
   --color-info:                 var(--color-brand-secondary);
   --color-info-100:             #dceeff;
 
+  /* Morado (único matiz semántico fuera de la marca: entrevista completada) */
+  --color-purple:               #6e3fbf;
+  --color-purple-100:           #efe9fb;
+
+  /* Rampa -700: texto sobre las superficies suaves *-100.
+     Todas verificadas >= 5.6:1 sobre su fondo correspondiente.
+     Usar SIEMPRE estas para texto; los tonos base son para fondos sólidos. */
+  --color-success-700:          #0e6e3a;   /* 5.63:1 sobre success-100  */
+  --color-warning-700:          #6b4f00;   /* 6.87:1 sobre warning-100  */
+  --color-danger-700:           var(--color-brand-accent-600); /* 7.28:1 */
+  --color-info-700:             #14538f;   /* 6.65:1 sobre info-100     */
+  --color-purple-700:           #4b2a86;   /* 8.97:1 sobre purple-100   */
+
+  /* Bordes teñidos: el 1px que acompaña a cada superficie suave.
+     Existen para que ningún componente vuelva a escribir rgba() a mano. */
+  --border-brand-subtle:        rgba(11, 30, 138, 0.18);
+  --border-success-subtle:      rgba(31, 157, 85, 0.25);
+  --border-warning-subtle:      rgba(184, 134, 0, 0.30);
+  --border-danger-subtle:       rgba(178, 31, 45, 0.25);
+  --border-info-subtle:         rgba(26, 113, 207, 0.25);
+  --border-purple-subtle:       rgba(110, 63, 191, 0.20);
+
   /* Roles de UI */
   --bg-page:                    var(--color-neutral-50);
   --bg-surface:                 var(--color-neutral-0);
@@ -58,17 +80,68 @@
   --border-strong:              var(--color-neutral-300);
   --text-primary:               var(--color-neutral-800);
   --text-secondary:             var(--color-neutral-600);
-  --text-muted:                 var(--color-neutral-500);
+  --text-muted:                 var(--color-neutral-600);  /* 5.21:1 sobre blanco */
   --text-inverse:               var(--color-neutral-0);
 
-  /* Estados de admisión (mapeados directamente desde valores del modelo) */
-  --status-in-progress:         var(--color-info);
-  --status-interview-completed: #6e3fbf;
-  --status-deliberation:        var(--color-warning);
-  --status-accepted:            var(--color-success);
-  --status-rejected:            var(--color-danger);
-  --status-deferred:            var(--color-neutral-500);
-  --status-enrolled:            var(--color-brand-primary);
+  /* --text-faint NUNCA para texto: solo iconos decorativos, separadores y
+     placeholders sobre superficies claras. No cumple AA a tamaño de cuerpo. */
+  --text-faint:                 var(--color-neutral-500);
+
+  /* ==========================================================================
+     Estados de admisión — tripletas fondo / texto / borde.
+     Consumidas por components/_status-badge.css. Cambiar aquí retematiza
+     todos los chips de estado de la app sin tocar el componente.
+     ========================================================================== */
+
+  --status-in-progress-bg:          var(--color-info-100);
+  --status-in-progress-fg:          var(--color-info-700);
+  --status-in-progress-bd:          var(--border-info-subtle);
+
+  --status-interview-completed-bg:  var(--color-purple-100);
+  --status-interview-completed-fg:  var(--color-purple-700);
+  --status-interview-completed-bd:  var(--border-purple-subtle);
+
+  --status-deliberation-bg:         var(--color-warning-100);
+  --status-deliberation-fg:         var(--color-warning-700);
+  --status-deliberation-bd:         var(--border-warning-subtle);
+
+  --status-accepted-bg:             var(--color-success-100);
+  --status-accepted-fg:             var(--color-success-700);
+  --status-accepted-bd:             var(--border-success-subtle);
+
+  --status-rejected-bg:             var(--color-danger-100);
+  --status-rejected-fg:             var(--color-danger-700);
+  --status-rejected-bd:             var(--border-danger-subtle);
+
+  --status-deferred-bg:             var(--color-neutral-200);
+  --status-deferred-fg:             var(--color-neutral-700);
+  --status-deferred-bd:             var(--border-strong);
+
+  --status-enrolled-bg:             var(--color-brand-primary-100);
+  --status-enrolled-fg:             var(--color-brand-primary);
+  --status-enrolled-bd:             var(--border-brand-subtle);
+
+  --status-pending-bg:              var(--color-neutral-100);
+  --status-pending-fg:              var(--color-neutral-600);
+  --status-pending-bd:              var(--border-default);
+
+  --status-review-bg:               var(--color-warning-100);
+  --status-review-fg:               var(--color-warning-700);
+  --status-review-bd:               var(--border-warning-subtle);
+
+  /* ==========================================================================
+     Portadas de evento — el único lugar donde vive color fuera de la marca.
+     Distinguen el tipo de evento de un vistazo. Consumidas por
+     .event-cover--{tipo}; NUNCA inyectar estos colores desde JS.
+     ========================================================================== */
+
+  --event-cover-interview:      #4b3fa8;
+  --event-cover-defense:        #7a3d96;
+  --event-cover-workshop:       #0f6f7a;
+  --event-cover-seminar:        #1a5fa8;
+  --event-cover-conference:     #9a4a6b;
+  --event-cover-info-session:   #2b6b4f;
+  --event-cover-default:        var(--color-brand-primary);
 
   /* ==========================================================================
      2. TIPOGRAFÍA
@@ -151,6 +224,8 @@
      ========================================================================== */
 
   --z-base:        0;
+  --z-raised:      1;        /* celda sticky, capa sobre hermanos */
+  --z-above:       2;        /* overlay local dentro de un componente */
   --z-dropdown:    1000;
   --z-sticky:      1020;     /* footer */
   --z-fixed:       1030;     /* header */
@@ -173,9 +248,11 @@
   --duration-slow:     400ms;
   --duration-pulse:    2000ms;
 
+  /* --ease-out es exponencial (ease-out-expo): la curva por defecto para
+     entradas y cambios de estado. Los objetos reales desaceleran, no rebotan;
+     el antiguo --ease-spring con rebote se elimino y no tenia ningun uso. */
   --ease-out:          cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out:       cubic-bezier(0.65, 0, 0.35, 1);
-  --ease-spring:       cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* ==========================================================================
      8. LAYOUT
@@ -188,6 +265,25 @@
   --footer-h:         56px;
   --content-max-w:    1280px;
   --content-padding:  var(--space-6);
+
+  /* Cajas de icono (contenedor cuadrado que envuelve un <i class="bi">) */
+  --icon-box-sm:      1.75rem;   /* stepper__number */
+  --icon-box-md:      3rem;      /* role-banner avatar en móvil */
+  --icon-box-lg:      4rem;      /* empty-state__icon, role-banner avatar */
+
+  /* Avatares */
+  --avatar-xs:        32px;
+  --avatar-sm:        40px;
+  --avatar-md:        48px;
+  --avatar-lg:        56px;
+  --avatar-xl:        140px;     /* foto de perfil en expediente */
+
+  /* Medidas de lectura */
+  --measure-narrow:   360px;     /* descripción de estado vacío */
+  --measure-prose:    65ch;      /* texto corrido: 65-75ch es el rango legible */
+
+  /* Objetivo táctil mínimo (WCAG 2.5.5) */
+  --tap-min:          2.75rem;   /* 44px */
 
   /* ==========================================================================
      9. BREAKPOINTS (referencia — usar en media queries)
@@ -224,16 +320,16 @@
   --bs-info-bg-subtle:     var(--color-info-100);
 
   --bs-primary-text-emphasis: var(--color-brand-primary-700);
-  --bs-success-text-emphasis: #0e6e3a;
-  --bs-warning-text-emphasis: #6b4f00;
-  --bs-danger-text-emphasis:  var(--color-brand-accent-600);
-  --bs-info-text-emphasis:    var(--color-brand-secondary);
+  --bs-success-text-emphasis: var(--color-success-700);
+  --bs-warning-text-emphasis: var(--color-warning-700);
+  --bs-danger-text-emphasis:  var(--color-danger-700);
+  --bs-info-text-emphasis:    var(--color-info-700);
 
-  --bs-primary-border-subtle: rgba(11, 30, 138, 0.25);
-  --bs-success-border-subtle: rgba(31, 157, 85, 0.25);
-  --bs-warning-border-subtle: rgba(184, 134, 0, 0.30);
-  --bs-danger-border-subtle:  rgba(178, 31, 45, 0.25);
-  --bs-info-border-subtle:    rgba(26, 113, 207, 0.25);
+  --bs-primary-border-subtle: var(--border-brand-subtle);
+  --bs-success-border-subtle: var(--border-success-subtle);
+  --bs-warning-border-subtle: var(--border-warning-subtle);
+  --bs-danger-border-subtle:  var(--border-danger-subtle);
+  --bs-info-border-subtle:    var(--border-info-subtle);
 
   /* Link color */
   --bs-link-color:           var(--color-brand-primary);
@@ -298,44 +394,53 @@
   --bs-btn-active-border-color: var(--color-brand-primary);
 }
 
-/* Badges Bootstrap: el .badge.bg-warning con text-dark falla WCAG AA;
-   forzamos color blanco sobre warning saturado para legibilidad */
+/* Badges Bootstrap sobre fondo sólido.
+   Warning (#b88600) y success (#1f9d55) son demasiado claros para texto
+   blanco: 3.26:1 y 3.49:1 respectivamente. Con neutral-900 suben a
+   5.94:1 y 5.54:1. Info (#1a71cf) sí aguanta blanco: 4.88:1. */
 .badge.bg-warning,
 .badge.bg-warning.text-dark {
   background-color: var(--color-warning) !important;
-  color: #fff !important;
+  color: var(--color-neutral-900) !important;
+}
+
+.badge.bg-success {
+  background-color: var(--color-success) !important;
+  color: var(--color-neutral-900) !important;
 }
 
 .badge.bg-info {
   background-color: var(--color-info) !important;
-  color: #fff !important;
+  color: var(--color-neutral-0) !important;
 }
 
-/* Alerts: usar las versiones suaves */
+/* Alerts: usar las versiones suaves.
+   OJO: base.css redefinía .alert-* con literales de Bootstrap 4 y anulaba
+   este bloque entero (propiedad directa gana a custom property). Se eliminó. */
 .alert-warning {
-  --bs-alert-color: #6b4f00;
+  --bs-alert-color: var(--color-warning-700);
   --bs-alert-bg: var(--color-warning-100);
-  --bs-alert-border-color: rgba(184, 134, 0, 0.30);
+  --bs-alert-border-color: var(--border-warning-subtle);
 }
 .alert-success {
-  --bs-alert-color: #0e6e3a;
+  --bs-alert-color: var(--color-success-700);
   --bs-alert-bg: var(--color-success-100);
-  --bs-alert-border-color: rgba(31, 157, 85, 0.25);
+  --bs-alert-border-color: var(--border-success-subtle);
 }
 .alert-danger {
-  --bs-alert-color: var(--color-brand-accent-600);
+  --bs-alert-color: var(--color-danger-700);
   --bs-alert-bg: var(--color-danger-100);
-  --bs-alert-border-color: rgba(178, 31, 45, 0.25);
+  --bs-alert-border-color: var(--border-danger-subtle);
 }
 .alert-info {
-  --bs-alert-color: var(--color-brand-secondary);
+  --bs-alert-color: var(--color-info-700);
   --bs-alert-bg: var(--color-info-100);
-  --bs-alert-border-color: rgba(26, 113, 207, 0.25);
+  --bs-alert-border-color: var(--border-info-subtle);
 }
 .alert-primary {
   --bs-alert-color: var(--color-brand-primary-700);
   --bs-alert-bg: var(--color-brand-primary-100);
-  --bs-alert-border-color: rgba(11, 30, 138, 0.18);
+  --bs-alert-border-color: var(--border-brand-subtle);
 }
 
 /* ==========================================================================
@@ -387,38 +492,40 @@
 /* === UTILITIES SEMANTICAS DE FONDO SUAVE (contraste AA) === */
 .bg-success-soft {
   background-color: var(--color-success-100);
-  color: #0e6e3a;
-  border: 1px solid rgba(31, 157, 85, 0.25);
+  color: var(--color-success-700);
+  border: 1px solid var(--border-success-subtle);
 }
 
 .bg-warning-soft {
   background-color: var(--color-warning-100);
-  color: #6b4f00;
-  border: 1px solid rgba(184, 134, 0, 0.25);
+  color: var(--color-warning-700);
+  border: 1px solid var(--border-warning-subtle);
 }
 
 .bg-danger-soft {
   background-color: var(--color-danger-100);
-  color: var(--color-brand-accent-600);
-  border: 1px solid rgba(178, 31, 45, 0.25);
+  color: var(--color-danger-700);
+  border: 1px solid var(--border-danger-subtle);
 }
 
 .bg-info-soft {
   background-color: var(--color-info-100);
-  color: var(--color-brand-secondary);
-  border: 1px solid rgba(26, 113, 207, 0.25);
+  color: var(--color-info-700);
+  border: 1px solid var(--border-info-subtle);
 }
 
 .bg-primary-soft {
   background-color: var(--color-brand-primary-100);
   color: var(--color-brand-primary);
-  border: 1px solid rgba(11, 30, 138, 0.18);
+  border: 1px solid var(--border-brand-subtle);
 }
 
-.text-warning-strong { color: var(--color-warning) !important; }
-.text-success-strong { color: var(--color-success) !important; }
-.text-danger-strong  { color: var(--color-danger)  !important; }
-.text-info-strong    { color: var(--color-info)    !important; }
+/* Texto semántico sobre superficie clara. Warning y success usan la rampa
+   -700 porque sus tonos base dan 3.26:1 y 3.49:1 sobre blanco (fallan AA). */
+.text-warning-strong { color: var(--color-warning-700) !important; }  /* 7.65:1 */
+.text-success-strong { color: var(--color-success-700) !important; }  /* 6.34:1 */
+.text-danger-strong  { color: var(--color-danger)      !important; }  /* 6.72:1 */
+.text-info-strong    { color: var(--color-info-700)    !important; }  /* 7.88:1 */
 .text-brand-primary  { color: var(--color-brand-primary) !important; }
 .text-brand-accent   { color: var(--color-brand-accent) !important; }
 
@@ -460,13 +567,26 @@
    11. PREFERS-REDUCED-MOTION (a11y global)
    ========================================================================== */
 
+/* Alternativa intencional, no un apagado global.
+   Se elimina el MOVIMIENTO (transform, animaciones en bucle, scroll suave)
+   pero se conservan los cambios de color y opacidad acortados, porque son
+   la retroalimentación que confirma hover, foco y carga. Un `0.01ms` a todo
+   deja la interfaz sin señales de estado. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation-duration: var(--duration-instant) !important;
+    transition-duration: var(--duration-instant) !important;
+    transition-property: opacity, color, background-color, border-color,
+                         box-shadow, outline-color !important;
     scroll-behavior: auto !important;
+  }
+
+  /* El movimiento sí desaparece por completo */
+  [data-reveal],
+  [data-reveal].revealed {
+    transform: none !important;
   }
 }

@@ -1,6 +1,15 @@
 /*
- * session.css — antes contenía un modal custom .session-modal.
- * Refactorizado a Bootstrap modal estándar (#sessionModal en base.html).
- * Este archivo se mantiene vacío para no romper la cadena de carga;
- * eliminar el <link> en un sprint posterior cuando se haga la limpieza final.
+ * session.css — modal de "Sesión por expirar" (#sessionModal en base.html,
+ * controlado por app/static/js/session_timeout.js).
+ *
+ * Antes contenía un modal a medida (.session-modal) que se sustituyó por el
+ * modal estándar de Bootstrap. Lo único que queda aquí es alinear su capa con
+ * la escala de _tokens.css: Bootstrap 5.3 lo coloca por defecto en 1055, el
+ * mismo valor que --z-offcanvas, así que el menú lateral móvil abierto podía
+ * empatar con un diálogo que bloquea la interacción. El fondo oscuro
+ * (.modal-backdrop) se cuelga de <body> y ya usa 1050 = --z-backdrop.
  */
+
+#sessionModal {
+  --bs-modal-zindex: var(--z-modal);
+}

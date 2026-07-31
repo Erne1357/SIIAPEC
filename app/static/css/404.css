@@ -1,5 +1,9 @@
 /*
  * Estilos para paginas 404 / 500 — institucional, sin animaciones distractoras.
+ *
+ * El código de error NO usa texto en degradado: el énfasis viene del tamaño y
+ * del peso. Además background-clip:text deja el texto invisible si el
+ * navegador no lo soporta, y anulaba el color declarado.
  */
 
 .error-container {
@@ -19,22 +23,13 @@
   color: var(--color-brand-primary);
   line-height: 1;
   letter-spacing: var(--tracking-tight);
-  background: linear-gradient(135deg,
-    var(--color-brand-primary) 0%,
-    var(--color-brand-accent) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
   margin-bottom: var(--space-4);
 }
 
+/* Texto grande (>= 80px): 3.26:1 supera el mínimo de 3:1 de WCAG 1.4.3 y
+   el número va con aria-hidden en la plantilla. */
 .error-code--server {
-  background: linear-gradient(135deg,
-    var(--color-warning) 0%,
-    var(--color-brand-accent) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--color-warning);
 }
 
 .error-message {
@@ -59,6 +54,8 @@
 .error-suggestions a {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-pill);
   background: var(--bg-surface);
@@ -66,7 +63,10 @@
   color: var(--color-brand-primary);
   text-decoration: none;
   font-weight: var(--fw-medium);
-  transition: all var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
 }
 
 .error-suggestions a:hover {
@@ -76,6 +76,8 @@
   transform: translateY(-1px);
 }
 
-#main-content {
-  margin-left: 0;
+@media (prefers-reduced-motion: reduce) {
+  .error-suggestions a:hover {
+    transform: none;
+  }
 }

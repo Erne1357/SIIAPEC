@@ -1,25 +1,74 @@
-/* === VARIABLES === */
-:root {
-  --header-h: 80px;
-  --footer-h: 56px;
-  --bg--tecnm: #0b1e8a;
-  --banner-h: 3.5rem;
-  --rojoTec: #b21f2d;
-  --azulFuerte: #1a71cf;
+/* ==========================================================================
+   SIIAP — base.css
+   Shell de aplicación (header/sidebar/main/footer), reset y utilidades
+   globales. Carga DESPUÉS de _tokens.css.
+
+   Toda la navegación (.nav-link, .nav-tabs, .nav-pills, .tab-content) vive
+   ahora en components/_nav.css, enlazado desde _head_css.html.
+   ========================================================================== */
+
+/* ==========================================================================
+   1. RESET Y TIPOGRAFÍA BASE
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
 }
 
-/* === LAYOUT HELPERS === */
-/* Botón hamburguesa — icono grande (reemplaza inline style="font-size:1.75rem") */
-.btn-menu-toggle i {
-  font-size: 1.75rem;
+html {
+  height: 100%;
 }
 
-/* Oculta el footer mientras el offcanvas está abierto (lo manejaba JS antes) */
-body.offcanvas-open footer {
-  display: none;
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background-color: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* === UTILITY: column widths en tablas (reemplazan style="width:Xpx") === */
+h1, h2, h3,
+.h1, .h2, .h3,
+.display-1, .display-2, .display-3, .display-4 {
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* ==========================================================================
+   2. UTILIDADES GLOBALES
+   ========================================================================== */
+
+/* Salto al contenido principal (WCAG 2.4.1). El <a> lo inserta la plantilla
+   como primer hijo de <body>: <a class="skip-link" href="#main-content">.
+   position:fixed y no absolute porque <body> tiene overflow:hidden. */
+.skip-link {
+  position: fixed;
+  top: calc(-1 * (var(--tap-min) + var(--space-4)));
+  left: var(--space-2);
+  z-index: var(--z-max);
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-brand-primary);
+  color: var(--text-inverse);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+  transition: top var(--duration-fast) var(--ease-out);
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: var(--space-2);
+  color: var(--text-inverse);
+}
+
+/* Anchos de columna en tablas (reemplazan style="width:Xpx") */
 .w-px-32  { width: 32px; }
 .w-px-50  { width: 50px; }
 .w-px-60  { width: 60px; }
@@ -35,287 +84,385 @@ body.offcanvas-open footer {
 .w-px-180 { width: 180px; }
 .w-px-200 { width: 200px; }
 
-/* Avatar circular mediano */
-.avatar-md {
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
+@media (min-width: 576px) {
+  .w-sm-auto {
+    width: auto;
+  }
 }
 
-/* Cursor pointer para switches/labels interactivos */
+/* Avatares circulares — escala única en _tokens.css */
+.avatar-xs,
+.avatar-sm,
+.avatar-md,
+.avatar-lg,
+.avatar-xl {
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.avatar-xs { width: var(--avatar-xs); height: var(--avatar-xs); }
+.avatar-sm { width: var(--avatar-sm); height: var(--avatar-sm); }
+.avatar-md { width: var(--avatar-md); height: var(--avatar-md); }
+.avatar-lg { width: var(--avatar-lg); height: var(--avatar-lg); }
+.avatar-xl { width: var(--avatar-xl); height: var(--avatar-xl); }
+
+/* Iconos decorativos grandes (reemplazan style="font-size:Nrem").
+   Tamaños efectivos idénticos a los que emitían user/dashboard.css y los
+   cuatro archivos JS: 2 / 2.5 / 3 / 5 rem. */
+.icon-xl  { font-size: var(--fs-2xl); }       /* 2rem   */
+.icon-2xl { font-size: var(--fs-3xl); }       /* 2.5rem */
+.icon-3xl { font-size: var(--icon-box-md); }  /* 3rem   */
+.icon-5xl { font-size: var(--space-20); }     /* 5rem   */
+
+/* Medida de lectura para texto corrido */
+.measure-prose {
+  max-width: var(--measure-prose);
+}
+
+/* Objetivo táctil mínimo (WCAG 2.5.5): botones de solo icono, cierres,
+   acciones de tabla. */
+.tap-target {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
 .cursor-pointer {
   cursor: pointer;
 }
 
-/* Modal-body con scroll propio */
 .modal-body-scroll {
   max-height: 70vh;
   overflow-y: auto;
 }
 
-/* === RESET BASE === */
-html {
-  height: 100%;
-  overflow: hidden;
-}
+/* ==========================================================================
+   3. HEADER
+   ========================================================================== */
 
-body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  font-family: var(--font-sans);
-  color: var(--text-primary);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-h1, h2, h3, .h1, .h2, .h3, .display-1, .display-2, .display-3, .display-4 {
-  font-family: var(--font-display);
-  letter-spacing: var(--tracking-tight);
-}
-
-* {
-  box-sizing: border-box;
-}
-
-/* === PERSONALIZACIÓN BOOTSTRAP === */
-.btn-primary {
-  background-color: var(--bg--tecnm) !important;
-  border-color: var(--bg--tecnm) !important;
-}
-
-.btn-primary:hover,
-.btn-primary:focus,
-.btn-primary:active {
-  background-color: #0a1a7a !important;
-  border-color: #0a1a7a !important;
-}
-
-.bg-tecnm {
-  background-color: var(--bg--tecnm);
-}
-
-.color-tecnm {
-  color: var(--bg--tecnm);
-}
-
-/* === HEADER === */
-#page-header, #auth-header {
+#page-header,
+#auth-header {
   position: fixed;
   top: 0;
-  left: 0;
   right: 0;
-  height: var(--header-h);
+  left: 0;
   z-index: var(--z-fixed);
-  background-color: #fff;
   display: flex;
   align-items: center;
+  height: var(--header-h);
+  background-color: var(--bg-surface);
 }
 
-/* === LOGOS RESPONSIVE === */
 .header-logo {
   display: block;
   height: auto;
   object-fit: contain;
-  transition: opacity 0.3s ease;
   flex-shrink: 0;
-}
-
-.logo-sep {
-  max-height: clamp(32px, 4vh, 48px);
-}
-
-.logo-tecnm {
-  max-height: clamp(42px, 5.5vh, 66px);
-}
-
-.logo-itcj {
-  max-height: clamp(42px, 5.5vh, 66px);
-}
-
-.logo-posgrado {
-  max-height: clamp(38px, 5vh, 60px);
+  transition: opacity var(--duration-normal) var(--ease-out);
 }
 
 .header-logos {
   flex-shrink: 0;
 }
 
-/* === MARCA CENTRAL - AHORA OCUPA MÁS ESPACIO === */
+.logo-sep      { max-height: clamp(32px, 4vh, 48px); }
+.logo-tecnm    { max-height: clamp(42px, 5.5vh, 66px); }
+.logo-itcj     { max-height: clamp(42px, 5.5vh, 66px); }
+.logo-posgrado { max-height: clamp(38px, 5vh, 60px); }
+
 .brand-container {
-  flex-grow: 1;
   display: flex;
+  flex-grow: 1;
   align-items: center;
   justify-content: center;
-  padding: 0.5rem;
+  padding: var(--space-2);
 }
 
 .brand-text {
   font-family: var(--font-display);
   font-weight: var(--fw-bold);
   font-size: var(--fs-display);
-  line-height: 1;
-  color: var(--color-brand-accent);
+  line-height: var(--lh-tight);
   letter-spacing: var(--tracking-display);
+  color: var(--color-brand-accent);
 }
 
-/* === WRAPPER Y LAYOUT === */
+/* Botón hamburguesa: icono legible + objetivo táctil completo */
+.btn-menu-toggle {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
+.btn-menu-toggle .bi {
+  font-size: var(--fs-xl);
+}
+
+/* ==========================================================================
+   4. WRAPPER, SIDEBAR Y CONTENIDO
+   ========================================================================== */
+
 #wrapper {
   position: fixed;
   top: var(--header-h);
-  left: 0;
   right: 0;
   bottom: var(--footer-h);
+  left: 0;
   display: flex;
   overflow: hidden;
 }
 
-/* === SIDEBAR DESKTOP === */
 #sidebar {
   width: var(--sidebar-w);
   height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  background: #f8f9fa;
-  border-right: 1px solid #dee2e6;
   flex-shrink: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--bg-surface-sunken);
+  border-right: 1px solid var(--border-default);
 }
 
-/* === MAIN CONTENT === */
 #main-content {
   flex: 1;
   height: 100%;
-  overflow-y: auto;
   overflow-x: hidden;
-  padding: 1.5rem;
+  overflow-y: auto;
+  padding: var(--content-padding);
 }
 
-/* === USER CARD === */
+/* El destino del enlace de salto no debe mostrar contorno al recibir foco
+   programático, pero sí conserva :focus-visible para el teclado. */
+#main-content:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ==========================================================================
+   5. TARJETA DE USUARIO Y ETIQUETAS DE SECCIÓN (sidebar)
+   ========================================================================== */
+
 .user-card {
-  margin-top: 1rem;
+  margin-top: var(--space-4);
+  padding: var(--space-3) !important;   /* gana a la utilidad .p-2 del macro */
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-1);
-  padding: 0.75rem !important;
 }
 
 .user-card img {
-  width: 44px !important;
-  height: 44px !important;
+  width: var(--avatar-sm);
+  height: var(--avatar-sm);
 }
 
 .user-card .fw-semibold {
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
   color: var(--text-primary);
 }
 
 .user-card .badge {
-  font-size: 0.65rem;
-  padding: 0.2rem 0.45rem;
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 
-/* === SECTION LABELS EN SIDEBAR === */
 .sidebar-section-label {
-  font-size: 0.7rem;
+  margin: 0;
+  padding: var(--space-4) var(--space-4) var(--space-1);
+  font-size: var(--fs-xs);
   font-weight: var(--fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  padding: var(--space-4) var(--space-4) var(--space-1);
-  margin: 0;
+  letter-spacing: var(--tracking-display);
+  color: var(--text-muted);            /* 5.21:1 sobre superficie clara */
 }
 
-/* La primera section label no necesita tanto padding superior */
 #sidebar .nav > .sidebar-section-label:first-child,
 .offcanvas-body .nav > .sidebar-section-label:first-child {
   padding-top: var(--space-2);
 }
 
-/* === NAV LINKS === */
-.nav-link {
-  padding: 0.7rem 1rem;
-  color: var(--color-neutral-700);
-  transition: all 0.2s ease;
-  border-radius: var(--radius-md);
-  margin: 0.15rem 0.65rem;
-  text-decoration: none;
-  font-size: 0.95rem;
-  font-weight: var(--fw-medium);
-  display: flex;
-  align-items: center;
-}
+/* ==========================================================================
+   6. FOOTER
+   ========================================================================== */
 
-#sidebar .nav-link i,
-.offcanvas-body .nav-link i {
-  font-size: 1.1rem;
-  width: 1.5rem;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.nav-link:hover {
-  background-color: rgba(11, 30, 138, 0.08);
-  color: var(--bg--tecnm);
-  text-decoration: none;
-}
-
-.nav-link.active {
-  background-color: var(--bg--tecnm);
-  color: #fff !important;
-}
-
-.nav-link.active:hover {
-  background-color: #0a1a7a;
-  color: #fff !important;
-}
-
-/* === FOOTER FIJO === */
 footer {
   position: fixed;
+  right: 0;
   bottom: 0;
   left: 0;
-  right: 0;
-  height: var(--footer-h);
-  background: var(--color-neutral-800);
-  color: var(--text-inverse);
   z-index: var(--z-sticky);
   display: flex;
   align-items: center;
   justify-content: center;
+  height: var(--footer-h);
+  background: var(--color-neutral-800);
+  color: var(--text-inverse);
 }
 
 footer a:hover {
-  color: var(--color-neutral-0) !important;
+  color: var(--color-neutral-0);
 }
 
+body.offcanvas-open footer {
+  display: none;
+}
+
+/* Indicador de estado del sistema (el texto contiguo lo describe: el color
+   nunca es el único indicador) */
 .status-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
   background: var(--color-neutral-400);
 }
 
-.status-dot--ok {
-  background: var(--color-success);
-  box-shadow: 0 0 0 2px rgba(31, 157, 85, 0.25);
-}
-
+.status-dot--ok   { background: var(--color-success); box-shadow: 0 0 0 2px var(--border-success-subtle); }
 .status-dot--warn { background: var(--color-warning); }
 .status-dot--down { background: var(--color-danger); }
 
-/* === RESPONSIVE TABLETS === */
+/* ==========================================================================
+   7. OFFCANVAS MÓVIL
+   ========================================================================== */
+
+.offcanvas {
+  --bs-offcanvas-width: min(85vw, 280px);
+  --bs-offcanvas-zindex: var(--z-offcanvas);
+  display: flex;
+  flex-direction: column;
+}
+
+.offcanvas.offcanvas-start {
+  top: 0;
+  bottom: 0;
+}
+
+.offcanvas-backdrop {
+  z-index: var(--z-backdrop);
+}
+
+.offcanvas-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.mobile-user-section {
+  flex-shrink: 0;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+  background-color: var(--bg-surface-sunken);
+}
+
+.mobile-user-section .user-card {
+  margin-bottom: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+/* Solo la navegación hace scroll; cabecera y pie del offcanvas quedan fijos */
+.offcanvas-body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: var(--space-2) 0;
+}
+
+.offcanvas-footer {
+  position: relative;
+  z-index: var(--z-above);
+  flex-grow: 0;
+  flex-shrink: 0;
+  padding: var(--space-3);
+  border-top: 1px solid var(--border-default);
+  background-color: var(--bg-surface-sunken);
+}
+
+.offcanvas-body a,
+.offcanvas-footer a {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+/* ==========================================================================
+   8. BARRAS DE DESPLAZAMIENTO (WebKit)
+   ========================================================================== */
+
+#sidebar::-webkit-scrollbar,
+#main-content::-webkit-scrollbar {
+  width: var(--space-2);
+}
+
+#sidebar::-webkit-scrollbar-track,
+#main-content::-webkit-scrollbar-track {
+  background: var(--bg-surface-sunken);
+}
+
+#sidebar::-webkit-scrollbar-thumb,
+#main-content::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-400);
+  border-radius: var(--radius-xs);
+}
+
+#sidebar::-webkit-scrollbar-thumb:hover,
+#main-content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-500);
+}
+
+/* ==========================================================================
+   9. AJUSTES PUNTUALES DE BOOTSTRAP
+   ========================================================================== */
+
+.badge {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+/* Botón de menú móvil sin marco */
+.btn.d-lg-none {
+  padding: var(--space-2);
+  border: none;
+  background: transparent;
+}
+
+.btn.d-lg-none:hover {
+  background-color: var(--bg-surface-sunken);
+}
+
+/* Modales: la única razón de estas reglas es alinear el apilamiento con la
+   escala --z-*. Todo lo demás (tamaños, colores, radios) lo aporta
+   Bootstrap 5.3 a través de sus variables --bs-modal-*. */
+.modal-backdrop {
+  z-index: var(--z-backdrop);
+}
+
+.modal {
+  z-index: var(--z-modal);
+}
+
+.modal-dialog {
+  position: relative;
+  z-index: var(--z-raised);
+}
+
+/* Sin barra de desplazamiento propia, Bootstrap no debe compensar ancho */
+body.modal-open {
+  overflow: hidden !important;
+  padding-right: 0 !important;
+}
+
+.modal .alert {
+  margin-bottom: var(--space-3);
+}
+
+/* ==========================================================================
+   10. RESPONSIVE — el shell reasigna las variables de layout, nada más
+   ========================================================================== */
+
 @media (max-width: 991.98px) {
   :root {
-    --header-h: 72px;
+    --header-h: var(--header-h-md);
     --sidebar-w: 0px;
-  }
-
-  #wrapper {
-    top: var(--header-h);
   }
 
   #sidebar {
@@ -326,7 +473,8 @@ footer a:hover {
     max-height: clamp(28px, 4vh, 44px);
   }
 
-  .logo-tecnm, .logo-itcj {
+  .logo-tecnm,
+  .logo-itcj {
     max-height: clamp(36px, 5vh, 54px);
   }
 
@@ -335,16 +483,15 @@ footer a:hover {
   }
 }
 
-/* === RESPONSIVE MÓVIL === */
 @media (max-width: 767.98px) {
   :root {
-    --header-h: 70px;
+    --header-h: var(--header-h-sm);
+    --footer-h: 0px;   /* <footer> es d-none d-md-flex: no ocupa espacio */
   }
 
-  /* Ocultar un logo por lado */
   .logo-sep,
   .logo-posgrado {
-    display: none !important;
+    display: none;
   }
 
   .brand-text {
@@ -353,19 +500,13 @@ footer a:hover {
 }
 
 @media (max-width: 575.98px) {
-  :root {
-    --header-h: 64px;
-  }
-
-  /* Ocultar todos los logos en móvil pequeño */
   .header-logos {
-    display: none !important;
+    display: none;
   }
 
-  /* Asegurar que SIIAP esté centrado cuando desaparecen los logos */
   #page-header .d-flex,
   #auth-header .d-flex {
-    justify-content: center !important;
+    justify-content: center;
   }
 
   .brand-container {
@@ -377,486 +518,51 @@ footer a:hover {
   }
 
   #main-content {
-    padding: 1rem;
+    padding: var(--space-4);
   }
 }
 
-/* === OFFCANVAS MÓVIL === */
-.offcanvas {
-  width: 280px !important;
-  display: flex;
-  flex-direction: column;
-  z-index: var(--z-offcanvas) !important;
-  height: 100vh !important;
-  max-height: 100vh !important;
-  max-height: 100dvh !important;
-}
+/* ==========================================================================
+   11. VIEWPORTS BAJOS Y ZOOM DE TEXTO (WCAG 1.4.4 / 1.4.10)
 
-.offcanvas.show,
-.offcanvas.showing {
-  z-index: var(--z-offcanvas) !important;
-}
+   El shell fijo con scroll interno deja contenido inalcanzable cuando la
+   altura útil se reduce (móvil apaisado, zoom del navegador, tamaño de
+   fuente del sistema aumentado): header + footer llegan a comerse la
+   pantalla y #main-content queda sin alto.
 
-.offcanvas-backdrop {
-  z-index: var(--z-backdrop) !important;
-}
+   Por debajo de 30rem de alto el shell se libera: header pegajoso, footer
+   en flujo y scroll del DOCUMENTO completo. La medida va en `rem` a
+   propósito — así también se dispara cuando el usuario agranda el tipo sin
+   cambiar el zoom.
+   ========================================================================== */
 
-.offcanvas-backdrop.show {
-  z-index: var(--z-backdrop) !important;
-}
-
-.offcanvas.offcanvas-start {
-  top: 0 !important;
-  bottom: 0 !important;
-}
-
-body.offcanvas-open footer {
-  z-index: var(--z-sticky);
-}
-
-/* Header del offcanvas (título y botón cerrar) */
-.offcanvas-header {
-  flex-shrink: 0;
-  border-bottom: 1px solid #dee2e6;
-  min-height: 56px; /* Altura fija para cálculos */
-}
-
-/* Sección de usuario fija arriba */
-.mobile-user-section {
-  flex-shrink: 0;
-  padding: 0.75rem;
-  border-bottom: 1px solid #dee2e6;
-  background-color: #f8f9fa;
-  min-height: 80px; /* Altura mínima estimada */
-}
-
-.mobile-user-section .user-card {
-  margin-bottom: 0;
-  background: #fff;
-  border: 1px solid #dee2e6;
-  border-radius: 0.5rem;
-}
-
-/* Body scrollable solo para navegación — flex layout robusto sin hardcoded heights */
-.offcanvas-body {
-  flex: 1 1 0;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0.5rem 0;
-}
-
-.offcanvas-body .nav-link {
-  margin: 0.125rem 0.75rem;
-}
-
-/* Footer fijo abajo con botón de cerrar sesión */
-.offcanvas-footer {
-  flex-shrink: 0;
-  flex-grow: 0;
-  padding: 0.75rem;
-  border-top: 1px solid #dee2e6;
-  background-color: #f8f9fa;
-  position: relative;
-  z-index: 10;
-  min-height: 70px; /* Altura mínima para asegurar visibilidad */
-}
-
-.offcanvas-footer .nav-link {
-  margin: 0;
-  width: 100%;
-  text-align: center;
-  padding: 0.75rem;
-  border-radius: 0.375rem;
-  font-weight: 600;
-}
-
-.offcanvas-footer .nav-link:hover {
-  background-color: rgba(220, 53, 69, 0.1);
-}
-
-/* Fix para que los enlaces funcionen en el offcanvas */
-.offcanvas-body a,
-.offcanvas-footer a {
-  cursor: pointer;
-  pointer-events: all;
-}
-
-/* === ANIMACIONES SUAVES === */
-.nav-link,
-.header-logo {
-  transition: all 0.25s ease;
-}
-
-/* === SCROLLBAR SIDEBAR Y MAIN === */
-#sidebar::-webkit-scrollbar,
-#main-content::-webkit-scrollbar {
-  width: 8px;
-}
-
-#sidebar::-webkit-scrollbar-track,
-#main-content::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-
-#sidebar::-webkit-scrollbar-thumb,
-#main-content::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
-}
-
-#sidebar::-webkit-scrollbar-thumb:hover,
-#main-content::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
-/* === MEJORAS DE ACCESIBILIDAD === */
-.btn:focus,
-.nav-link:focus {
-  outline: 2px solid var(--bg--tecnm);
-  outline-offset: 2px;
-}
-
-/* === MEJORA VISUAL DE BADGES === */
-.badge {
-  font-size: 0.7rem;
-  padding: 0.25rem 0.5rem;
-  font-weight: 600;
-}
-
-/* === BOTÓN MENÚ MÓVIL === */
-.btn.d-lg-none {
-  padding: 0.5rem;
-  border: none;
-  background: transparent;
-}
-
-.btn.d-lg-none:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.btn.d-lg-none:focus {
-  box-shadow: none;
-  outline: 2px solid var(--bg--tecnm);
-}
-
-/* === FIX PARA AOS === */
-[data-aos] {
-  pointer-events: auto;
-}
-
-/* === AOS STYLES OVERRIDE === */
-[data-aos][data-aos][data-aos-duration="800"],
-body[data-aos-duration="800"] [data-aos] {
-  transition-duration: 800ms;
-}
-
-[data-aos][data-aos][data-aos-easing="ease-in-out"],
-body[data-aos-easing="ease-in-out"] [data-aos] {
-  transition-timing-function: ease-in-out;
-}
-
-/* === ASEGURAR QUE NO HAYA SCROLL EXTRA === */
-.d-flex.flex-column.min-vh-100 {
-  min-height: 100vh;
-  height: 100vh;
-  overflow: hidden;
-}
-/* Modal backdrop debe estar sobre el contenido pero bajo el modal */
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: var(--z-backdrop) !important;
-  width: 100vw;
-  height: 100vh;
-  background-color: #000;
-}
-
-.modal-backdrop.show {
-  opacity: 0.5;
-}
-
-/* Modal container */
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: var(--z-modal) !important;
-  width: 100%;
-  height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  outline: 0;
-}
-
-/* Modal dialog centrado */
-.modal-dialog {
-  position: relative;
-  width: auto;
-  margin: 0.5rem;
-  pointer-events: none;
-  z-index: calc(var(--z-modal) + 1) !important;
-}
-
-.modal.show .modal-dialog {
-  transform: none;
-}
-
-.modal-dialog-scrollable {
-  height: calc(100% - 1rem);
-}
-
-.modal-dialog-centered {
-  display: flex;
-  align-items: center;
-  min-height: calc(100% - 1rem);
-}
-
-/* Modal content */
-.modal-content {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  pointer-events: auto;
-  background-color: #fff;
-  background-clip: padding-box;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 0.5rem;
-  outline: 0;
-}
-
-/* Cuando el modal está abierto */
-body.modal-open {
-  overflow: hidden !important;
-  padding-right: 0 !important;
-}
-
-/* Prevenir que el wrapper interfiera */
-body.modal-open #wrapper {
-  filter: none !important;
-}
-
-/* === ALERTS NORMALES (NO FLASH) === */
-.alert {
-  position: relative;
-  padding: 0.75rem 1.25rem;
-  margin-bottom: 1rem;
-  border: 1px solid transparent;
-  border-radius: 0.5rem;
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-.alert-info {
-  color: #0c5460;
-  background-color: #d1ecf1;
-  border-color: #bee5eb;
-}
-
-.alert-success {
-  color: #155724;
-  background-color: #d4edda;
-  border-color: #c3e6cb;
-}
-
-.alert-warning {
-  color: #856404;
-  background-color: #fff3cd;
-  border-color: #ffeaa7;
-}
-
-.alert-danger {
-  color: #721c24;
-  background-color: #f8d7da;
-  border-color: #f5c6cb;
-}
-
-/* Alert dentro de modal */
-.modal .alert {
-  margin-bottom: 0.75rem;
-}
-
-
-
-/* === RESPONSIVE === */
-@media (min-width: 576px) {
-  .modal-dialog {
-    max-width: 500px;
-    margin: 1.75rem auto;
+@media (max-height: 30rem) {
+  html,
+  body {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
   }
-  
-  .modal-dialog-centered {
-    min-height: calc(100% - 3.5rem);
+
+  #page-header,
+  #auth-header {
+    position: sticky;
   }
-  
-  .modal-sm {
-    max-width: 300px;
+
+  #wrapper {
+    position: static;
+    height: auto;
+    overflow: visible;
   }
-}
 
-@media (min-width: 992px) {
-  .modal-lg,
-  .modal-xl {
-    max-width: 800px;
+  #sidebar,
+  #main-content {
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
-}
 
-@media (min-width: 1200px) {
-  .modal-xl {
-    max-width: 1140px;
+  footer {
+    position: static;
   }
-}
-
-@media (max-width: 575.98px) {
-  .modal-dialog {
-    margin: 0.5rem;
-  }
-}
-/* === MEJORAS PARA TABS === */
-.nav-tabs {
-  border-bottom: 2px solid #dee2e6;
-  margin-bottom: 1.5rem;
-}
-
-.nav-tabs .nav-link {
-  border: 1px solid transparent;
-  border-radius: 0.5rem 0.5rem 0 0;
-  color: #495057;
-  font-weight: 500;
-  padding: 0.75rem 1.25rem;
-  margin-bottom: -2px;
-  transition: all 0.2s ease;
-  background-color: transparent;
-}
-
-.nav-tabs .nav-link:hover {
-  border-color: #e9ecef #e9ecef #dee2e6;
-  isolation: isolate;
-  background-color: #f8f9fa;
-  color: var(--bg--tecnm);
-}
-
-.nav-tabs .nav-link.active {
-  color: var(--bg--tecnm);
-  background-color: #fff;
-  border-color: #dee2e6 #dee2e6 #fff;
-  font-weight: 600;
-}
-
-.nav-tabs .nav-link i {
-  margin-right: 0.5rem;
-}
-
-/* Tab content con borde */
-.tab-content {
-  background-color: #fff;
-  border: 1px solid #dee2e6;
-  border-top: none;
-  padding: 1.5rem;
-  border-radius: 0 0 0.5rem 0.5rem;
-}
-
-/* Variante con borde completo (para tabs dentro de cards) */
-.card .nav-tabs {
-  border-bottom: 1px solid #dee2e6;
-  margin-bottom: 0;
-}
-
-.card .tab-content {
-  border: none;
-  padding: 1rem;
-}
-
-/* === ESTILOS PARA TEMARIOS DE EXAMEN === */
-.nav-pills .nav-link {
-  border-radius: 0.375rem;
-  padding: 0.65rem 1.25rem;
-  color: #495057;
-  transition: all 0.2s ease;
-  margin-bottom: 0.5rem;
-  border: 1px solid transparent;
-}
-
-.nav-pills .nav-link:hover {
-  background-color: rgba(11, 30, 138, 0.08);
-  color: var(--bg--tecnm);
-  border-color: rgba(11, 30, 138, 0.2);
-}
-
-.nav-pills .nav-link.active {
-  background-color: var(--bg--tecnm);
-  color: #fff;
-  border-color: var(--bg--tecnm);
-}
-
-.nav-pills .nav-link i {
-  margin-right: 0.5rem;
-}
-
-/* Badge dentro de tabs */
-.nav-tabs .nav-link .badge,
-.nav-pills .nav-link .badge {
-  margin-left: 0.5rem;
-  font-size: 0.7rem;
-  padding: 0.25rem 0.5rem;
-}
-
-/* Checkmark en tabs completados (BI: bi-check-circle-fill) */
-.nav-tabs .nav-link i.bi-check-circle-fill,
-.nav-pills .nav-link i.bi-check-circle-fill {
-  color: var(--color-success);
-}
-
-/* === RESPONSIVE TABS === */
-@media (max-width: 767.98px) {
-  .nav-tabs {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    border-bottom: 2px solid #dee2e6;
-  }
-  
-  .nav-tabs .nav-link {
-    white-space: nowrap;
-    min-width: auto;
-    font-size: 0.9rem;
-    padding: 0.65rem 1rem;
-  }
-  
-  .tab-content {
-    padding: 1rem;
-  }
-  
-  /* Ocultar scrollbar pero mantener funcionalidad */
-  .nav-tabs::-webkit-scrollbar {
-    height: 3px;
-  }
-  
-  .nav-tabs::-webkit-scrollbar-track {
-    background: #f1f1f1;
-  }
-  
-  .nav-tabs::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 3px;
-  }
-}
-
-/* === ESTADOS ESPECÍFICOS DE DOCUMENTOS === */
-.nav-tabs .nav-link[data-status="complete"] {
-  position: relative;
-}
-
-.nav-tabs .nav-link[data-status="complete"]::after {
-  content: '\F26B'; /* bi-check-lg en Bootstrap Icons */
-  font-family: 'bootstrap-icons';
-  position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
-  font-size: 0.7rem;
-  color: var(--color-success);
 }
