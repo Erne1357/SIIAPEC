@@ -1,0 +1,25 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      "app/templates/coordinator/student_record/_pdf.html"
+    ],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-07-31T17:36:51.942Z",
+        "reason": "El dueno del proyecto confirmo conservar Inter: SIIAP es sistema institucional TecNM en modo Operate, prioriza legibilidad sobre distincion"
+      },
+      {
+        "rule": "overused-font",
+        "value": "*",
+        "files": [
+          "app/templates/emails/base_email.html"
+        ],
+        "createdAt": "2026-07-31T17:36:59.804Z",
+        "reason": "Los clientes de correo no cargan webfonts: Arial es la pila segura obligatoria, no una eleccion de diseno"
+      }
+    ]
+  }
+}

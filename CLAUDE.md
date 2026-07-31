@@ -19,33 +19,83 @@ This matches the existing codebase. Never write UI text in English.
 
 ## Style Standard (CSS Design System)
 
-**Source of truth:** `app/static/css/_tokens.css` (60+ design tokens) — load order in `base.html` puts tokens after Bootstrap to override its defaults.
+**Source of truth:** `app/static/css/_tokens.css`. The CSS core (tokens + `base.css` + every `components/*.css`) is declared in **one place only**: `app/templates/_head_css.html`, included by both `base.html` and `auth_base.html`. Never write those `<link>` tags in a page template.
+
+**Cascade order:** Bootstrap → `_tokens.css` → `base.css` → `components/*.css` → layout sheets → page sheet (`{% block styles %}`). Shared components carry **no `!important`**, so a page sheet that redeclares `.nav-link`, `.nav-tabs`, `.stat-card`, `.icon-*`, `.empty-state` or `.status-badge--*` **wins**. Don't redeclare them — extend with a new class.
 
 ### Token files
 | File | Purpose |
 |------|---------|
-| `app/static/css/_tokens.css` | Custom properties: colors, type, spacing, radii, shadows, z-index, motion, layout, breakpoints. Bootstrap overrides too. |
-| `app/static/css/base.css` | Layout foundation: `.nav-link`, `.sidebar-section-label`, utilities `w-px-N`, `avatar-md`, `cursor-pointer`, `modal-body-scroll`. |
-| `app/static/css/components/` | Reusable BEM components (one file each). |
+| `app/static/css/_tokens.css` | Custom properties + Bootstrap overrides. The only file allowed to define tokens. |
+| `app/static/css/base.css` | Shell (header/sidebar/main/footer), reset, global utilities. |
+| `app/static/css/components/` | Reusable BEM components, one file each. |
+| `app/templates/_head_css.html` | The single declaration of the CSS core. |
 
 ### Reusable BEM components (from `components/`)
-- `.status-badge` + `--{accepted,rejected,deferred,enrolled,deliberation,interview-completed,in-progress,pending,approved}` + `--sm/--lg`
-- `.empty-state` + `__icon`, `__title`, `__description`, `__actions` (+ `--compact`)
-- `.siiap-table-wrapper` (sticky cols + scroll hint)
+- `.status-badge` + `--{in-progress,interview-completed,deliberation,accepted,approved,rejected,deferred,enrolled,pending,review}` + `--task-{success,failure,started,retry,pending,revoked}` (Celery) + `--sm/--lg` + `--as-link`
+- `.empty-state` + `__icon`, `__title`, `__description`, `__error-detail`, `__actions` (+ `--compact`, `--error`, `--inline` for use inside a `<td colspan>`)
+- `.siiap-table-wrapper` + `.siiap-table` (sticky first column + scroll hint; auto-inits on `DOMContentLoaded`, no JS wiring needed)
 - `.stepper` + `__step`, `__number`, `__label` + `--active`, `--completed`
 - `.role-banner` + `__avatar`, `__content`, `__greeting`, `__role`, `__next-action`, `__progress`, `__progress-bar`, `__progress-label`
-- `.skeleton`, `.skeleton-text`, `.skeleton-avatar`, `.skeleton-card`, `.skeleton-button`, `.skeleton-table`, `.skeleton-row`, `.skeleton-cell` + `--{xs,sm,md,lg,full}`
+- `.skeleton`, `.skeleton-text`, `.skeleton-avatar`, `.skeleton-card`, `.skeleton-button`, `.skeleton-table`, `.skeleton-row`, `.skeleton-cell` + `--{xs,sm,md,lg,full}`; `.skeleton-row--cols-{2..8}`, `.skeleton-card--{sm,md,lg}`, `.skeleton-region` (announceable via `aria-busy`)
+- `.stat-card` + `__icon`, `__value`, `__label`, `__hint` + `--{success,warning,danger,info,brand,interactive}`; standalone `.kpi-value` (+`--sm`/`--lg`) and `.kpi-label`
+- `.nav-link`, `.nav-tabs`, `.nav-pills`, `.tab-content` — **all navigation lives in `_nav.css`**, nowhere else
+- `.auth-hero` + `__content`, `__title`, `__tagline`, `__highlights`, `__highlight` (no `__eyebrow` — kickers are banned)
+- `.events-widget` + `__header`, `__title`, `__body`, `__section`, `__section-title`, `__list`, `__item`, `__meta`, `__actions`, `__chips`, `__badge`, `__empty`
+- `.event-cover` + `--{interview,defense,workshop,seminar,conference,info-session,default}` + `__icon`, `--has-image`, `--scrim`
 
 ### Token categories (always reference, never hardcode)
-- **Colors:** `--color-brand-{primary,primary-50,primary-100,primary-600,primary-700,accent,accent-600,secondary}`, `--color-{success,warning,danger,info}` + `*-100`, `--color-neutral-{0..900}`. Roles: `--bg-{page,surface,surface-raised,surface-sunken}`, `--border-{default,strong}`, `--text-{primary,secondary,muted,inverse}`. Status: `--status-{in-progress,interview-completed,deliberation,accepted,rejected,deferred,enrolled}`.
+- **Colors:** `--color-brand-{primary,primary-50,primary-100,primary-600,primary-700,accent,accent-600,accent-100,secondary}`, `--color-{success,warning,danger,info,purple}` + `*-100` + `*-700`, `--color-neutral-{0..900}`.
+  - The **`-700` ramp is for text on `-100` surfaces** (all ≥5.6:1). The base tones are for solid fills only: `--color-warning` and `--color-success` fail AA as text on white.
+- **Roles:** `--bg-{page,surface,surface-raised,surface-sunken}`, `--border-{default,strong}`, `--text-{primary,secondary,muted,faint,inverse}`.
+  - `--text-faint` is **never for text** — decorative icons and separators only.
+- **Tinted borders:** `--border-{brand,success,warning,danger,info,purple}-subtle`. These replace every hand-written `rgba()` border.
+- **Status triads:** `--status-{in-progress,interview-completed,deliberation,accepted,rejected,deferred,enrolled,pending,review}-{bg,fg,bd}`. Retheming every status chip in the app means editing these, not the component.
+- **Event covers:** `--event-cover-{interview,defense,workshop,seminar,conference,info-session,default}`. Never inject these from JS — JS adds the class, CSS owns the color.
 - **Type:** `--font-{sans,display,mono}`, `--fs-{xs,sm,base,md,lg,xl,2xl,3xl,display}`, `--fw-{regular,medium,semibold,bold}`, `--lh-{tight,normal,relaxed}`, `--tracking-{tight,normal,wide,display}`.
 - **Spacing (8px scale):** `--space-{0,1,2,3,4,5,6,8,10,12,16,20}`.
 - **Radii:** `--radius-{xs,sm,md,lg,xl,pill}`.
 - **Shadows:** `--shadow-{0,1,2,3,4,5}`, `--shadow-focus`.
-- **Z-index:** `--z-{base,dropdown,sticky,fixed,fab,backdrop,offcanvas,modal,popover,tooltip,toast,max}`.
-- **Motion:** `--duration-{instant,fast,normal,slow,pulse}`, `--ease-{out,in-out,spring}`.
-- **Layout:** `--header-h{,-md,-sm}`, `--sidebar-w`, `--footer-h`, `--content-max-w`, `--content-padding`.
-- **Bootstrap utility extensions:** `.bg-{success,warning,danger,info,primary}-soft`, `.text-{warning,success,danger,info,brand-primary,brand-accent}-strong`.
+- **Z-index:** `--z-{base,raised,above,dropdown,sticky,fixed,fab,backdrop,offcanvas,modal,popover,tooltip,toast,max}`.
+- **Motion:** `--duration-{instant,fast,normal,slow,pulse}`, `--ease-{out,in-out}`. `--ease-out` is exponential and is the default for entrances and state changes. There is **no** `--ease-spring`: bounce easing is banned.
+- **Layout & sizing:** `--header-h{,-md,-sm}`, `--sidebar-w`, `--footer-h`, `--content-max-w`, `--content-padding`, `--icon-box-{sm,md,lg}`, `--avatar-{xs,sm,md,lg,xl}`, `--measure-prose` (65ch), `--measure-narrow`, `--tap-min` (44px).
+- **Utility extensions:** `.bg-{success,warning,danger,info,primary}-soft`, `.text-{warning,success,danger,info,brand-primary,brand-accent}-strong`, `.avatar-{xs,sm,md,lg,xl}`, `.icon-{xl,2xl,3xl,5xl}`, `.measure-prose`, `.tap-target`, `.skip-link`, `.w-px-N`, `.w-sm-auto`, `.cursor-pointer`, `.modal-body-scroll`.
+
+**Do not exist — never write them:** `--ease-spring`, `--fs-4xl`, `--fs-5xl`, `--offcanvas-w`, `--surface-translucent`, `--bg--tecnm`, `--rojoTec`, `--azulFuerte`. The last three were legacy brand aliases; use `--color-brand-{primary,accent,secondary}`.
+
+### Jinja macros (`app/templates/_macros.html`) — prefer these over hand-written markup
+`{% from '_macros.html' import <macro> %}` — **a macro used without its import fails at render, not at compile.**
+
+| Macro | Guarantees |
+|---|---|
+| `modal_shell(id, title, size, icon, centered, scrollable)` | `aria-labelledby`, `<h2 class="modal-title h5">`, `btn-close` with `aria-label="Cerrar"` |
+| `field(id, label, type, name, required, help, autocomplete, placeholder, value, options, rows, disabled)` | `<label for>` bound to the control, `required_mark()`, help text via `aria-describedby` |
+| `data_table_open(caption, id, table_class, wrapper_class)` / `data_table_close()` | `.siiap-table-wrapper` + mandatory `<caption class="visually-hidden">` |
+| `async_region(id, label)` | `role="region" aria-live="polite" aria-busy`, Spanish `aria-label` |
+| `icon_button(icon, label, cls, href, **attrs)` | always emits `aria-label` + `aria-hidden` icon + 44px target |
+| `status_badge(status, label, size)` | icon as the non-color signal (WCAG 1.4.1), `_` → `-` conversion |
+| `empty_state(icon, title, description, action_label, action_url, compact, variant, retry_id, error_detail)` | full subcomponents, `--error`/`--inline` variants |
+| `stepper(steps, current)` | `aria-current="step"`, 44px steps |
+| `role_banner(user, role_key, ...)` | `progress` emitted as `style="--progress: N%"` |
+| `confirm_modal(id, title, body, ...)` | labelled destructive confirmation |
+| `skeleton_table(rows, cols)` / `skeleton_cards(count, size, col_class)` / `skeleton_text_block(lines)` | `skeleton_cards` takes **`size`** (`'sm'\|'md'\|'lg'`), not `height` |
+| `required_mark()` | `<abbr title="Campo requerido" aria-label="requerido">` |
+
+### Shared JS API (global `SIIAP` namespace)
+| Call | Purpose |
+|---|---|
+| `SIIAP.statusBadgeEl(status, label, size)` | **preferred** — returns a real DOM node, no HTML-string injection |
+| `SIIAP.statusBadge(status, label, size)` | HTML string for template literals; escapes the label |
+| `SIIAP.statusLabel(status)` / `SIIAP.statusKey(status)` / `SIIAP.STATUS_META` | keep in sync with `_STATUS_META` in `_macros.html` |
+| `SIIAP.announce(msg)` | writes to the single live region `#siiap-live` — never create another |
+| `SIIAP.setBusy(el, busy, opts)` | `aria-busy` on the element and its `.skeleton-region` |
+| `SIIAP.syncExpanded(trigger, target, open)` | `aria-expanded` + `aria-controls` + `show` class |
+| `SIIAP.togglePassword(button, force)` | contract: `<button data-toggle-password="#inputId">` |
+| `SIIAP.formatDate/formatDateTime/formatTime/timeEl/parseDate` | `es-MX` formatting; `parseDate` reads `YYYY-MM-DD` as **local** time (avoids the off-by-one-day bug) |
+| `SIIAP.initDataTable(wrapper)` | already auto-runs on `DOMContentLoaded` |
+
+### Dates
+Never `strftime('%B')` — there is no `locale.setlocale` in this project, so months print **in English**. Use `{{ value|fecha_es }}` (`'31 de julio de 2026'`, styles `'short'`/`'numeric'`) and `{{ value|fechahora_es }}` (emits `<time datetime="…">`). Python side: `format_date_es` / `format_datetime_es` / `format_time_es` in `app/utils/datetime_utils.py`.
 
 ### Hard rules (never break)
 1. **No hardcoded colors** in HTML/CSS — use `var(--color-*)`, `var(--text-*)`, `var(--bg-*)`, `var(--border-*)`.
@@ -53,21 +103,38 @@ This matches the existing codebase. Never write UI text in English.
 3. **Spacing only via** `var(--space-N)` — no random `padding: 14px`.
 4. **Radii only via** `var(--radius-*)`.
 5. **Type only via** `--fs-*` / `--fw-*` / `--font-*`.
-6. **No `<style>` blocks in templates** — write `app/static/css/<feature>/<page>.css` and link.
-7. **No CSS inline** — only `window.*` `<script>` for Jinja2 → JS variables.
+6. **No `<style>` blocks in templates** — write `app/static/css/<feature>/<page>.css` and link. (Only exception: `coordinator/student_record/_pdf.html`, which renders to PDF.)
+7. **No inline `style=`** — the sole exception is passing a genuinely dynamic Jinja value into a custom property, e.g. `style="--progress: {{ n }}%"`.
 8. **BEM for new components:** `.block`, `.block__element`, `.block--modifier` (dashes, not underscores in block name).
-9. **Icons:** Bootstrap Icons `<i class="bi bi-*"></i>` — no inline SVG.
-10. **Status/badges:** use `.status-badge--*` modifiers — never recolor with ad-hoc utility classes.
+9. **Icons:** Bootstrap Icons `<i class="bi bi-*"></i>` — no inline SVG, no emoji-as-icon, and **never `fa-*`** (Font Awesome is not loaded).
+10. **Status/badges:** `.status-badge--*` for anything communicating **state**; plain `badge bg-*` stays for **numeric counters** only.
 11. **Empty states:** `.empty-state` with full subcomponents — no improvising.
-12. **Tables:** wrap in `.siiap-table-wrapper`.
+12. **Tables:** always `data_table_open()` / `.siiap-table-wrapper`, with `<caption>` and `scope="col"`.
 13. **Mobile-first:** max-width media queries in component files (576/768/992/1200 px).
-14. **WCAG 2.1 AA:** never rely on color alone, min touch target 44px, `:focus-visible` outlines.
+14. **WCAG 2.1 AA:** never rely on color alone, min touch target 44px (`.tap-target` / `--tap-min`), `:focus-visible` outlines, every async region announced.
+15. **`@keyframes` are global per document** — always prefix `siiap-<component>-<effect>`.
+16. **No dark mode in the app.** Only transactional emails declare `color-scheme`.
+
+### Banned patterns
+- Gradient text — emphasis comes from weight or size.
+- `border-left` / `border-right` in color wider than 1px on cards, alerts or rows. Use a `-100` background + a 1px tinted border.
+- Decorative glassmorphism and zero-offset colored halo shadows.
+- Nested cards; a grid of identical cards used as the page structure.
+- A kicker/eyebrow above a heading.
+- Infinite looping animations for information already carried by text.
+- Bounce/elastic easing.
 
 ### Anti-pattern reminders
-- ❌ `<div style="background:#f0f0f0; padding:12px">`  → ✅ `<div class="bg-surface-sunken p-3">` or token-based class.
-- ❌ `<span class="badge bg-warning">Pendiente</span>` → ✅ `<span class="status-badge status-badge--pending">Pendiente</span>`.
-- ❌ `<style>.my-card { background: #fff; }</style>` in template → ✅ external CSS file using `var(--bg-surface)`.
-- ❌ `width: 120px` → ✅ `class="w-px-120"`.
+- ❌ `<div style="background:#f0f0f0; padding:12px">` → ✅ `<div class="bg-surface-sunken p-3">`
+- ❌ `<span class="badge bg-warning">Pendiente</span>` → ✅ `{{ status_badge('pending') }}`
+- ❌ `<style>.my-card { background: #fff; }</style>` → ✅ external CSS file using `var(--bg-surface)`
+- ❌ `width: 120px` → ✅ `class="w-px-120"`
+- ❌ `color: var(--color-warning)` for text → ✅ `var(--color-warning-700)` (the base tone is 3.26:1 on white)
+- ❌ `<table class="table">` → ✅ `{{ data_table_open('Solicitudes de admisión') }}…{{ data_table_close() }}`
+- ❌ `.text-bg-success-subtle` → ✅ that class **does not exist** in Bootstrap 5.3; use `.bg-success-soft`
+
+### Emails are different
+`app/templates/emails/` follows **email rules, not app rules**: table layout, 600px max width, literal hex (Outlook strips custom properties), inline styles, bulletproof buttons. Every child extends `base_email.html` and must fill `{% block preheader %}`. Palette mirrors the tokens: `#0b1e8a`, `#b21f2d`, `#1f9d55`/`#0e6e3a`, `#b88600`/`#6b4f00`, `#f4f6f8`, `#1f2933`.
 
 ---
 
