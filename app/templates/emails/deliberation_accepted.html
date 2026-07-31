@@ -1,28 +1,26 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#28a745' %}
+{% set header_title = '¡Has sido aceptado!' %}
+
+{% block preheader %}Fuiste aceptado en {{ program_name }}. Consulta los siguientes pasos de tu inscripción.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
 <p>¡Tenemos excelentes noticias para ti!</p>
 
-<div class="notification-card">
-    <h2>🎓 ¡Has sido aceptado!</h2>
-    <p><strong>Programa: {{ program_name }}</strong></p>
-    <p style="margin-top: 10px; color: #28a745;">
-        El comité de admisión ha revisado tu expediente y te ha aceptado oficialmente en el programa.
-    </p>
-</div>
+{% call email_card(accent='#0e6e3a', title=program_name) %}
+  <p style="margin:0;color:#1f2933;">El comité de admisión revisó tu expediente y te aceptó oficialmente en este programa.</p>
+{% endcall %}
 
-<p>Los próximos pasos son:</p>
-<ul>
-    <li>El coordinador te hará llegar tu carta de aceptación y tira de materias.</li>
+<h2>Próximos pasos</h2>
+<ol>
+    <li>El coordinador te hará llegar tu carta de aceptación y tu tira de materias.</li>
     <li>Deberás subir tu boleta de servicios escolares para completar el proceso de inscripción.</li>
-</ul>
+</ol>
 
-<p>Ingresa a tu portal para ver más detalles y seguir el proceso.</p>
+<p>Ingresa a tu portal para ver los detalles y dar seguimiento al proceso. ¡Bienvenido al posgrado!</p>
+{% endblock %}
 
-<a href="{{ dashboard_url }}" class="btn">Ver Mi Portal</a>
-
-<p>¡Bienvenido al posgrado! 🎉</p>
+{% block cta %}
+{{ email_button(dashboard_url, 'Ver mi portal', '#0e6e3a') }}
 {% endblock %}

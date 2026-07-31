@@ -1,24 +1,26 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#dc3545' %}
+{% set header_title = 'Carta rechazada' %}
+
+{% block preheader %}Tu carta de asignación de número de control de {{ program_name }} necesita correcciones.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
 <p>Tu carta de asignación de número de control requiere correcciones.</p>
 
-<div class="notification-card">
-    <h2>⚠️ Carta Rechazada</h2>
-    <p><strong>Programa:</strong> {{ program_name }}</p>
-    {% if reason %}
-    <div class="divider"></div>
-    <p><strong>Motivo:</strong></p>
-    <p style="color: #dc3545;">{{ reason }}</p>
-    {% endif %}
-</div>
+{% call email_card(accent='#b21f2d', title=program_name) %}
+  <p style="margin:0;color:#1f2933;">Tu carta no puede aprobarse en su estado actual.</p>
+{% endcall %}
 
-<p>Por favor, vuelve a subir el documento corregido en tu portal.</p>
+{%- if reason %}
+{% call email_notice(tone='danger', title='Motivo del rechazo') %}
+  <p style="margin:0;">{{ reason }}</p>
+{% endcall %}
+{%- endif %}
 
-<a href="{{ dashboard_url }}" class="btn" style="background: #dc3545;">Subir Documento Corregido</a>
+<p>Vuelve a subir el documento corregido en tu portal. Si tienes dudas, contacta a tu coordinador de programa.</p>
+{% endblock %}
 
-<p>Si tienes dudas, contacta a tu coordinador de programa.</p>
+{% block cta %}
+{{ email_button(dashboard_url, 'Subir documento corregido', '#b21f2d') }}
 {% endblock %}

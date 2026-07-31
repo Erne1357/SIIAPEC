@@ -1,23 +1,24 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#007bff' %}
+{% set header_title = 'Nueva ventana de entrega' %}
+
+{% block preheader %}Ya puedes subir «{{ deadline_label }}»{% if closes_at %}. Cierra el {{ closes_at }}{% endif %}.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
-<p>Se ha abierto una nueva ventana de entrega de documentos.</p>
+<p>Se abrió una nueva ventana de entrega de documentos en tu portal de permanencia.</p>
 
-<div class="notification-card">
-    <h2>📄 Nueva Ventana de Entrega</h2>
-    <p><strong>{{ deadline_label }}</strong></p>
-    {% if closes_at %}
-    <div class="divider"></div>
-    <p><strong>Fecha límite:</strong> {{ closes_at }}</p>
-    {% endif %}
-</div>
+{% call email_card(accent='#0b1e8a', title=deadline_label) %}
+  {%- if closes_at %}
+  {{ email_detail('Fecha límite', closes_at) }}
+  {%- else %}
+  {{ email_detail('Fecha límite', 'Por definir') }}
+  {%- endif %}
+{% endcall %}
 
-<p>Ingresa a tu portal de permanencia para subir tu documento antes de la fecha límite.</p>
+<p>Ingresa a tu portal de permanencia para subir tu documento antes de la fecha límite. Si tienes dudas, contacta a tu coordinador de programa.</p>
+{% endblock %}
 
-<a href="{{ dashboard_url }}" class="btn">Ver mi panel de permanencia</a>
-
-<p>Si tienes dudas, contacta a tu coordinador de programa.</p>
+{% block cta %}
+{{ email_button(dashboard_url, 'Subir mi documento') }}
 {% endblock %}

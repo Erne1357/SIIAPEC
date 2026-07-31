@@ -1,38 +1,42 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#dc3545' %}
+{% set header_title = 'Se requieren correcciones' if rejection_type == 'partial' else 'Resultado del proceso de admisión' %}
+
+{% block preheader %}{% if rejection_type == 'partial' %}El comité pide correcciones en tu expediente de {{ program_name }} antes de continuar.{% else %}Resultado de tu solicitud de ingreso a {{ program_name }}.{% endif %}{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
 {% if rejection_type == 'partial' %}
-<div class="notification-card">
-    <h2>⚠️ Se requieren correcciones en tu expediente</h2>
-    <p><strong>Programa: {{ program_name }}</strong></p>
-    <p style="margin-top: 10px; color: #856404;">
-        El comité de admisión ha solicitado algunas correcciones en tu expediente antes de poder continuar.
-    </p>
-    {% if notes %}
-    <p><strong>Observaciones:</strong> {{ notes }}</p>
-    {% endif %}
-</div>
+{% call email_card(accent='#6b4f00', title=program_name) %}
+  <p style="margin:0;color:#1f2933;">El comité de admisión solicitó algunas correcciones en tu expediente antes de poder continuar con tu proceso.</p>
+{% endcall %}
 
-<p>Deberás corregir tu expediente y volver a enviarlo para su revisión. Ingresa a tu portal para ver los detalles.</p>
+{%- if notes %}
+{% call email_notice(tone='warning', title='Observaciones del comité') %}
+  <p style="margin:0;">{{ notes }}</p>
+{% endcall %}
+{%- endif %}
+
+<p>Corrige tu expediente y vuelve a enviarlo para su revisión. En tu portal encontrarás el detalle de cada documento pendiente.</p>
 {% else %}
-<div class="notification-card">
-    <h2>❌ Resultado del proceso de admisión</h2>
-    <p><strong>Programa: {{ program_name }}</strong></p>
-    <p style="margin-top: 10px; color: #721c24;">
-        Lamentamos informarte que tu solicitud de ingreso al programa no ha sido aprobada en esta ocasión.
-    </p>
-    {% if notes %}
-    <p><strong>Motivo:</strong> {{ notes }}</p>
-    {% endif %}
-</div>
+{% call email_card(accent='#b21f2d', title=program_name) %}
+  <p style="margin:0;color:#1f2933;">Lamentamos informarte que tu solicitud de ingreso a este programa no fue aprobada en esta ocasión.</p>
+{% endcall %}
 
-<p>Si tienes preguntas sobre este resultado, puedes contactar directamente al coordinador del programa.</p>
+{%- if notes %}
+{% call email_notice(tone='neutral', title='Motivo') %}
+  <p style="margin:0;">{{ notes }}</p>
+{% endcall %}
+{%- endif %}
+
+<p>Si tienes preguntas sobre este resultado, puedes contactar directamente al coordinador del programa. Gracias por tu interés en nuestro posgrado.</p>
 {% endif %}
+{% endblock %}
 
-<a href="{{ dashboard_url }}" class="btn">Ver Mi Portal</a>
-
-<p>Gracias por tu interés en nuestro programa de posgrado.</p>
+{% block cta %}
+{%- if rejection_type == 'partial' %}
+{{ email_button(dashboard_url, 'Corregir mi expediente') }}
+{%- else %}
+<a href="{{ dashboard_url }}" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;font-weight:600;color:#0b1e8a;text-decoration:underline;">Consultar mi expediente</a>
+{%- endif %}
 {% endblock %}

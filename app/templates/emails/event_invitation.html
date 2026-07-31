@@ -1,24 +1,23 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#6f42c1' %}
+{% set header_title = 'Invitación a un evento' %}
+
+{% block preheader %}Estás invitado a «{{ event_title }}» el {{ event_date }}. Confirma tu asistencia.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
-<p>Has sido invitado a un evento importante.</p>
+<p>Has sido invitado a un evento del posgrado.</p>
 
-<div class="notification-card">
-    <h2>🎉 Invitación a Evento</h2>
-    <p><strong>{{ event_title }}</strong></p>
-    <div class="divider"></div>
-    <p><strong>Fecha:</strong> {{ event_date }}</p>
-    {% if description %}
-    <p style="margin-top: 10px;">{{ description }}</p>
-    {% endif %}
-</div>
+{% call email_card(accent='#0b1e8a', title=event_title) %}
+  {{ email_detail('Fecha', event_date) }}
+  {%- if description %}
+  <p style="margin:10px 0 0;color:#1f2933;">{{ description }}</p>
+  {%- endif %}
+{% endcall %}
 
-<p>Por favor confirma tu asistencia lo antes posible.</p>
+<p>Confirma tu asistencia lo antes posible para que podamos reservar tu lugar. ¡Esperamos contar con tu presencia!</p>
+{% endblock %}
 
-<a href="{{ event_url }}" class="btn" style="background: #6f42c1;">Responder Invitación</a>
-
-<p>¡Esperamos contar con tu presencia!</p>
+{% block cta %}
+{{ email_button(event_url, 'Responder la invitación') }}
 {% endblock %}

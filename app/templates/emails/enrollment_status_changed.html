@@ -1,23 +1,28 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#dc3545' if status in ('dropped',) else '#ffc107' %}
+{% set header_title = status_label %}
+{% set accent = '#b21f2d' if status == 'dropped' else '#6b4f00' %}
+{% set cta_bg = '#b21f2d' if status == 'dropped' else '#0b1e8a' %}
+
+{% block preheader %}Tu inscripción en {{ program_name }} cambió a «{{ status_label }}» para el periodo {{ period_name }}.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
-<p>Ha habido un cambio en tu estado de inscripción.</p>
+<p>Hubo un cambio en tu estado de inscripción.</p>
 
-<div class="notification-card">
-    <h2>{{ '🚫' if status == 'dropped' else '⏸️' }} {{ status_label }}</h2>
-    <p><strong>Programa:</strong> {{ program_name }}</p>
-    <p><strong>Periodo:</strong> {{ period_name }}</p>
-    <p><strong>Semestre:</strong> {{ semester_number }}</p>
-</div>
+{% call email_card(accent=accent, title=program_name) %}
+  {{ email_detail('Nuevo estado', status_label) }}
+  {{ email_detail('Periodo', period_name) }}
+  {{ email_detail('Semestre', semester_number) }}
+{% endcall %}
 
 {% if status == 'dropped' %}
-<p>Si crees que esto es un error, contacta a tu coordinador de programa lo antes posible.</p>
+<p>Si crees que se trata de un error, contacta a tu coordinador de programa lo antes posible.</p>
 {% elif status == 'on_leave' %}
-<p>Tu baja temporal ha sido registrada. Para reincorporarte, contacta al coordinador de tu programa.</p>
+<p>Tu baja temporal quedó registrada. Para reincorporarte en un periodo futuro, contacta al coordinador de tu programa.</p>
 {% endif %}
+{% endblock %}
 
-<a href="{{ dashboard_url }}" class="btn" style="background: {{ '#dc3545' if status == 'dropped' else '#ffc107' }};">Ver mi portal</a>
+{% block cta %}
+{{ email_button(dashboard_url, 'Ver mi portal', cta_bg) }}
 {% endblock %}

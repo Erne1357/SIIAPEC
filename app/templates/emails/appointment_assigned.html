@@ -1,24 +1,25 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#007bff' %}
+{% set header_title = 'Cita asignada' %}
+
+{% block preheader %}Tu cita para «{{ event_title }}» quedó programada el {{ slot_datetime }}.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
-<p>Se te ha asignado una cita importante.</p>
+<p>Se te asignó una cita dentro de tu proceso de admisión.</p>
 
-<div class="notification-card">
-    <h2>📅 Cita Asignada</h2>
-    <p><strong>{{ event_title }}</strong></p>
-    <div class="divider"></div>
-    <p><strong>Fecha y hora:</strong> {{ slot_datetime }}</p>
-    {% if location %}
-    <p><strong>Lugar:</strong> {{ location }}</p>
-    {% endif %}
-</div>
+{% call email_card(accent='#0b1e8a', title=event_title) %}
+  {{ email_detail('Fecha y hora', slot_datetime) }}
+  {%- if location %}
+  {{ email_detail('Lugar', location) }}
+  {%- endif %}
+{% endcall %}
 
-<p><strong>⚠️ Importante:</strong> Por favor asegúrate de asistir puntualmente a tu cita.</p>
+{% call email_notice(tone='warning', title='Asiste puntualmente') %}
+  <p style="margin:0;">Si no puedes asistir, comunícate con la coordinación del programa antes de la fecha indicada.</p>
+{% endcall %}
+{% endblock %}
 
-<a href="{{ dashboard_url }}" class="btn">Ver Detalles de la Cita</a>
-
-<p>¡Te esperamos!</p>
+{% block cta %}
+{{ email_button(dashboard_url, 'Ver detalles de la cita') }}
 {% endblock %}

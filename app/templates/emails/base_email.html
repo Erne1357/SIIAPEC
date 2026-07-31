@@ -1,102 +1,301 @@
+{#-
+  ============================================================================
+  SIIAP — Shell base de los correos transaccionales
+  ============================================================================
+
+  REGLAS DE ESTE DIRECTORIO (distintas al resto de la app):
+
+  1. NUNCA usar var(--token). Outlook (motor Word) descarta las custom
+     properties: aquí los colores van como HEX LITERAL.
+  2. Layout con <table role="presentation">, jamás flex ni grid. 600px máximo.
+  3. Las declaraciones críticas van INLINE en el atributo style de la celda.
+     El bloque <style> es solo un refuerzo: Gmail (cuentas no-Gmail),
+     Yahoo móvil y varios filtros corporativos lo eliminan por completo.
+  4. Toda imagen lleva texto alternativo en español: vienen bloqueadas por
+     defecto en la mayoría de clientes.
+  5. Ni bordes laterales de color gruesos, ni glassmorphism, ni degradados
+     sobre el texto.
+
+  ---------------------------------------------------------------------------
+  MAPA DE HEX LITERALES — espejo de app/static/css/_tokens.css
+  ---------------------------------------------------------------------------
+  Marca
+    primario            #0b1e8a   (--color-brand-primary)      13.40:1 c/blanco
+    primario oscuro     #081570   (--color-brand-primary-700)
+    primario suave      #e6e9f4   (--color-brand-primary-100)
+    acento / rechazo    #b21f2d   (--color-brand-accent)        6.72:1 c/blanco
+    acento oscuro       #951a26   (--color-brand-accent-600)    7.28:1 s/#fce8ea
+    acento suave        #fce8ea   (--color-brand-accent-100)
+
+  Semánticos — el tono base es para FONDOS SÓLIDOS e iconos;
+  la rampa -700 es la única válida para TEXTO sobre la superficie suave.
+    éxito               #1f9d55 base · #0e6e3a texto y botón · #def7ec fondo
+    aviso               #b88600 base · #6b4f00 texto          · #fef3c7 fondo
+    info                #1a71cf base · #14538f texto          · #dceeff fondo
+
+  Neutros
+    #ffffff  #f4f6f8 (página) · #e5e9ed (borde) · #cbd2d9
+    #616e7c (texto secundario, 4.88:1 sobre #f4f6f8 — sustituye al viejo #999)
+    #3e4c59 · #1f2933 (texto principal, 14.75:1 sobre blanco) · #0a0e13
+
+  PROHIBIDOS (paleta Bootstrap heredada): #007bff #0d6efd #28a745 #dc3545
+  #17a2b8 #ffc107 #6f42c1 #fd7e14 #667eea #764ba2 #f8d7da #721c24 #fff3cd
+  #856404 #d1ecf1 #0c5460 #d4edda #155724 #999999
+
+  ---------------------------------------------------------------------------
+  API PARA LAS PLANTILLAS HIJAS
+  ---------------------------------------------------------------------------
+  Bloques:   {% block preheader %}  — resumen de bandeja de entrada (1 frase)
+             {% block content %}    — cuerpo del correo
+             {% block cta %}        — botón principal, centrado, tras el cuerpo
+
+  Variables: header_title  (str)  título del encabezado
+             preheader     (str)  respaldo del bloque preheader
+             subject       (str)  respaldo del <title> y del preheader
+             logo_url      (str)  URL ABSOLUTA del escudo; si falta, no se pinta
+             color         (str)  hex de acento de email_card / .notification-card
+
+  Macros (definidas abajo, invocables directamente desde el bloque, o bien
+  con {% from 'emails/base_email.html' import email_button %}):
+             email_button(url, label, bg, fg)
+             email_card(accent, title)            -> usar con {% call %}
+             email_notice(tone, title)            -> usar con {% call %}
+             email_divider()
+             email_detail(label, value)
+-#}
+{%- macro email_button(url, label, bg='#0b1e8a', fg='#ffffff') -%}
+{#- Botón a prueba de balas: tabla + VML para Outlook. El <a> de respaldo
+    queda oculto a Outlook mediante el comentario condicional invertido. -#}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
+  <tr>
+    <td align="center" bgcolor="{{ bg }}" style="border-radius:6px;">
+      <!--[if mso]>
+      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ url }}" style="height:48px;v-text-anchor:middle;width:300px;" arcsize="13%" stroke="f" fillcolor="{{ bg }}">
+        <w:anchorlock/>
+        <center style="color:{{ fg }};font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;">{{ label }}</center>
+      </v:roundrect>
+      <![endif]-->
+      <!--[if !mso]><!-- -->
+      <a href="{{ url }}" class="email-button" style="display:inline-block;min-width:180px;padding:14px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:600;line-height:20px;color:{{ fg }};text-decoration:none;text-align:center;background-color:{{ bg }};border-radius:6px;">{{ label }}</a>
+      <!--<![endif]-->
+    </td>
+  </tr>
+</table>
+{%- endmacro -%}
+{%- macro email_card(accent='#0b1e8a', title=none) -%}
+{#- Tarjeta de contenido destacado. El acento va como borde de 1px en todo
+    el perímetro: el border-left de 4px es un antipatrón del proyecto. -#}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-card" style="width:100%;margin:20px 0;background-color:#f4f6f8;border:1px solid {{ accent }};border-radius:6px;">
+  <tr>
+    <td class="email-card__body" style="padding:16px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:#1f2933;">
+      {%- if title %}
+      <h2 class="email-card__title" style="margin:0 0 10px;font-size:18px;line-height:1.3;font-weight:600;color:{{ accent }};">{{ title }}</h2>
+      {%- endif %}
+      {{ caller() }}
+    </td>
+  </tr>
+</table>
+{%- endmacro -%}
+{%- macro email_notice(tone='info', title=none) -%}
+{#- Bloque de aviso. Cada tono usa fondo suave + texto de la rampa -700
+    (>= 5.6:1) + borde sólido de 1px, para que en modo oscuro no quede
+    como una mancha de color sin contorno. -#}
+{%- set tones = {
+  'info':    {'bg': '#dceeff', 'fg': '#14538f', 'bd': '#a9cef2'},
+  'success': {'bg': '#def7ec', 'fg': '#0e6e3a', 'bd': '#a8dcc2'},
+  'warning': {'bg': '#fef3c7', 'fg': '#6b4f00', 'bd': '#e6cf8a'},
+  'danger':  {'bg': '#fce8ea', 'fg': '#951a26', 'bd': '#edb8be'},
+  'neutral': {'bg': '#f4f6f8', 'fg': '#3e4c59', 'bd': '#e5e9ed'}
+} -%}
+{%- set t = tones.get(tone, tones['info']) -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-notice email-notice--{{ tone }}" style="width:100%;margin:20px 0;background-color:{{ t.bg }};border:1px solid {{ t.bd }};border-radius:6px;">
+  <tr>
+    <td style="padding:14px 18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:{{ t.fg }};">
+      {%- if title %}
+      <strong style="display:block;margin-bottom:6px;font-size:16px;color:{{ t.fg }};">{{ title }}</strong>
+      {%- endif %}
+      {{ caller() }}
+    </td>
+  </tr>
+</table>
+{%- endmacro -%}
+{%- macro email_divider() -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:20px 0;">
+  <tr><td class="email-divider" style="height:1px;line-height:1px;font-size:0;background-color:#e5e9ed;">&nbsp;</td></tr>
+</table>
+{%- endmacro -%}
+{%- macro email_detail(label, value) -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 8px;">
+  <tr>
+    <td class="email-detail__label" style="padding:0 8px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#616e7c;white-space:nowrap;vertical-align:top;">{{ label }}</td>
+    <td class="email-detail__value" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;font-weight:600;color:#1f2933;vertical-align:top;">{{ value }}</td>
+  </tr>
+</table>
+{%- endmacro -%}
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" dir="ltr" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ subject }}</title>
-    <style>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="x-apple-disable-message-reformatting">
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <title>{{ header_title|default(subject|default('SIIAP — Sistema de Posgrado')) }}</title>
+    <!--[if mso]>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+    <style type="text/css">
+      body, table, td, a, h1, h2, p { font-family: Arial, Helvetica, sans-serif !important; }
+    </style>
+    <![endif]-->
+    <style type="text/css">
+        :root { color-scheme: light dark; supported-color-schemes: light dark; }
+
+        /* Reset mínimo de cliente de correo */
+        body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+        table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+        a { color: #0b1e8a; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-size: 16px;
             line-height: 1.6;
-            color: #333;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
+            color: #1f2933;
+            background-color: #f4f6f8;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
         }
-        .email-container {
-            max-width: 600px;
-            margin: 20px auto;
-            background: white;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .email-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 30px 20px;
-            text-align: center;
-            color: white;
-        }
-        .email-header h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 600;
-        }
-        .email-body {
-            padding: 30px 20px;
-        }
+
+        .email-body p { margin: 0 0 16px; }
+        .email-body h2 { margin: 0 0 10px; font-size: 18px; line-height: 1.3; font-weight: 600; color: #1f2933; }
+        .email-body ul, .email-body ol { margin: 0 0 16px; padding-left: 22px; }
+        .email-body li { margin: 0 0 6px; }
+
+        /* --------------------------------------------------------------
+           LEGADO: las 24 plantillas hijas todavía escriben
+           class="notification-card", class="btn" y class="divider".
+           Estas reglas las mantienen presentables hasta que migren a los
+           macros email_card() / email_button() / email_divider().
+           BORRAR este bloque cuando ninguna hija las use.
+           -------------------------------------------------------------- */
         .notification-card {
-            background: #f8f9fa;
-            border-left: 4px solid {{ color|default('#007bff') }};
-            padding: 15px;
+            background-color: #f4f6f8;
+            border: 1px solid {{ color|default('#0b1e8a') }};
+            border-radius: 6px;
+            padding: 16px 20px;
             margin: 20px 0;
-            border-radius: 4px;
         }
-        .notification-card h2 {
-            margin: 0 0 10px 0;
-            font-size: 18px;
-            color: #333;
-        }
-        .notification-card p {
-            margin: 0;
-            color: #666;
-        }
+        .notification-card h2 { margin: 0 0 10px; font-size: 18px; color: {{ color|default('#0b1e8a') }}; }
+        .notification-card p  { margin: 0; color: #3e4c59; }
         .btn {
             display: inline-block;
-            padding: 12px 24px;
-            background: #007bff;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-            margin: 20px 0;
-            font-weight: 500;
-        }
-        .btn:hover {
-            background: #0056b3;
-        }
-        .email-footer {
-            background: #f8f9fa;
-            padding: 20px;
+            padding: 14px 28px;
+            background-color: #0b1e8a;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 20px;
             text-align: center;
-            color: #666;
-            font-size: 14px;
-            border-top: 1px solid #e9ecef;
-        }
-        .email-footer p {
-            margin: 5px 0;
-        }
-        .divider {
-            height: 1px;
-            background: #e9ecef;
+            text-decoration: none;
+            border-radius: 6px;
             margin: 20px 0;
+        }
+        .divider { height: 1px; line-height: 1px; font-size: 0; background-color: #e5e9ed; margin: 20px 0; }
+
+        /* Móvil */
+        @media only screen and (max-width: 600px) {
+            .email-container { width: 100% !important; max-width: 100% !important; border-radius: 0 !important; }
+            .email-header    { padding: 24px 16px !important; }
+            .email-header h1 { font-size: 20px !important; }
+            .email-body      { padding: 24px 16px !important; }
+            .email-footer    { padding: 20px 16px !important; }
+            .email-button    { display: block !important; width: auto !important; }
+        }
+
+        /* Modo oscuro: hex literales, nunca tokens.
+           Los correos son el único lugar donde el usuario no controla el
+           renderizado, así que declaramos la variante en vez de dejar que
+           el cliente invierta a ciegas. */
+        @media (prefers-color-scheme: dark) {
+            body, .email-bg { background-color: #0a0e13 !important; }
+            .email-container { background-color: #1f2933 !important; }
+            .email-body, .email-body td, .email-body p, .email-body li,
+            .email-body h2, .email-card__body, .email-detail__value {
+                color: #f4f6f8 !important;
+            }
+            .email-body a { color: #a9cef2 !important; }
+            .email-card, .notification-card { background-color: #3e4c59 !important; }
+            .notification-card p, .email-detail__label { color: #cbd2d9 !important; }
+            .email-divider, .divider { background-color: #3e4c59 !important; }
+            .email-footer { background-color: #111820 !important; border-top-color: #3e4c59 !important; }
+            .email-footer, .email-footer p, .email-footer a { color: #cbd2d9 !important; }
+            .email-footer strong { color: #ffffff !important; }
+            .email-notice--info    { background-color: #10263f !important; border-color: #1a4d80 !important; }
+            .email-notice--info    td { color: #b6d7f7 !important; }
+            .email-notice--success { background-color: #10331f !important; border-color: #1f6b41 !important; }
+            .email-notice--success td { color: #a7e8c4 !important; }
+            .email-notice--warning { background-color: #3a2f0b !important; border-color: #7a6412 !important; }
+            .email-notice--warning td { color: #f5dd9b !important; }
+            .email-notice--danger  { background-color: #3a1218 !important; border-color: #7d2531 !important; }
+            .email-notice--danger  td { color: #f2b8bf !important; }
+            .email-notice--neutral { background-color: #3e4c59 !important; border-color: #616e7c !important; }
+            .email-notice--neutral td { color: #e5e9ed !important; }
+            .email-notice strong { color: inherit !important; }
         }
     </style>
 </head>
-<body>
-    <div class="email-container">
-        <div class="email-header">
-            <h1>🔔 {{ header_title|default('SIIAP - Sistema de Posgrado') }}</h1>
-        </div>
-        <div class="email-body">
-            {% block content %}{% endblock %}
-        </div>
-        <div class="email-footer">
-            <p><strong>Instituto Tecnológico de Ciudad Juárez</strong></p>
-            <p>Sistema Integral de Información para la Administración de Posgrado</p>
-            <p style="font-size: 12px; color: #999; margin-top: 10px;">
-                Este es un correo automático, por favor no responder.
-            </p>
-        </div>
-    </div>
+<body class="email-bg" style="margin:0;padding:0;width:100%;background-color:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:#1f2933;">
+
+    <div class="email-preheader" style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;color:#f4f6f8;">{% block preheader %}{{ preheader|default(subject|default('')) }}{% endblock %}&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;</div>
+
+    <table role="presentation" class="email-bg" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f4f6f8" style="width:100%;background-color:#f4f6f8;">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+
+          <table role="presentation" class="email-container" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:600px;max-width:600px;background-color:#ffffff;border-radius:8px;">
+
+            <tr>
+              <td class="email-header" align="center" bgcolor="#0b1e8a" style="padding:32px 24px;background-color:#0b1e8a;background-image:linear-gradient(135deg,#0b1e8a 0%,#081570 100%);border-radius:8px 8px 0 0;">
+                {%- if logo_url %}
+                <img src="{{ logo_url }}" width="160" alt="Instituto Tecnológico de Ciudad Juárez" style="display:block;width:160px;max-width:160px;height:auto;margin:0 auto 16px;border:0;">
+                {%- endif %}
+                <p style="margin:0 0 6px;font-size:12px;line-height:1.4;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#ffffff;">Instituto Tecnológico de Ciudad Juárez</p>
+                <h1 style="margin:0;font-size:24px;line-height:1.25;font-weight:600;color:#ffffff;">{{ header_title|default('SIIAP — Sistema de Posgrado') }}</h1>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="email-body" align="left" style="padding:32px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:#1f2933;">
+                {% block content %}{% endblock %}
+              </td>
+            </tr>
+
+            {%- if self.cta()|trim %}
+            <tr>
+              <td class="email-body" align="center" style="padding:0 24px 32px;">
+                {% block cta %}{% endblock %}
+              </td>
+            </tr>
+            {%- endif %}
+
+            <tr>
+              <td class="email-footer" align="center" bgcolor="#f4f6f8" style="padding:24px;background-color:#f4f6f8;border-top:1px solid #e5e9ed;border-radius:0 0 8px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#616e7c;">
+                <p style="margin:0 0 4px;font-size:14px;color:#3e4c59;"><strong>Instituto Tecnológico de Ciudad Juárez</strong></p>
+                <p style="margin:0 0 10px;font-size:14px;color:#616e7c;">Sistema Integral de Información para la Administración de Posgrado</p>
+                <p style="margin:0;font-size:13px;color:#616e7c;">Este es un correo automático, por favor no responder.</p>
+              </td>
+            </tr>
+
+          </table>
+
+        </td>
+      </tr>
+    </table>
+
 </body>
 </html>

@@ -1,46 +1,27 @@
-{% extends "emails/base_email.html" %}
+{% extends 'emails/base_email.html' %}
+{% set header_title = 'Cuenta desactivada' %}
+
+{% block preheader %}Tu cuenta en SIIAP fue desactivada. Comunícate con la coordinación de posgrado para revisarla.{% endblock %}
 
 {% block content %}
-    <p>Hola <strong>{{ user_name }}</strong>,</p>
-    
-    <p><strong>⚠️ IMPORTANTE:</strong> Tu cuenta en el sistema SIIAP ha sido desactivada.</p>
-    
-    <div class="notification-card" style="border-left-color: #dc3545;">
-        <h2>🚫 Cuenta Desactivada</h2>
-        
-        <p><strong>Motivo de la desactivación:</strong></p>
-        <p style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 4px; margin: 15px 0; font-weight: 500;">
-            {{ reason }}
-        </p>
-        
-        <div class="divider"></div>
-        
-        <p style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 4px; margin: 15px 0;">
-            <strong>⚠️ Atención:</strong> Ya no podrás acceder al sistema hasta que tu cuenta sea reactivada por un administrador.
-        </p>
-        
-        <p style="color: #666;">
-            Esto significa que no podrás:
-        </p>
-        
-        <ul style="color: #666; margin: 10px 0; padding-left: 20px;">
-            <li>Iniciar sesión en el sistema</li>
-            <li>Subir documentos</li>
-            <li>Ver tu panel de control</li>
-            <li>Recibir nuevas asignaciones</li>
-        </ul>
-        
-        <p style="background: #d1ecf1; color: #0c5460; padding: 10px; border-radius: 4px; margin: 15px 0; font-size: 14px;">
-            <strong>📞 ¿Necesitas ayuda?</strong> Si consideras que esto es un error, contacta inmediatamente al coordinador de posgrado.
-        </p>
-    </div>
-    
-    <p style="font-size: 14px; color: #666; margin-top: 30px;">
-        <strong>Contacto:</strong> Para más información o para solicitar la reactivación de tu cuenta, 
-        comunícate con la coordinación del programa de posgrado.
-    </p>
-    
-    <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin-top: 20px; font-size: 12px; color: #666; text-align: center;">
-        Este correo es únicamente informativo. No es necesario que respondas a este mensaje.
-    </div>
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Te informamos que tu cuenta en el sistema SIIAP <strong>ha sido desactivada</strong>.</p>
+
+{% call email_card(accent='#b21f2d', title='Motivo de la desactivación') %}
+  <p style="margin:0;color:#1f2933;">{{ reason }}</p>
+{% endcall %}
+
+{% call email_notice(tone='warning', title='Mientras tu cuenta esté desactivada no podrás:') %}
+  <ul style="margin:0;padding-left:20px;">
+    <li>Iniciar sesión en el sistema.</li>
+    <li>Subir documentos.</li>
+    <li>Consultar tu panel de control.</li>
+    <li>Recibir nuevas asignaciones.</li>
+  </ul>
+{% endcall %}
+
+{{ email_divider() }}
+
+<p><strong>¿Consideras que se trata de un error?</strong> Comunícate cuanto antes con la coordinación del programa de posgrado para solicitar la revisión y, en su caso, la reactivación de tu cuenta.</p>
 {% endblock %}

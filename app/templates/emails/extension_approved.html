@@ -1,35 +1,24 @@
-{% extends "emails/base_email.html" %}
+{% extends 'emails/base_email.html' %}
+{% set header_title = 'Prórroga aprobada' %}
+
+{% block preheader %}Tienes hasta el {{ granted_until }} para subir «{{ archive_name }}».{% endblock %}
 
 {% block content %}
-    <p>Hola <strong>{{ user_name }}</strong>,</p>
-    
-    <p>¡Buenas noticias! Tu solicitud de prórroga ha sido aprobada.</p>
-    
-    <div class="notification-card" style="border-left-color: #28a745;">
-        <h2>✅ Prórroga Aprobada</h2>
-        <p><strong>Documento:</strong> {{ archive_name }}</p>
-        
-        <div class="divider"></div>
-        
-        <p><strong>Nueva fecha límite:</strong></p>
-        <p style="font-size: 18px; font-weight: bold; color: #28a745; margin: 10px 0;">
-            📅 {{ granted_until }}
-        </p>
-        
-        <p style="background: #d4edda; color: #155724; padding: 10px; border-radius: 4px; margin: 15px 0;">
-            <strong>✨ ¡Perfecto!</strong> Ahora tienes tiempo adicional para completar y subir tu documento.
-        </p>
-        
-        <p style="color: #666;">
-            Aprovecha este tiempo extra para asegurarte de que tu documento cumpla con todos los requisitos.
-        </p>
-    </div>
-    
-    <a href="{{ dashboard_url }}" class="btn" style="background: #28a745;">
-        Subir Documento
-    </a>
-    
-    <p style="font-size: 14px; color: #666; margin-top: 30px;">
-        <strong>💡 Recordatorio:</strong> Asegúrate de subir tu documento antes de la nueva fecha límite.
-    </p>
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>¡Buenas noticias! Tu solicitud de prórroga fue aprobada.</p>
+
+{% call email_card(accent='#0e6e3a', title=archive_name) %}
+  {{ email_detail('Nueva fecha límite', granted_until) }}
+{% endcall %}
+
+{% call email_notice(tone='success', title='Ya tienes tiempo adicional') %}
+  <p style="margin:0;">Aprovéchalo para asegurarte de que tu documento cumpla con todos los requisitos antes de subirlo.</p>
+{% endcall %}
+
+<p>Recuerda subir tu documento antes de la nueva fecha límite: no habrá una segunda prórroga.</p>
+{% endblock %}
+
+{% block cta %}
+{{ email_button(dashboard_url, 'Subir mi documento', '#0e6e3a') }}
 {% endblock %}

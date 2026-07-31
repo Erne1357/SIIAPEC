@@ -1,26 +1,32 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#28a745' if approved else '#dc3545' %}
+{% set header_title = 'Baja temporal aprobada' if approved else 'Baja temporal rechazada' %}
+{% set accent = '#0e6e3a' if approved else '#b21f2d' %}
+
+{% block preheader %}Tu solicitud de baja temporal en {{ program_name }} fue {{ 'aprobada' if approved else 'rechazada' }}.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
-<p>Tu solicitud de baja temporal ha sido {{ 'aprobada' if approved else 'rechazada' }}.</p>
+<p>Tu solicitud de baja temporal fue <strong>{{ 'aprobada' if approved else 'rechazada' }}</strong>.</p>
 
-<div class="notification-card">
-    <h2>{{ '✅' if approved else '❌' }} Solicitud de Baja Temporal {{ 'Aprobada' if approved else 'Rechazada' }}</h2>
-    <p><strong>Programa:</strong> {{ program_name }}</p>
-    {% if not approved and reason %}
-    <div class="divider"></div>
-    <p><strong>Motivo del rechazo:</strong></p>
-    <p style="color: #dc3545;">{{ reason }}</p>
-    {% endif %}
-</div>
+{% call email_card(accent=accent, title=program_name) %}
+  {{ email_detail('Solicitud', 'Baja temporal') }}
+  {{ email_detail('Resultado', 'Aprobada' if approved else 'Rechazada') }}
+{% endcall %}
+
+{%- if not approved and reason %}
+{% call email_notice(tone='danger', title='Motivo del rechazo') %}
+  <p style="margin:0;">{{ reason }}</p>
+{% endcall %}
+{%- endif %}
 
 {% if approved %}
-<p>Tu estado ha sido actualizado a baja temporal. Para reincorporarte en un periodo futuro, contacta al coordinador de tu programa.</p>
+<p>Tu estado se actualizó a baja temporal. Para reincorporarte en un periodo futuro, contacta al coordinador de tu programa.</p>
 {% else %}
 <p>Si tienes dudas sobre la decisión, contacta a tu coordinador de programa.</p>
 {% endif %}
+{% endblock %}
 
-<a href="{{ dashboard_url }}" class="btn" style="background: {{ '#28a745' if approved else '#dc3545' }};">Ver mi portal</a>
+{% block cta %}
+{{ email_button(dashboard_url, 'Ver mi portal', accent) }}
 {% endblock %}

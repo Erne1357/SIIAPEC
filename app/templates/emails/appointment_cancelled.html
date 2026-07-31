@@ -1,33 +1,26 @@
-{% extends "emails/base_email.html" %}
+{% extends 'emails/base_email.html' %}
+{% set header_title = 'Cita cancelada' %}
+
+{% block preheader %}Tu cita para «{{ event_title }}» fue cancelada. Te avisaremos en cuanto se reprograme.{% endblock %}
 
 {% block content %}
-    <p>Hola <strong>{{ user_name }}</strong>,</p>
-    
-    <p>Tu cita ha sido cancelada. Te notificaremos cuando se reprograme.</p>
-    
-    <div class="notification-card" style="border-left-color: #ffc107;">
-        <h2>❌ Cita Cancelada</h2>
-        <p><strong>Evento:</strong> {{ event_title }}</p>
-        
-        <div class="divider"></div>
-        
-        {% if reason %}
-        <p><strong>Motivo de la cancelación:</strong></p>
-        <p style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
-            {{ reason }}
-        </p>
-        {% endif %}
-        
-        <p style="color: #666; margin-top: 15px;">
-            Te contactaremos pronto para reprogramar tu cita. Mantente atento a tus notificaciones.
-        </p>
-    </div>
-    
-    <a href="{{ dashboard_url }}" class="btn" style="background: #ffc107; color: #000;">
-        Ver Panel de Control
-    </a>
-    
-    <p style="font-size: 14px; color: #666; margin-top: 30px;">
-        <strong>💡 Consejo:</strong> Revisa regularmente tu panel de control para estar al día con tus citas y eventos.
-    </p>
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Tu cita fue cancelada. Te notificaremos en cuanto se reprograme.</p>
+
+{% call email_card(accent='#6b4f00', title=event_title) %}
+  {{ email_detail('Estado', 'Cancelada, pendiente de reprogramar') }}
+{% endcall %}
+
+{%- if reason %}
+{% call email_notice(tone='warning', title='Motivo de la cancelación') %}
+  <p style="margin:0;">{{ reason }}</p>
+{% endcall %}
+{%- endif %}
+
+<p>Te contactaremos pronto para reprogramar tu cita. Revisa tu panel de control con regularidad para estar al día con tus citas y eventos.</p>
+{% endblock %}
+
+{% block cta %}
+{{ email_button(dashboard_url, 'Ver mi panel de control') }}
 {% endblock %}

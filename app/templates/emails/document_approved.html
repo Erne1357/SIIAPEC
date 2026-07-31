@@ -1,22 +1,20 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#28a745' %}
+{% set header_title = 'Documento aprobado' %}
+
+{% block preheader %}Tu documento «{{ archive_name }}» fue revisado y aprobado.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
-<p>¡Tenemos buenas noticias! Tu documento ha sido aprobado.</p>
+<p>¡Tenemos buenas noticias! Tu documento fue aprobado.</p>
 
-<div class="notification-card">
-    <h2>✅ Documento Aprobado</h2>
-    <p><strong>{{ archive_name }}</strong></p>
-    <p style="margin-top: 10px; color: #28a745;">
-        Tu documento ha sido revisado y aprobado exitosamente.
-    </p>
-</div>
+{% call email_card(accent='#0e6e3a', title=archive_name) %}
+  <p style="margin:0;color:#1f2933;">Fue revisado y aprobado correctamente; ya no requiere ninguna acción de tu parte.</p>
+{% endcall %}
 
-<p>Puedes revisar el estado de todos tus documentos en tu panel de admisión.</p>
+<p>Puedes consultar el estado de todos tus documentos en tu panel de admisión.</p>
+{% endblock %}
 
-<a href="{{ dashboard_url }}" class="btn">Ver Mi Panel</a>
-
-<p>¡Sigue así! 🎉</p>
+{% block cta %}
+{{ email_button(dashboard_url, 'Ver mi panel', '#0e6e3a') }}
 {% endblock %}

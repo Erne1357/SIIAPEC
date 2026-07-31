@@ -1,20 +1,21 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#0d6efd' %}
+{% set header_title = 'Recordatorio: tu evento es mañana' %}
+
+{% block preheader %}«{{ event_title }}» es mañana, {{ slot_datetime }}, en {{ location }}.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
-<p>Este es un recordatorio de tu evento programado para mañana.</p>
+<p>Te recordamos que tu evento está programado para mañana.</p>
 
-<div class="notification-card">
-    <h2>⏰ Recordatorio (24 horas antes)</h2>
-    <p><strong>{{ event_title }}</strong></p>
-    <div class="divider"></div>
-    <p><strong>Fecha y hora:</strong> {{ slot_datetime }}</p>
-    <p><strong>Lugar:</strong> {{ location }}</p>
-</div>
+{% call email_card(accent='#0b1e8a', title=event_title) %}
+  {{ email_detail('Fecha y hora', slot_datetime) }}
+  {{ email_detail('Lugar', location) }}
+{% endcall %}
 
 <p>Te esperamos puntual. Si no podrás asistir, comunícate con la coordinación del programa.</p>
+{% endblock %}
 
-<a href="{{ event_url }}" class="btn" style="background: #0d6efd;">Ver detalles del evento</a>
+{% block cta %}
+{{ email_button(event_url, 'Ver detalles del evento') }}
 {% endblock %}

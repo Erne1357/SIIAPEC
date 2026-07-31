@@ -1,20 +1,21 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#dc3545' %}
+{% set header_title = 'Tu evento comienza en 2 horas' %}
+
+{% block preheader %}«{{ event_title }}» comienza a las {{ slot_datetime }} en {{ location }}.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
 <p>Tu evento comienza en aproximadamente <strong>2 horas</strong>.</p>
 
-<div class="notification-card">
-    <h2>🔔 Recordatorio final</h2>
-    <p><strong>{{ event_title }}</strong></p>
-    <div class="divider"></div>
-    <p><strong>Inicio:</strong> {{ slot_datetime }}</p>
-    <p><strong>Lugar:</strong> {{ location }}</p>
-</div>
+{% call email_card(accent='#6b4f00', title=event_title) %}
+  {{ email_detail('Inicio', slot_datetime) }}
+  {{ email_detail('Lugar', location) }}
+{% endcall %}
 
 <p>No olvides llegar a tiempo con todo lo que necesites.</p>
+{% endblock %}
 
-<a href="{{ event_url }}" class="btn" style="background: #dc3545;">Ver detalles del evento</a>
+{% block cta %}
+{{ email_button(event_url, 'Ver detalles del evento') }}
 {% endblock %}

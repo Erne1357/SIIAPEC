@@ -1,24 +1,26 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#dc3545' %}
+{% set header_title = 'Documento rechazado' %}
+
+{% block preheader %}Tu documento de permanencia «{{ document_label }}» necesita correcciones.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
 <p>Tu documento de permanencia requiere correcciones.</p>
 
-<div class="notification-card">
-    <h2>⚠️ Documento Rechazado</h2>
-    <p><strong>{{ document_label }}</strong></p>
-    {% if reason %}
-    <div class="divider"></div>
-    <p><strong>Motivo:</strong></p>
-    <p style="color: #dc3545;">{{ reason }}</p>
-    {% endif %}
-</div>
+{% call email_card(accent='#b21f2d', title=document_label) %}
+  <p style="margin:0;color:#1f2933;">Este documento no puede aprobarse en su estado actual.</p>
+{% endcall %}
 
-<p>Vuelve a subir el documento corregido cuando la ventana de entrega esté abierta.</p>
+{%- if reason %}
+{% call email_notice(tone='danger', title='Motivo del rechazo') %}
+  <p style="margin:0;">{{ reason }}</p>
+{% endcall %}
+{%- endif %}
 
-<a href="{{ dashboard_url }}" class="btn" style="background: #dc3545;">Ver mi panel de permanencia</a>
+<p>Vuelve a subir el documento corregido cuando la ventana de entrega esté abierta. Si tienes dudas, contacta a tu coordinador de programa.</p>
+{% endblock %}
 
-<p>Si tienes dudas, contacta a tu coordinador de programa.</p>
+{% block cta %}
+{{ email_button(dashboard_url, 'Ver mi panel de permanencia', '#b21f2d') }}
 {% endblock %}

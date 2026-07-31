@@ -1,35 +1,28 @@
-{% extends "emails/base_email.html" %}
+{% extends 'emails/base_email.html' %}
+{% set header_title = 'Prórroga no aprobada' %}
+
+{% block preheader %}Tu prórroga para «{{ archive_name }}» no fue aprobada: la fecha límite original sigue vigente.{% endblock %}
 
 {% block content %}
-    <p>Hola <strong>{{ user_name }}</strong>,</p>
-    
-    <p>Tu solicitud de prórroga no ha sido aprobada.</p>
-    
-    <div class="notification-card" style="border-left-color: #dc3545;">
-        <h2>⚠️ Prórroga No Aprobada</h2>
-        <p><strong>Documento:</strong> {{ archive_name }}</p>
-        
-        <div class="divider"></div>
-        
-        <p><strong>Motivo:</strong></p>
-        <p style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin: 10px 0;">
-            {{ reason }}
-        </p>
-        
-        <p style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; margin: 15px 0;">
-            <strong>⏰ Importante:</strong> Debes subir tu documento antes de la fecha límite original.
-        </p>
-        
-        <p style="color: #666;">
-            Si tienes dudas sobre los requisitos del documento, contacta al coordinador del programa.
-        </p>
-    </div>
-    
-    <a href="{{ dashboard_url }}" class="btn" style="background: #dc3545;">
-        Subir Documento Ahora
-    </a>
-    
-    <p style="font-size: 14px; color: #666; margin-top: 30px;">
-        <strong>💡 Sugerencia:</strong> Revisa cuidadosamente los requisitos antes de subir tu documento.
-    </p>
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Tu solicitud de prórroga no fue aprobada.</p>
+
+{% call email_card(accent='#b21f2d', title=archive_name) %}
+  <p style="margin:0;color:#1f2933;">Tu solicitud de tiempo adicional para este documento no procedió.</p>
+{% endcall %}
+
+{% call email_notice(tone='danger', title='Motivo') %}
+  <p style="margin:0;">{{ reason }}</p>
+{% endcall %}
+
+{% call email_notice(tone='warning', title='La fecha límite original sigue vigente') %}
+  <p style="margin:0;">Debes subir tu documento antes de esa fecha para no perder el trámite.</p>
+{% endcall %}
+
+<p>Si tienes dudas sobre los requisitos del documento, contacta al coordinador del programa antes de subirlo.</p>
+{% endblock %}
+
+{% block cta %}
+{{ email_button(dashboard_url, 'Subir mi documento ahora', '#b21f2d') }}
 {% endblock %}

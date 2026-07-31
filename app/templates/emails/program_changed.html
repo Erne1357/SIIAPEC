@@ -1,52 +1,36 @@
-{% extends "emails/base_email.html" %}
+{% extends 'emails/base_email.html' %}
+{% set header_title = 'Cambio de programa' %}
+
+{% block preheader %}Tu programa cambió de {{ from_program }} a {{ to_program }}. Revisa tus documentos y fechas límite.{% endblock %}
 
 {% block content %}
-    <p>Hola <strong>{{ user_name }}</strong>,</p>
-    
-    <p>Se ha realizado un cambio en tu programa de estudios.</p>
-    
-    <div class="notification-card" style="border-left-color: #fd7e14;">
-        <h2>🔄 Cambio de Programa</h2>
-        
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <p style="margin: 5px 0;"><strong>Programa anterior:</strong></p>
-            <p style="color: #6c757d; font-size: 16px; margin: 5px 0;">{{ from_program }}</p>
-            
-            <div style="text-align: center; margin: 15px 0;">
-                <span style="font-size: 24px; color: #fd7e14;">⬇️</span>
-            </div>
-            
-            <p style="margin: 5px 0;"><strong>Nuevo programa:</strong></p>
-            <p style="color: #fd7e14; font-size: 18px; font-weight: bold; margin: 5px 0;">{{ to_program }}</p>
-        </div>
-        
-        <div class="divider"></div>
-        
-        <p style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 4px; margin: 15px 0;">
-            <strong>📋 Importante:</strong> Este cambio puede afectar los documentos requeridos y las fechas límite.
-        </p>
-        
-        <p style="color: #666;">
-            Te recomendamos que revises inmediatamente tu panel de admisión para ver:
-        </p>
-        
-        <ul style="color: #666; margin: 10px 0; padding-left: 20px;">
-            <li>Nuevos documentos requeridos</li>
-            <li>Cambios en fechas límite</li>
-            <li>Documentos que ya no son necesarios</li>
-            <li>Próximos eventos o entrevistas</li>
-        </ul>
-        
-        <p style="background: #d4edda; color: #155724; padding: 10px; border-radius: 4px; margin: 15px 0; font-size: 14px;">
-            <strong>✅ Tranquilo:</strong> Tus documentos existentes se han transferido automáticamente cuando fue posible.
-        </p>
-    </div>
-    
-    <a href="{{ dashboard_url }}" class="btn" style="background: #fd7e14;">
-        Revisar Mi Panel
-    </a>
-    
-    <p style="font-size: 14px; color: #666; margin-top: 30px;">
-        <strong>📞 ¿Tienes dudas?</strong> Contacta al coordinador del nuevo programa si necesitas orientación.
-    </p>
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Se realizó un cambio en tu programa de estudios.</p>
+
+{% call email_card(accent='#6b4f00', title='Nuevo programa asignado') %}
+  {{ email_detail('Programa anterior', from_program) }}
+  <p style="margin:4px 0 10px;font-size:13px;line-height:1.4;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#616e7c;">Cambiado a</p>
+  {{ email_detail('Nuevo programa', to_program) }}
+{% endcall %}
+
+{% call email_notice(tone='warning', title='Este cambio puede afectar tu expediente') %}
+  <p style="margin:0 0 8px;">Revisa cuanto antes tu panel de admisión para verificar:</p>
+  <ul style="margin:0;padding-left:20px;">
+    <li>Nuevos documentos requeridos.</li>
+    <li>Cambios en las fechas límite.</li>
+    <li>Documentos que ya no son necesarios.</li>
+    <li>Próximos eventos o entrevistas.</li>
+  </ul>
+{% endcall %}
+
+{% call email_notice(tone='success', title='Tus documentos se conservaron') %}
+  <p style="margin:0;">Los documentos que ya habías entregado se transfirieron automáticamente al nuevo programa cuando fue posible.</p>
+{% endcall %}
+
+<p>Si necesitas orientación, contacta al coordinador del nuevo programa.</p>
+{% endblock %}
+
+{% block cta %}
+{{ email_button(dashboard_url, 'Revisar mi panel') }}
 {% endblock %}

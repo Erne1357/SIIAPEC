@@ -1,27 +1,28 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#0d6efd' %}
+{% set header_title = 'Documentos de aceptación disponibles' %}
+
+{% block preheader %}Ya puedes descargar tu carta de aceptación y tu tira de materias de {{ program_name }}.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
-<p>Tus documentos de aceptación ya están disponibles en tu portal.</p>
+<p>El coordinador ya subió tus documentos de aceptación a tu portal.</p>
 
-<div class="notification-card">
-    <h2>📄 Documentos de Aceptación Disponibles</h2>
-    <p><strong>Programa: {{ program_name }}</strong></p>
-    <p style="margin-top: 10px; color: #0d6efd;">
-        El coordinador ha subido tu <strong>carta de aceptación</strong> y tu <strong>tira de materias</strong>.
-    </p>
-</div>
+{% call email_card(accent='#0e6e3a', title=program_name) %}
+  {{ email_detail('Documentos', 'Carta de aceptación y tira de materias') }}
+  {{ email_detail('Disponibles en', 'Tu portal de admisión') }}
+{% endcall %}
 
-<p>Los próximos pasos son:</p>
+<h2>Próximos pasos</h2>
 <ol>
-    <li>Descarga tu carta de aceptación y tira de materias desde tu portal.</li>
+    <li>Descarga tu carta de aceptación y tu tira de materias desde tu portal.</li>
     <li>Realiza los trámites de pago en servicios escolares.</li>
     <li>Sube tu boleta de servicios escolares en el portal para completar tu inscripción.</li>
 </ol>
 
-<a href="{{ dashboard_url }}" class="btn">Ver Mis Documentos</a>
-
 <p>Ante cualquier duda, comunícate con el coordinador de tu programa.</p>
+{% endblock %}
+
+{% block cta %}
+{{ email_button(dashboard_url, 'Descargar mis documentos', '#0e6e3a') }}
 {% endblock %}

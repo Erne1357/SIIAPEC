@@ -1,24 +1,26 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#dc3545' %}
+{% set header_title = 'Documento rechazado' %}
+
+{% block preheader %}Tu documento «{{ archive_name }}» necesita correcciones antes de poder aprobarse.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
-<p>Tu documento requiere correcciones para ser aprobado.</p>
+<p>Tu documento requiere correcciones para poder ser aprobado.</p>
 
-<div class="notification-card">
-    <h2>⚠️ Documento Rechazado</h2>
-    <p><strong>{{ archive_name }}</strong></p>
-    {% if reason %}
-    <div class="divider"></div>
-    <p><strong>Motivo:</strong></p>
-    <p style="color: #dc3545;">{{ reason }}</p>
-    {% endif %}
-</div>
+{% call email_card(accent='#b21f2d', title=archive_name) %}
+  <p style="margin:0;color:#1f2933;">Este documento no puede aprobarse en su estado actual.</p>
+{% endcall %}
 
-<p>Por favor, realiza las correcciones necesarias y vuelve a subir el documento.</p>
+{%- if reason %}
+{% call email_notice(tone='danger', title='Motivo del rechazo') %}
+  <p style="margin:0;">{{ reason }}</p>
+{% endcall %}
+{%- endif %}
 
-<a href="{{ dashboard_url }}" class="btn" style="background: #dc3545;">Subir Documento Corregido</a>
+<p>Realiza las correcciones necesarias y vuelve a subir el documento. Si tienes dudas, contacta a tu coordinador de programa.</p>
+{% endblock %}
 
-<p>Si tienes dudas, contacta a tu coordinador de programa.</p>
+{% block cta %}
+{{ email_button(dashboard_url, 'Subir documento corregido', '#b21f2d') }}
 {% endblock %}

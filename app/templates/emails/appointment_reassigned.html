@@ -1,27 +1,28 @@
 {% extends 'emails/base_email.html' %}
-{% set color = '#17a2b8' %}
+{% set header_title = 'Cita reasignada' %}
+
+{% block preheader %}Tu cambio de cita fue aprobado: «{{ event_title }}» ahora es el {{ new_slot_datetime }}.{% endblock %}
 
 {% block content %}
 <p>Hola <strong>{{ user_name }}</strong>,</p>
 
-<p>Tu solicitud de cambio de cita ha sido <strong>aprobada</strong>. Se te ha asignado un nuevo horario.</p>
+<p>Tu solicitud de cambio de cita fue <strong>aprobada</strong> y ya tienes un nuevo horario.</p>
 
-<div class="notification-card">
-    <h2>🔄 Cita Reasignada</h2>
-    <p><strong>{{ event_title }}</strong></p>
-    <div class="divider"></div>
-    <p><strong>Nuevo horario:</strong> {{ new_slot_datetime }}</p>
-    {% if old_slot_datetime %}
-    <p><strong>Horario anterior:</strong> <span style="text-decoration: line-through; color: #999;">{{ old_slot_datetime }}</span></p>
-    {% endif %}
-    {% if location %}
-    <p><strong>Lugar:</strong> {{ location }}</p>
-    {% endif %}
-</div>
+{% call email_card(accent='#0b1e8a', title=event_title) %}
+  {{ email_detail('Nuevo horario', new_slot_datetime) }}
+  {%- if old_slot_datetime %}
+  {{ email_detail('Horario anterior (ya no válido)', old_slot_datetime) }}
+  {%- endif %}
+  {%- if location %}
+  {{ email_detail('Lugar', location) }}
+  {%- endif %}
+{% endcall %}
 
-<p><strong>⚠️ Importante:</strong> Por favor asegúrate de asistir puntualmente a tu nueva cita.</p>
+{% call email_notice(tone='warning', title='Asiste puntualmente') %}
+  <p style="margin:0;">Toma nota del nuevo horario: el anterior ya no es válido.</p>
+{% endcall %}
+{% endblock %}
 
-<a href="{{ dashboard_url }}" class="btn">Ver Detalles de la Cita</a>
-
-<p>¡Te esperamos!</p>
+{% block cta %}
+{{ email_button(dashboard_url, 'Ver detalles de la cita') }}
 {% endblock %}

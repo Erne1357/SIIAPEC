@@ -1,32 +1,25 @@
-{% extends "emails/base_email.html" %}
+{% extends 'emails/base_email.html' %}
+{% set header_title = 'Documento subido por el coordinador' %}
+
+{% block preheader %}{{ coordinator_name }} agregó «{{ archive_name }}» a tu expediente. No necesitas hacer nada.{% endblock %}
 
 {% block content %}
-    <p>Hola <strong>{{ user_name }}</strong>,</p>
-    
-    <p>El coordinador ha subido un documento por ti a tu expediente.</p>
-    
-    <div class="notification-card" style="border-left-color: #17a2b8;">
-        <h2>📄 Documento Subido por Coordinador</h2>
-        <p><strong>Documento:</strong> {{ archive_name }}</p>
-        <p><strong>Subido por:</strong> {{ coordinator_name }}</p>
-        
-        <div class="divider"></div>
-        
-        <p style="color: #666;">
-            Este documento ha sido agregado automáticamente a tu expediente por el coordinador del programa. 
-            No necesitas realizar ninguna acción adicional.
-        </p>
-        
-        <p style="background: #d1ecf1; color: #0c5460; padding: 10px; border-radius: 4px; margin: 15px 0;">
-            <strong>ℹ️ Nota:</strong> Este documento ya está disponible en tu panel y cuenta para los requisitos del programa.
-        </p>
-    </div>
-    
-    <a href="{{ dashboard_url }}" class="btn" style="background: #17a2b8;">
-        Ver Mis Documentos
-    </a>
-    
-    <p style="font-size: 14px; color: #666; margin-top: 30px;">
-        Puedes revisar todos tus documentos en cualquier momento desde tu panel de control.
-    </p>
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>El coordinador subió un documento por ti a tu expediente.</p>
+
+{% call email_card(accent='#0b1e8a', title=archive_name) %}
+  {{ email_detail('Subido por', coordinator_name) }}
+  {{ email_detail('Ubicación', 'Tu expediente en el portal') }}
+{% endcall %}
+
+{% call email_notice(tone='info', title='No necesitas realizar ninguna acción') %}
+  <p style="margin:0;">El documento ya está disponible en tu panel y cuenta para los requisitos del programa.</p>
+{% endcall %}
+
+<p>Puedes consultar todos tus documentos en cualquier momento desde tu panel de control.</p>
+{% endblock %}
+
+{% block cta %}
+{{ email_button(dashboard_url, 'Ver mis documentos') }}
 {% endblock %}
