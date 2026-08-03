@@ -10,16 +10,36 @@
 
 {% block content %}
 <div class="program-view-container">
-    <nav class="program-back" aria-label="Ruta de navegación">
-      <a href="{{ url_for('program.list_programs') }}" class="program-back__link">
-        <i class="bi bi-arrow-left" aria-hidden="true"></i>Todos los programas
-      </a>
-    </nav>
-
-    {# Hero Section — el estado de la admisión se comunica DENTRO del hero
-       (ver _hero.html), no como un bloque previo: el visitante necesita saber
-       primero qué programa está viendo. #}
+    {# Hero Section #}
     {% include 'programs/view/_hero.html' %}
+
+    {# Estado de la admisión: una sola franja, DESPUÉS del hero. Antes era un
+       bloque a página completa por delante, que enterraba el nombre del
+       programa bajo ~500px de estado vacío. #}
+    {% if not admission_open %}
+    <aside class="program-notice" data-reveal>
+      <i class="bi bi-calendar-x program-notice__icon" aria-hidden="true"></i>
+      <div class="program-notice__body">
+        <p class="program-notice__text">
+          <strong>Las inscripciones están cerradas.</strong>
+          {% if next_period %}
+            El próximo proceso inicia el
+            <strong>{{ next_period.admission_start_date|fecha_es }}</strong>,
+            para el periodo {{ next_period.name }}.
+          {% else %}
+            Aún no hay fecha confirmada para el próximo periodo.
+          {% endif %}
+        </p>
+        {% if program.coordinator %}
+        <p class="program-notice__meta">
+          Coordinación:
+          <strong>{{ program.coordinator.first_name }} {{ program.coordinator.last_name }}</strong>
+          · <a href="mailto:{{ program.coordinator.email }}">{{ program.coordinator.email }}</a>
+        </p>
+        {% endif %}
+      </div>
+    </aside>
+    {% endif %}
 
     {# Información del Programa #}
     {% include 'programs/view/_program_info.html' %}

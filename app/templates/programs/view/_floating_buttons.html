@@ -1,20 +1,28 @@
 {# app/templates/programs/view/_floating_buttons.html
-   El enlace de regreso dejó de ser flotante: anclado abajo a la izquierda
-   tapaba el botón "Configurar" del hero en pantallas de poca altura. Ahora
-   encabeza la página (ver view.html), donde se espera un regreso.
+   Ambos botones se renderizan visibles: no dependen de JavaScript. #}
+<div class="floating-back-button">
+  <a href="{{ url_for('program.list_programs') }}" class="btn btn-back">
+    <i class="bi bi-arrow-left me-2" aria-hidden="true"></i>Regresar
+  </a>
+</div>
 
-   Refuerzo del CTA del hero: acompaña al aspirante durante todo el scroll.
-   Sólo existe cuando de verdad se puede postular; si no, sería el tercer
-   "Postularme" de una página que anuncia que las inscripciones están
-   cerradas. #}
-{% if admission_open %}
+{# Refuerzo del CTA del hero: acompaña al aspirante durante todo el scroll.
+   Con el periodo cerrado no cambia de sitio ni de peso, sólo de acción: el
+   botón sigue ahí pero lleva a quien sí puede informar, en vez de invitar a
+   una postulación que terminaría en un "no puedes". #}
 <div class="floating-inscription-button">
+  {% if admission_open %}
   <button
       type="button"
-      class="btn btn-primary btn-inscription"
+      class="btn btn-inscription"
       data-bs-toggle="modal"
       data-bs-target="#enrollmentModal">
     <i class="bi bi-mortarboard-fill me-2" aria-hidden="true"></i>Postularme
   </button>
+  {% elif program.coordinator %}
+  <a href="mailto:{{ program.coordinator.email }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
+     class="btn btn-inscription btn-inscription--contact">
+    <i class="bi bi-envelope-fill me-2" aria-hidden="true"></i>Contactar al coordinador
+  </a>
+  {% endif %}
 </div>
-{% endif %}

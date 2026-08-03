@@ -5,26 +5,6 @@
             <h1 class="program-hero__title">{{ program.name }}</h1>
             <p class="program-hero__lead">{{ program.description }}</p>
 
-            {# Sin periodo abierto no se ofrece postularse: un botón que sólo
-               sirve para abrir un modal diciendo "no puedes" es una promesa
-               falsa. El aviso vive aquí, junto a la decisión, y no como un
-               bloque gigante por delante del programa. #}
-            {% if not admission_open %}
-            <p class="program-hero__notice">
-                <i class="bi bi-calendar-x" aria-hidden="true"></i>
-                <span>
-                    Las inscripciones están cerradas.
-                    {% if next_period %}
-                        El próximo proceso inicia el
-                        <strong>{{ next_period.admission_start_date|fecha_es }}</strong>,
-                        para el periodo {{ next_period.name }}.
-                    {% else %}
-                        Aún no hay fecha confirmada para el próximo periodo.
-                    {% endif %}
-                </span>
-            </p>
-            {% endif %}
-
             <div class="program-hero__actions">
                 {% if admission_open %}
                 {# Acción de valor: postularse. Es el único botón sólido del hero. #}
@@ -57,17 +37,6 @@
                 </a>
                 {% endif %}
             </div>
-
-            {% if not admission_open and program.coordinator %}
-            <p class="program-hero__coordinator">
-                <i class="bi bi-person-fill" aria-hidden="true"></i>
-                <span>
-                    Coordinación:
-                    <strong>{{ program.coordinator.first_name }} {{ program.coordinator.last_name }}</strong>
-                    · {{ program.coordinator.email }}
-                </span>
-            </p>
-            {% endif %}
         </div>
         <div class="col-lg-6" data-reveal="fade-left">
             <div class="program-image-container">

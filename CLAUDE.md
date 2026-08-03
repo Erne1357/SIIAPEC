@@ -122,6 +122,10 @@ Never `strftime('%B')` — there is no `locale.setlocale` in this project, so mo
 - Nested cards; a grid of identical cards used as the page structure.
 - A kicker/eyebrow above a heading.
 - Infinite looping animations for information already carried by text.
+  - **Documented exception:** `.btn-inscription` on the program page pulses
+    (`siiap-program-cta-pulse`). It is the owner's deliberate choice for the
+    single conversion action of the only Persuade surface in the app, and it
+    stops on hover/focus and under `prefers-reduced-motion`. Do not remove it.
 - Bounce/elastic easing.
 
 ### Anti-pattern reminders
