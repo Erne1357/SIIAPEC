@@ -73,7 +73,10 @@
         justify-content: space-between;
     }
 
+    /* Antes eran 220px fijos a partir de 576px: el buscador medía lo mismo en
+       una barra de 1138px que en una de 2162px. Ahora acompaña al ancho real
+       sin pasarse de largo. */
     #permanencePage .students-toolbar__search {
-        width: 220px;
+        width: clamp(220px, 22%, 420px);
     }
 }

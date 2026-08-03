@@ -438,8 +438,9 @@
 
     </div>
 
-    <!-- Botones de acción -->
-    <div class="d-flex flex-wrap justify-content-between gap-2 mt-4">
+    <!-- Botones de acción: anclados al pie del área de contenido, porque el
+         formulario más largo deja «Guardar cambios» 325px bajo el pliegue -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 program-config__actions">
       <a href="{{ url_for('program.view_program', slug=program.slug) }}" class="btn btn-outline-secondary">
         <i class="bi bi-x-lg me-2" aria-hidden="true"></i>Cancelar
       </a>

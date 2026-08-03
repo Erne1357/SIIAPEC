@@ -194,6 +194,40 @@
 }
 
 /* ====================================================
+   ENVOLTORIO DE PÁGINA
+   ==================================================== */
+
+/* #main-content ya aporta var(--content-padding): el py-4 del contenedor lo
+   duplicaba. El tope de ancho iguala al del listado (1280 / 1600px) en vez de
+   dejar el .container-fluid suelto hasta 2560px. */
+.events-page {
+    margin-inline: auto;
+    padding-block: 0 var(--content-padding);
+}
+
+/* El detalle usaba .container-fluid sin tope: en un monitor de 27" la columna
+   de descripción medía 1476px para un párrafo limitado a 65ch. Se iguala al
+   listado con --content-max-w (1280 / 1600px). */
+@media (min-width: 1200px) {
+    .events-page {
+        max-width: var(--content-max-w);
+    }
+}
+
+/* .breadcrumb trae su propio margin-bottom de 1rem que se sumaba al mb-3 del
+   <nav>: 32px de separación para una sola línea de navegación. */
+.events-page .breadcrumb {
+    margin-bottom: 0;
+}
+
+/* Ritmo vertical entre las tarjetas apiladas de las dos columnas: sustituye al
+   mb-4 fijo de 24px, que en el portátil sumaba 96px de aire muerto antes de
+   llegar al bloque de inscripción. Con --stack-gap son 12 / 20 / 24px. */
+.event-section-card {
+    margin-bottom: var(--stack-gap);
+}
+
+/* ====================================================
    HERO CON IMAGEN
    ==================================================== */
 
@@ -202,7 +236,7 @@
     min-height: 20rem;
     border-radius: var(--radius-xl);
     overflow: hidden;
-    margin-bottom: var(--space-8);
+    margin-bottom: var(--stack-gap);
 }
 
 .event-view-hero::after {
@@ -222,8 +256,8 @@
     position: relative;
     z-index: var(--z-raised);
     color: var(--text-inverse);
-    padding: var(--space-8);
-    padding-block-start: var(--space-16);
+    padding: var(--space-5) var(--space-8);
+    padding-block-start: var(--hero-pad-y);
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -231,7 +265,7 @@
 
 .event-view-hero h1 {
     font-family: var(--font-display);
-    font-size: var(--fs-2xl);
+    font-size: var(--fs-page-title);
     font-weight: var(--fw-bold);
     margin-bottom: var(--space-2);
 }
@@ -471,6 +505,56 @@
     background: var(--bg-surface-sunken);
     border-color: var(--border-default);
     color: var(--text-secondary);
+}
+
+/* ====================================================
+   RESPONSIVE — EJE VERTICAL
+   Condiciones copiadas de _tokens.css: COMPACTO (alto <= 820px) y
+   COMPACTO+MEDIO (alto <= 1080px). Ningún umbral nuevo.
+   ==================================================== */
+
+/* La galería cuadrada a 180px de columna daba 4 filas de 181px en el portátil:
+   8 fotos = 370px, el 61% del alto útil. Ni la proporción ni el número de
+   columnas se pueden expresar con un token. */
+@media (min-width: 992px) and (max-height: 67.5rem) {
+    .event-public-gallery {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
+    .event-public-gallery-item {
+        aspect-ratio: 4 / 3;
+    }
+}
+
+/* Portátil: el hero decorativo pasa de 320 a 192px (del 53% al 32% del alto
+   útil). min-height no es expresable con los tokens de relleno. */
+@media (min-width: 992px) and (max-height: 51.25rem) {
+    .event-view-hero {
+        min-height: 12rem;
+    }
+
+    .event-view-hero .hero-badges {
+        margin-bottom: var(--space-2);
+    }
+
+    /* La foto del ponente dentro del modal de biografía: 140px de avatar
+       dejaban ~12 líneas de bio antes de empujar el pie fuera de pantalla. */
+    .host-bio-photo,
+    .host-bio-photo-placeholder {
+        width: 6rem;
+        height: 6rem;
+    }
+
+    .host-bio-photo-placeholder {
+        font-size: var(--fs-xl);
+    }
+}
+
+/* Monitor de 1920x1080: 320px de hero seguían siendo el 41% del alto útil. */
+@media (min-width: 992px) and (min-height: 51.3125rem) and (max-height: 67.5rem) {
+    .event-view-hero {
+        min-height: 16rem;
+    }
 }
 
 /* ====================================================

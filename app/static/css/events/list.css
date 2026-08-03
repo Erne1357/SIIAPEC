@@ -6,6 +6,28 @@
  */
 
 /* ====================================================
+   ENVOLTORIO DE PÁGINA
+   ==================================================== */
+
+/* #main-content ya aporta var(--content-padding); el py-4 que traía el
+   .container duplicaba ese relleno y costaba 24px sobre el pliegue en todas
+   las alturas. El tope de ancho pasa a --content-max-w (1280 / 1600px) en vez
+   del 1320px fijo de Bootstrap: en un monitor de 1920 sobran 282px muertos. */
+.events-page {
+    margin-inline: auto;
+    padding-block: 0 var(--content-padding);
+}
+
+/* Por encima del xxl de Bootstrap (1400px) el .container se congela en 1320px:
+   en un monitor de 1920 quedaban 282px muertos a los lados. Se cede el mando a
+   --content-max-w, que el lead ya sube a 1600px a partir de 1600px de ancho. */
+@media (min-width: 1200px) {
+    .events-page {
+        max-width: var(--content-max-w);
+    }
+}
+
+/* ====================================================
    HERO
    ==================================================== */
 
@@ -15,12 +37,13 @@
       var(--color-brand-primary-700) 100%);
     color: var(--text-inverse);
     border-radius: var(--radius-xl);
-    padding: var(--space-6) var(--space-8);
-    margin-bottom: var(--space-6);
+    padding: var(--block-pad-y) var(--space-8);
+    margin-bottom: var(--stack-gap);
 }
 
 .events-hero h1 {
     font-family: var(--font-display);
+    font-size: var(--fs-page-title);
     font-weight: var(--fw-bold);
     letter-spacing: var(--tracking-tight);
 }
@@ -76,7 +99,7 @@
     border: 1px solid var(--border-warning-subtle);
     border-radius: var(--radius-lg);
     padding: var(--space-4) var(--space-5);
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--stack-gap);
 }
 
 .pending-invitations-section .section-title {
@@ -104,7 +127,7 @@
 .events-filters-card {
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-default);
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--stack-gap);
 }
 
 /* ====================================================
@@ -182,12 +205,19 @@
     gap: var(--space-2);
 }
 
+/* Sin tope de líneas, un título de 3 líneas estiraba TODA la fila de tarjetas
+   (el .event-card lleva height:100% y la descripción flex:1). Con 2 líneas la
+   altura de fila queda fija. El título completo sigue en el enlace del pie. */
 .event-card .card-title {
     font-family: var(--font-display);
     font-size: var(--fs-base);
     font-weight: var(--fw-bold);
     margin: 0;
     line-height: var(--lh-tight);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 /* Linea de metadatos (fecha, lugar). Se usa tanto en la tarjeta del grid como
@@ -251,6 +281,13 @@
     min-height: var(--space-6);
 }
 
+/* El contenedor se emite siempre (list.js lo rellena por lazy load), así que
+   en los eventos sin ponentes reservaba 24px + el gap del body por tarjeta. */
+.host-chips:empty {
+    display: none;
+    min-height: 0;
+}
+
 .host-avatars {
     display: flex;
 }
@@ -307,6 +344,9 @@
 
 /* ── Footer ── */
 
+/* flex-wrap: en una tarjeta con invitación pendiente los tres botones suman
+   362px contra los 358px de caja útil a 390px de tarjeta; sin envoltura el
+   .event-card (overflow:hidden) recortaba 4px del CTA primario. */
 .event-card .card-footer {
     background: transparent;
     border-top: 1px solid var(--border-default);
@@ -314,6 +354,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: var(--space-2);
 }
 
@@ -323,8 +364,9 @@
 
 .event-card .card-footer .footer-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
-    flex-shrink: 0;
+    min-width: 0;
 }
 
 /* ====================================================
@@ -336,8 +378,69 @@
 }
 
 /* ====================================================
-   RESPONSIVE
+   RESPONSIVE — EJE VERTICAL
+   Las condiciones son literalmente las de _tokens.css: COMPACTO (portátil,
+   alto <= 820px) y COMPACTO+MEDIO (alto <= 1080px). No se introduce ningún
+   umbral nuevo.
    ==================================================== */
+
+/* La proporción de la portada no se puede expresar con un token: a 21/9 la
+   portada mide 167px en el portátil y 182px en el monitor de 24", y es lo que
+   empuja el pie de la tarjeta (con el botón «Registrarme») bajo el pliegue. */
+@media (min-width: 992px) and (max-height: 67.5rem) {
+    .event-card-cover {
+        aspect-ratio: 3 / 1;
+    }
+}
+
+/* Portátil: la tarjeta baja de 505 a ~428px para que el pie entre completo. */
+@media (min-width: 992px) and (max-height: 51.25rem) {
+    .events-hero .hero-stat {
+        padding: var(--space-1) var(--space-3);
+    }
+
+    .events-filters-card .card-body {
+        padding-block: var(--space-2);
+    }
+
+    .pending-invitations-section {
+        padding: var(--space-3) var(--space-4);
+    }
+
+    .pending-invitations-section .section-title {
+        font-size: var(--fs-sm);
+        margin-bottom: var(--space-2);
+    }
+
+    .invitation-highlight-card {
+        padding: var(--space-2) var(--space-3);
+    }
+
+    .event-card .card-body {
+        padding: var(--space-3);
+        gap: var(--space-1);
+    }
+
+    .event-card .card-footer {
+        padding: var(--space-2) var(--space-3);
+    }
+}
+
+/* ====================================================
+   RESPONSIVE — EJE HORIZONTAL
+   ==================================================== */
+
+/* A partir de 1600px de viewport la zona de contenido pasa de 1280 a 1600px
+   (--content-max-w): con 3 columnas las tarjetas se estiraban a 424px y
+   sobraban 282px muertos. La cuarta columna no se puede pedir con col-xxl-3
+   porque Bootstrap la activaría ya en 1400px de viewport, donde la barra
+   lateral deja columnas de 296px y el pie de la tarjeta se parte. */
+@media (min-width: 1600px) {
+    .event-card-col {
+        flex: 0 0 auto;
+        width: 25%;
+    }
+}
 
 @media (max-width: 575.98px) {
     .events-hero {

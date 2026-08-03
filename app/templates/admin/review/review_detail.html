@@ -16,13 +16,13 @@
 {% set student_semester = sub.semester or (user_program.current_semester if user_program else None) %}
 {% set phase_labels = {'admission': 'Admisión', 'permanence': 'Permanencia', 'conclusion': 'Conclusión'} %}
 
-<div class="container py-4">
+<div class="container py-4 review-page">
   <a href="{{ url_for('pages_admin.pages_review.submissions', phase=phase) }}"
-     class="btn btn-link ps-0 mb-3">
+     class="btn btn-link ps-0 mb-2">
     <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Volver al listado
   </a>
 
-  <header class="review-header mb-4">
+  <header class="review-header mb-3">
     <h1 class="h4 mb-1">Documento #{{ sub.id }} &ndash; {{ sub.archive.name }}</h1>
     <p class="text-muted small mb-2">
       Subido por
@@ -36,8 +36,13 @@
     <p class="mb-0">{{ status_badge(sub.status) }}</p>
   </header>
 
+  {# A partir de --bp-xl la revisión se parte en dos columnas: el visor queda
+     fijo a la izquierda mientras se dictamina a la derecha. #}
+  <div class="row g-3 review-layout">
+  <div class="col-xl-7 review-layout__viewer">
+
   {# ── Visor del documento ───────────────────────────────────────── #}
-  <section class="card mb-4" aria-labelledby="viewerTitle">
+  <section class="card mb-3" aria-labelledby="viewerTitle">
     <div class="card-header d-flex flex-wrap align-items-center gap-2">
       <h2 class="h6 mb-0" id="viewerTitle">
         <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Documento entregado
@@ -83,8 +88,11 @@
     </div>
   </section>
 
+  </div>{# /col-xl-7 #}
+  <div class="col-xl-5">
+
   {# ── Ficha del documento ───────────────────────────────────────── #}
-  <section class="card mb-4" aria-labelledby="factsTitle">
+  <section class="card mb-3" aria-labelledby="factsTitle">
     <div class="card-header">
       <h2 class="h6 mb-0" id="factsTitle">
         <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Datos de la entrega
@@ -137,7 +145,7 @@
   </section>
 
   {# ── Decisión ───────────────────────────────────────────────────── #}
-  <section class="card mb-4" aria-labelledby="decisionTitle">
+  <section class="card mb-3" aria-labelledby="decisionTitle">
     <div class="card-header">
       <h2 class="h6 mb-0" id="decisionTitle">
         <i class="bi bi-clipboard-check me-1" aria-hidden="true"></i>Decisión de revisión
@@ -173,9 +181,12 @@
     </div>
   </section>
 
+  </div>{# /col-xl-5 #}
+  </div>{# /row #}
+
   {# ── Historial de versiones previas ─────────────────────────────── #}
   {% if history %}
-  <section class="card mb-4" aria-labelledby="historyTitle">
+  <section class="card mt-3 mb-3" aria-labelledby="historyTitle">
     <div class="card-header d-flex align-items-center gap-2">
       <h2 class="h6 mb-0" id="historyTitle">
         <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Historial de versiones de este documento

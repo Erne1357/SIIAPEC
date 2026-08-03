@@ -13,7 +13,8 @@
   margin-top: var(--space-4);
 }
 
-.config-preview h6 {
+/* El marcado usa <h3 class="h6">: el selector de elemento nunca casaba. */
+.config-preview .h6 {
   color: var(--text-secondary);
   font-size: var(--fs-sm);
   text-transform: uppercase;
@@ -26,22 +27,70 @@
   font-size: var(--fs-sm);
 }
 
+/* ── Pestañas de configuración ───────────────────────────────────────────── */
+
+/* Nueve pestañas con etiquetas largas suman ~1400px: partían en dos filas en
+   el portátil y dejaban solo 182px de holgura en el monitor de 1920. Una sola
+   fila desplazable es estable en los tres tamaños, sin umbral nuevo. */
+#configTabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+#configTabs .nav-link {
+  padding-inline: var(--space-3);
+  white-space: nowrap;
+}
+
+#configTabs .nav-link .bi {
+  margin-right: var(--space-1);
+}
+
+/* ── Cuerpo de las pestañas ──────────────────────────────────────────────── */
+
+#configTabsContent {
+  padding: var(--tab-content-pad);
+}
+
 /* ── Bloques de formulario ───────────────────────────────────────────────── */
 
+/* El relleno y la separación de cada bloque salen del ritmo vertical de
+   tramo: 12px en portátil, 20px en el monitor de 1920, 24px en pantallas
+   altas. Antes eran 24px fijos y dos secciones consumían 144px de aire. */
 .form-section {
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
-  padding: var(--space-6);
+  padding: var(--block-pad-y) var(--space-4);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-1);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--stack-gap);
 }
 
-.form-section h5 {
+/* El marcado usa <h2 class="h5">: el selector de elemento nunca casaba. */
+.form-section .h5 {
   color: var(--color-brand-primary);
   border-bottom: 1px solid var(--border-brand-subtle);
-  padding-bottom: var(--space-2);
-  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+/* ── Barra de guardado ───────────────────────────────────────────────────── */
+
+/* El formulario más largo mide 943px: sin anclaje, «Guardar cambios» quedaba
+   325px bajo el pliegue en portátil y 71px en el monitor de 1920. */
+.program-config__actions {
+  position: sticky;
+  bottom: var(--space-3);
+  z-index: var(--z-above);
+  margin-top: var(--stack-gap);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
 }
 
 /* ── Listas editables (objetivos, competencias) ──────────────────────────── */

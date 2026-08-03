@@ -1,12 +1,14 @@
 /* app/static/css/admin/admin_review.css
    Revisión documental: visor, filtros y bloques de contexto. */
 
-/* Visor del documento (iframe PDF incrustado). */
+/* Visor del documento (iframe PDF incrustado).
+   Antes era height:70vh, medido contra el viewport COMPLETO: en un portátil
+   de 740px daba 518px y el visor terminaba 216px por debajo del pliegue.
+   --doc-viewer-h descuenta el cromo de la página y satura en 45rem. */
 .doc-viewer {
   display: block;
   width: 100%;
-  height: 70vh;
-  min-height: 25rem;
+  height: var(--doc-viewer-h);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-xs);
   background-color: var(--bg-surface-sunken);
@@ -29,17 +31,59 @@
   color: var(--text-primary);
 }
 
+/* Título de la pantalla. Escala por tramo de alto con --fs-page-title
+   (20px en portátil, 28px en monitor) en lugar de heredar el h1 de
+   Bootstrap, que se saturaba en 40px y costaba 72px de pliegue. */
+.review-page__title {
+  font-size: var(--fs-page-title);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  margin-bottom: var(--space-3);
+}
+
 /* Espacio entre filtros */
 .filter-form .form-select,
 .filter-form .btn {
   min-width: 9.375rem;
 }
 
-@media (max-width: 767.98px) {
-  .doc-viewer {
-    height: 60vh;
+/* ==========================================================================
+   REVISIÓN EN DOS COLUMNAS
+   La pantalla era una sola columna apilada: visor -> ficha -> dictamen, con
+   los botones Aprobar/Rechazar a 816px de scroll y el documento ya fuera de
+   pantalla al decidir. A partir de --bp-xl el visor queda pegado arriba
+   mientras se rellena el dictamen en la columna derecha.
+   ========================================================================== */
+
+@media (min-width: 1200px) {
+  .review-layout__viewer {
+    position: sticky;
+    top: 0;
+    /* Sin esto la columna se estira a la altura de la fila y sticky no tiene
+       recorrido: las columnas de Bootstrap son elementos flex estirados. */
+    align-self: flex-start;
+  }
+}
+
+/* ==========================================================================
+   TRAMO COMPACTO (portátil de 15-16", <= 820px de alto)
+   Sólo recorta el eje vertical: el `py-4` de la plantilla duplica el relleno
+   que #main-content ya aporta con --content-padding.
+   ========================================================================== */
+
+@media (min-width: 992px) and (max-height: 51.25rem) {
+  .review-page {
+    padding-top: var(--space-2) !important;
+    padding-bottom: var(--space-3) !important;
   }
 
+  .review-page .nav-pills .nav-link {
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+  }
+}
+
+@media (max-width: 767.98px) {
   .filter-form .form-select,
   .filter-form .btn {
     min-width: 0;

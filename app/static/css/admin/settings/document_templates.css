@@ -4,6 +4,24 @@
    Existe para retirar el style="z-index:1060; max-height:220px" en línea del
    buscador de estudiantes: la capa sale del token, no de un literal. */
 
+/* ── Aviso de variables ──────────────────────────────────────────────────── */
+
+/* Aviso estático permanente: su relleno vertical sigue el ritmo de tramo
+   (12 / 20 / 24px) en vez de los 16px fijos de .alert. */
+.templates-hint {
+  padding-block: var(--block-pad-y);
+}
+
+/* ── Barra de filtros ────────────────────────────────────────────────────── */
+
+/* Sin tarjeta: un desplegable y un interruptor no justifican 106px de pliegue.
+   La separación con la tabla sigue el ritmo de tramo. */
+.templates-filters {
+  margin-bottom: var(--stack-gap);
+}
+
+/* ── Buscador del modal «Generar documento» ──────────────────────────────── */
+
 /* Resultados del buscador de estudiantes dentro del modal «Generar documento».
    Va por encima del contenido del diálogo pero por debajo de los popovers. */
 #genStudentResults {

@@ -1,17 +1,17 @@
 {# app/templates/programs/_graduate_profile.html #}
 {% from '_macros.html' import empty_state %}
 {% if program.show_graduate_profile %}
-<section id="perfil-egresado" class="py-4 my-4">
-  <div class="text-center mb-4" data-reveal>
-    <h2 class="h3 fw-bold mb-3">Perfil del Egresado</h2>
-    <div class="divider-center mb-3"></div>
+<section id="perfil-egresado">
+  <div class="program-section-head" data-reveal>
+    <h2 class="h3 fw-bold">Perfil del Egresado</h2>
+    <div class="divider-center"></div>
   </div>
 
   <div class="row justify-content-center">
     <div class="col-lg-10">
       {% if program.graduate_profile_intro or program.graduate_competencies %}
       <div class="card border-0 shadow-sm" data-reveal>
-        <div class="card-body p-4">
+        <div class="card-body program-panel">
           {% if program.graduate_profile_intro %}
           <p class="lead mb-3">{{ program.graduate_profile_intro }}</p>
           {% endif %}

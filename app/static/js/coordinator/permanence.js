@@ -35,6 +35,20 @@ class PermanenceManager {
     return p ? p.name : '—';
   }
 
+  /**
+   * Celda «Programa» del modo «Todos los programas», que es el valor por
+   * defecto del selector. La columna se acota por CSS (.program-col): con
+   * ocho columnas los anchos preferidos suman ~1369px contra los 1138px
+   * reales del portátil, así que nombres y correos envolvían a dos líneas y
+   * la fila crecía de 61 a 85px. El nombre completo queda en el title.
+   */
+  _programCell(name) {
+    const value = this.escapeHtml(name || '');
+    return this._isAllMode()
+      ? `<td class="program-col text-muted small" title="${value}">${value}</td>`
+      : '';
+  }
+
   async _fanFetch(urlBuilder) {
     const ids = this._targetProgramIds();
     return Promise.all(ids.map(async (pid) => {
@@ -417,8 +431,7 @@ class PermanenceManager {
         <i class="bi bi-toggles" aria-hidden="true"></i>
       </button>`;
 
-    const programCell = this._isAllMode()
-      ? `<td class="text-muted small">${this.escapeHtml(s.__program_name || '')}</td>` : '';
+    const programCell = this._programCell(s.__program_name);
 
     return `
       <tr>
@@ -682,8 +695,7 @@ class PermanenceManager {
     tbody.innerHTML = rows.map(r => {
       const u = r.user;
       const last = r.last_enrollment;
-      const programCell = this._isAllMode()
-        ? `<td class="text-muted small">${this.escapeHtml(r.__program_name || '')}</td>` : '';
+      const programCell = this._programCell(r.__program_name);
       const safeName = this.escapeHtml(u.full_name).replace(/'/g, "\\'");
 
       // Comprobante PDF subido por el estudiante (si existe)
@@ -759,8 +771,7 @@ class PermanenceManager {
     tbody.innerHTML = rows.map(r => {
       const u = r.user;
       const ce = r.current_enrollment;
-      const programCell = this._isAllMode()
-        ? `<td class="text-muted small">${this.escapeHtml(r.__program_name || '')}</td>` : '';
+      const programCell = this._programCell(r.__program_name);
       const proofCell = ce?.payment_proof_url
         ? `<a href="${ce.payment_proof_url}" target="_blank" rel="noopener"
               class="btn btn-sm btn-outline-secondary py-0 px-2 tap-target"

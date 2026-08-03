@@ -24,7 +24,7 @@
     </span>
   </header>
 
-  <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+  <div class="alert alert-warning cleanup-policy-alert d-flex align-items-start gap-2" role="alert">
     <i class="bi bi-shield-exclamation flex-shrink-0 mt-1" aria-hidden="true"></i>
     <div>
       <strong>Política de respaldo obligatorio.</strong>
@@ -68,7 +68,7 @@
     </li>
   </ul>
 
-  <div class="tab-content">
+  <div class="tab-content" id="cleanupTabsContent">
     <div class="tab-pane fade show active" id="tab-expired-files" role="tabpanel"
          aria-labelledby="tab-expired-files-btn">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -82,7 +82,9 @@
       </div>
       <div data-table-container="admission_expired_with_files"
            role="region" aria-live="polite" aria-label="Aspirantes expirados con archivos"></div>
-      <div class="d-flex justify-content-end mt-3">
+      {# Anclada al pie: con 20 candidatos el botón caía 453px bajo el pliegue
+         y el usuario ya había marcado casillas sin verlo. #}
+      <div class="d-flex justify-content-end cleanup-actions">
         <button type="button" class="btn btn-warning"
                 data-action="start-purge"
                 data-category="admission_expired_with_files"
@@ -105,7 +107,9 @@
       </div>
       <div data-table-container="admission_delta3_plus"
            role="region" aria-live="polite" aria-label="Aspirantes de periodos antiguos"></div>
-      <div class="d-flex justify-content-end mt-3">
+      {# Anclada al pie: con 20 candidatos el botón caía 453px bajo el pliegue
+         y el usuario ya había marcado casillas sin verlo. #}
+      <div class="d-flex justify-content-end cleanup-actions">
         <button type="button" class="btn btn-warning"
                 data-action="start-purge"
                 data-category="admission_delta3_plus"
@@ -128,7 +132,9 @@
       </div>
       <div data-table-container="retention_policy"
            role="region" aria-live="polite" aria-label="Expedientes que superaron la retención"></div>
-      <div class="d-flex justify-content-end mt-3">
+      {# Anclada al pie: con 20 candidatos el botón caía 453px bajo el pliegue
+         y el usuario ya había marcado casillas sin verlo. #}
+      <div class="d-flex justify-content-end cleanup-actions">
         <button type="button" class="btn btn-warning"
                 data-action="start-purge"
                 data-category="retention_policy"

@@ -8,11 +8,11 @@
 {% endblock %}
 
 {% block content %}
-<div class="container py-4">
-  <h1 class="mb-4">Revisión y Gestión</h1>
+<div class="container py-4 review-page">
+  <h1 class="review-page__title">Revisión y Gestión</h1>
 
   <!-- Pestañas -->
-  <ul class="nav nav-tabs mb-4" id="reviewTabs" role="tablist">
+  <ul class="nav nav-tabs mb-3" id="reviewTabs" role="tablist">
     <li class="nav-item" role="presentation">
       <button class="nav-link active" id="documents-tab" data-bs-toggle="tab"
               data-bs-target="#documents-pane" type="button" role="tab"
@@ -66,7 +66,7 @@
       </ul>
 
       <!-- Filtros -->
-      <form method="get" class="row g-3 mb-4 filter-form">
+      <form method="get" class="row g-3 mb-3 filter-form">
         <input type="hidden" name="phase" value="{{ current_phase }}">
         <div class="col-md-3">
           <label class="form-label" for="filterApplicantId">{{ 'Aspirante' if current_phase == 'admission' else 'Estudiante' }}</label>
@@ -131,7 +131,8 @@
 
       <!-- Tabla de submissions -->
       {{ data_table_open('Documentos entregados que coinciden con los filtros aplicados',
-                         table_class='table-hover align-middle') }}
+                         table_class='table-hover align-middle',
+                        wrapper_class='siiap-table-wrapper--sticky-head') }}
         <thead class="table-light">
           <tr>
             <th scope="col">ID</th>
@@ -186,7 +187,7 @@
     <div class="tab-pane fade" id="extensions-pane" role="tabpanel"
          aria-labelledby="extensions-tab" tabindex="0">
       <!-- Filtros para prórrogas -->
-      <div class="row g-3 mb-4">
+      <div class="row g-3 mb-3">
         <div class="col-md-3">
           <label class="form-label" for="extensionStudentFilter">Estudiante</label>
           <select class="form-select" id="extensionStudentFilter">
@@ -217,7 +218,8 @@
 
       <!-- Tabla de solicitudes de prórroga -->
       {{ data_table_open('Solicitudes de prórroga de los estudiantes con su estado y fechas',
-                         table_class='table-hover align-middle') }}
+                         table_class='table-hover align-middle',
+                        wrapper_class='siiap-table-wrapper--sticky-head') }}
         <thead class="table-light">
           <tr>
             <th scope="col" class="w-px-50">ID</th>
@@ -241,7 +243,8 @@
 {% endblock %}
 
 {% block modals %}
-{% call(section) modal_shell('extensionReviewModal', 'Revisar solicitud de prórroga', size='lg', icon='clock-history') %}
+{% call(section) modal_shell('extensionReviewModal', 'Revisar solicitud de prórroga', size='lg',
+                             icon='clock-history', scrollable=true) %}
   {% if section == 'body' %}
     <input type="hidden" id="reviewExtensionId">
 

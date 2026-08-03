@@ -13,7 +13,7 @@
 ) }}
 
 <!-- Pestañas de navegación -->
-<ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist" aria-label="Secciones del panel de posgrado">
+<ul class="nav nav-tabs dashboard-section" id="adminTabs" role="tablist" aria-label="Secciones del panel de posgrado">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview"
                 type="button" role="tab" aria-controls="overview" aria-selected="true">
@@ -39,7 +39,7 @@
     <!-- ============ PESTAÑA: VISTA GENERAL ============ -->
     <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab" tabindex="0">
         <!-- Acción principal + accesos secundarios -->
-        <section class="row mb-4" aria-labelledby="postgradActionsTitle">
+        <section class="row dashboard-section" aria-labelledby="postgradActionsTitle">
             <div class="col-12">
                 <h2 class="h5 mb-3 fw-bold" id="postgradActionsTitle">
                     <i class="bi bi-lightning-charge-fill me-2" aria-hidden="true"></i>¿Qué quieres hacer?
@@ -74,7 +74,7 @@
         </section>
 
         <!-- KPIs Globales -->
-        <section class="row mb-4" aria-label="Indicadores globales de posgrado">
+        <section class="row dashboard-section" aria-label="Indicadores globales de posgrado">
             <div class="col-md-3 col-sm-6 mb-3">
                 <div class="stat-card stat-card--brand h-100">
                     <i class="bi bi-grid-3x3-gap-fill stat-card__icon" aria-hidden="true"></i>
@@ -129,7 +129,11 @@
                                 <p class="kpi-value kpi-value--sm text-success-strong">
                                     {{ (metrics.total_applicants / (metrics.total_programs if metrics.total_programs > 0 else 1))|round|int }}
                                 </p>
-                                <p class="kpi-label">Promedio de solicitantes por programa</p>
+                                {# Etiqueta corta a propósito: en mayúsculas y con
+                                   tracking-wide, la versión larga medía 354px y se
+                                   partía en dos líneas dentro de la columna de
+                                   354px que da el portátil. #}
+                                <p class="kpi-label">Solicitantes por programa</p>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <p class="kpi-value kpi-value--sm text-warning-strong">

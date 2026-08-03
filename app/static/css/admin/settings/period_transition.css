@@ -11,7 +11,24 @@
   white-space: nowrap;
 }
 
-/* ── Contadores de las pestañas del modal ── */
+/* ── Pestañas del modal ── */
+
+/* Siete etiquetas largas más su contador suman ~1465px contra los 1116px de un
+   modal-xl: partían en dos filas SIEMPRE, también en un monitor de 2560. Una
+   sola fila desplazable devuelve 44px al cuerpo del diálogo. */
+#transitionTabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+#transitionTabs .nav-link {
+  padding-inline: var(--space-3);
+  white-space: nowrap;
+}
+
 #modalPeriodTransition .nav-link .badge {
   font-size: var(--fs-xs);
   vertical-align: middle;
@@ -28,8 +45,14 @@
   content: "\F633"; /* bi-chevron-up */
 }
 
-/* Scroll interno de las pestañas con tablas largas. */
+/* El diálogo ya es .modal-dialog-scrollable: un tope de 25rem dentro de él era
+   un segundo scroller anidado que dejaba 361px de modal vacío en un monitor de
+   1920 y desperdiciaba 51px en un portátil. Scrollea solo el .modal-body.
+   El relleno lo ponen los .p-3 de cada panel, no el contenedor. */
 #modalPeriodTransition .tab-content {
-  max-height: 25rem;
-  overflow-y: auto;
+  max-height: none;
+  overflow-y: visible;
+  padding: 0;
+  border: none;
+  border-radius: 0;
 }

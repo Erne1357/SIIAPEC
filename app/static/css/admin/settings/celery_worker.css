@@ -20,6 +20,12 @@
   font-size: var(--fs-md);
 }
 
+/* ── Cuerpo de las pestañas ──────────────────────────────────────────────── */
+
+#workerTabsContent {
+  padding: var(--tab-content-pad);
+}
+
 /* ── Feed en vivo ────────────────────────────────────────────────────────── */
 
 .live-feed {
@@ -65,6 +71,32 @@
 
 #summaryCards .stat-card:hover {
   box-shadow: var(--shadow-3);
+}
+
+/* La cifra ya escala sola: _stat-card.css lee --fs-metric. Lo que ningún token
+   puede expresar es el EJE de la tarjeta: solo en el tramo compacto icono,
+   cifra y etiqueta pasan a una única línea, la fila de resumen baja de 125 a
+   ~53px y el historial pasa de 3 filas visibles a 6. */
+@media (min-width: 992px) and (max-height: 51.25rem) {
+  #summaryCards .stat-card {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+
+  #summaryCards .stat-card__icon {
+    align-self: center;
+  }
+
+  /* La barra de filtros del historial: cuatro controles que no necesitan
+     24px de aire entre etiqueta y campo cuando sobran 122px de tabla. */
+  #paneHistorial .row.g-2 {
+    --bs-gutter-y: 0;
+  }
+
+  #paneHistorial .form-label {
+    margin-bottom: var(--space-1);
+  }
 }
 
 /* ── Tabla de tareas programadas ─────────────────────────────────────────── */

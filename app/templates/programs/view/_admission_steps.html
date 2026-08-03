@@ -22,10 +22,10 @@
   'conclusion': 'bi-mortarboard-fill'
 } %}
 
-<section id="admision" class="py-4 my-4">
-  <div class="text-center mb-4" data-reveal>
-    <h2 class="h3 fw-bold mb-3">Proceso de Inscripción</h2>
-    <div class="divider-center mb-3"></div>
+<section id="admision">
+  <div class="program-section-head" data-reveal>
+    <h2 class="h3 fw-bold">Proceso de Inscripción</h2>
+    <div class="divider-center"></div>
     <p class="lead program-lead">
       Conoce los pasos para formar parte de nuestro programa y prepararte para una experiencia académica transformadora.
     </p>
@@ -46,7 +46,7 @@
 
   <div class="admission-process" data-reveal>
     <!-- Navegación de fases horizontal -->
-    <ul class="nav nav-pills nav-justified admission-phases-nav mb-4" id="admissionPhasesTab" role="tablist">
+    <ul class="nav nav-pills nav-justified admission-phases-nav mb-3" id="admissionPhasesTab" role="tablist">
       {% for phase in sorted_phases %}
       <li class="nav-item" role="presentation">
         <button class="nav-link {% if loop.first %}active{% endif %}" 
@@ -83,7 +83,7 @@
            aria-labelledby="phase-{{ phase.id }}-tab">
         
         <div class="phase-content">
-          <div class="phase-header mb-4">
+          <div class="phase-header">
             {% set phase_key = phase.name|lower %}
             <h3 class="h4 fw-bold text-primary">{{ phase_translations.get(phase_key, phase.name|title) }}</h3>
             <p class="text-muted">

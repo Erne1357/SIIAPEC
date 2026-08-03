@@ -4,6 +4,24 @@
    La fila ya NO es clicable: la acción principal vive en un <button> dentro
    de la primera celda, para que sea operable con teclado (WCAG 2.1.1). */
 
+/* ── Barra de filtros ────────────────────────────────────────────────────── */
+
+/* Sin tarjeta: tres controles no justifican 128px de pliegue. La separación
+   con la tabla sigue el ritmo de tramo. */
+.users-filters {
+  margin-bottom: var(--stack-gap);
+}
+
+/* Las etiquetas se aprietan contra su campo: la barra pasa de 104 a ~80px y
+   la tabla gana dos filas sobre el pliegue. */
+.users-filters .form-label {
+  margin-bottom: var(--space-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+
+/* ── Filas de la tabla ───────────────────────────────────────────────────── */
+
 .user-row:hover {
   background-color: var(--bg-surface-sunken);
 }

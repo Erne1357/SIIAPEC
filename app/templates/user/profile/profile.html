@@ -8,13 +8,13 @@
 
 {% block content %}
 {% from '_macros.html' import status_badge %}
-<div class="profile-page container-fluid px-3 px-md-4 mt-3 mt-md-4">
+<div class="profile-page container-fluid px-3 px-md-4">
     <div class="row">
         {# No es <main>: base.html ya aporta el landmark principal y anidarlos
            deja dos "principal" en la misma página. #}
         <div class="col-12">
             <!-- Cabecera del perfil -->
-            <div class="card mb-4 shadow-sm">
+            <div class="card profile-header-card shadow-sm">
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col-12 col-md-3 text-center mb-3 mb-md-0">
@@ -130,7 +130,7 @@
             </div>
 
             <!-- Navegación de pestañas responsiva -->
-            <div class="card mb-4">
+            <div class="card profile-tabs-card">
                 <div class="card-header p-0">
                     <ul class="nav nav-tabs card-header-tabs" id="profileTabs" role="tablist"
                         aria-label="Secciones del perfil">
@@ -215,7 +215,7 @@
                     {% include 'user/profile/_profile_notifications.html' %}
                 </div>
             </div>
-        </main>
+        </div>
     </div>
 </div>
 
@@ -263,7 +263,9 @@
 <!-- Modal para completar perfil -->
 <div class="modal fade profile-modal" id="completeProfileModal" tabindex="-1"
      aria-labelledby="completeProfileModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
+    {# scrollable: son 14 campos, 870px de diálogo. Sin esto el pie con
+       "Guardar información" nace fuera de pantalla en un portátil de 740px. #}
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title h5" id="completeProfileModalLabel">Completar perfil personal</h2>

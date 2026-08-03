@@ -8,6 +8,38 @@
  * hoja; redeclararlas aquí mataría el componente compartido.
  */
 
+/* ── Ritmo vertical de la página ───────────────────────────────────────── */
+/* Los cuatro dashboards apilan el mismo patrón —banner de rol, fila de cifras,
+   bloques de contenido— y en un portátil de 740px el primer dato quedaba por
+   debajo del pliegue. En lugar de repetir utilidades py-4/mb-4 fijas, el
+   contenedor y la separación entre bloques leen los tokens de ritmo, que ya
+   escalan solos en los tres tramos de alto (24 / 20 / 12 px). */
+.dashboard-page {
+  padding-block: var(--block-pad-y);
+}
+
+/* Sustituye a .mb-4 en los bloques de primer nivel del dashboard.
+   Gana a `.nav-tabs { margin-bottom: var(--space-6) }` por orden de carga:
+   esta hoja se enlaza después de components/_nav.css. */
+.dashboard-section {
+  margin-bottom: var(--stack-gap);
+}
+
+/* Panel de posgrado: el cuerpo de las pestañas también entra en el ritmo. */
+/* Alertas de documentos pendientes del estudiante. */
+.dashboard-alert {
+  margin-bottom: var(--stack-gap);
+}
+
+/* Ancho de lectura del dashboard del estudiante. Antes era .col-lg-9, un
+   porcentaje: 895px en el portátil (donde la línea de contexto del banner se
+   parte) y 1664px en un 27" (demasiado ancho para leer). */
+.student-dashboard {
+  width: 100%;
+  max-width: 68.75rem;
+  margin-inline: auto;
+}
+
 /* ── Tarjetas de acciones rápidas ──────────────────────────────────────── */
 .quick-action-card {
   transition: box-shadow var(--duration-fast) var(--ease-out),
@@ -163,4 +195,52 @@
 .toast-stack-top,
 .siiap-toast-stack {
   z-index: var(--z-toast);
+}
+
+/* ── Cifras que en realidad son texto ─────────────────────────────────── */
+/* .stat-card__value está pensado para un número corto. En estos dashboards se
+   le pasan cadenas ("Agosto-Diciembre 2026", "Pendiente", el número de
+   control): a tamaño de cifra ocupan ~400px y se parten en dos líneas dentro
+   de la columna de 350px del portátil, rompiendo la alineación h-100 de la
+   fila. Este modificador NO cambia el componente: sólo baja el tamaño cuando
+   el contenido es texto. */
+.dashboard-page .stat-card__value--text {
+  font-size: var(--fs-md);
+  line-height: var(--lh-normal);
+}
+
+/* ==========================================================================
+   TRAMO COMPACTO — portátiles de 15-16" (viewport de ~740px de alto).
+   Mismas condiciones que la sección 10 de _tokens.css; no se inventa ningún
+   umbral nuevo. Sólo entra aquí lo que NO se puede expresar con un token:
+   valores cuya base son 16px (mientras --block-pad-y arranca en 24px), donde
+   usar el token AÑADIRÍA alto en el monitor de 1920x1080.
+   ========================================================================== */
+
+@media (min-width: 992px) and (max-height: 51.25rem) {
+  /* Tarjeta de acción principal: es lo único que el usuario tiene que poder
+     pulsar sin desplazarse, así que se compacta sin bajar del objetivo táctil. */
+  .quick-action-primary .card-body {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .quick-action-primary__title {
+    font-size: var(--fs-md);
+  }
+
+  .quick-action-primary__hint {
+    margin-bottom: var(--space-2);
+  }
+
+  .quick-action-primary .btn-lg {
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--fs-base);
+    min-height: var(--tap-min);   /* 44px: WCAG 2.5.5 se mantiene */
+  }
+
+  /* Alertas de documentos pendientes: 174px cada una, y se renderizan justo
+     encima de las cifras que empujan fuera del pliegue. */
+  .dashboard-alert {
+    padding: var(--space-3) var(--space-4);
+  }
 }

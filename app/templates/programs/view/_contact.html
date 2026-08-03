@@ -1,9 +1,9 @@
 {# app/templates/programs/_contact.html #}
 {% if program.show_contact_section %}
-<section id="contacto" class="py-4 bg-light rounded-3 my-4">
-  <div class="text-center mb-4" data-reveal>
-    <h2 class="h3 fw-bold mb-3">Contacto</h2>
-    <div class="divider-center mb-3"></div>
+<section id="contacto" class="bg-light rounded-3">
+  <div class="program-section-head" data-reveal>
+    <h2 class="h3 fw-bold">Contacto</h2>
+    <div class="divider-center"></div>
     <p class="lead program-lead">
       ¿Tienes preguntas sobre nuestro programa? Estamos aquí para ayudarte.
     </p>
@@ -13,7 +13,7 @@
     {% if program.show_contact_form %}
     <div class="col-lg-6" data-reveal="fade-right">
       <div class="card border-0 shadow-sm h-100">
-        <div class="card-body p-4">
+        <div class="card-body program-panel">
           <h3 class="h4 fw-bold mb-3">Escríbenos por correo</h3>
           {% set primary_email = program.contact_email or 'posgrado@itcj.edu.mx' %}
           <p class="mb-3">
@@ -36,11 +36,11 @@
     {% endif %}
     <div class="col-lg-{% if program.show_contact_form %}6{% else %}12{% endif %}" data-reveal="fade-left">
       <div class="card border-0 shadow-sm mb-3">
-        <div class="card-body p-4">
+        <div class="card-body program-panel">
           <h3 class="h4 fw-bold mb-3">Información de Contacto</h3>
           <ul class="list-unstyled mb-0">
             {% if program.contact_email or program.contact_email_secondary %}
-            <li class="d-flex mb-3">
+            <li class="d-flex contact-item">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
                 <i class="bi bi-envelope-fill text-primary" aria-hidden="true"></i>
               </div>
@@ -56,7 +56,7 @@
             {% endif %}
 
             {% if program.contact_phone or program.contact_phone_secondary %}
-            <li class="d-flex mb-3">
+            <li class="d-flex contact-item">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
                 <i class="bi bi-telephone text-primary" aria-hidden="true"></i>
               </div>
@@ -72,7 +72,7 @@
             {% endif %}
 
             {% if program.contact_address %}
-            <li class="d-flex mb-3">
+            <li class="d-flex contact-item">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
                 <i class="bi bi-geo-alt-fill text-primary" aria-hidden="true"></i>
               </div>
@@ -84,7 +84,7 @@
             {% endif %}
 
             {% if program.contact_office %}
-            <li class="d-flex mb-3">
+            <li class="d-flex contact-item">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
                 <i class="bi bi-building text-primary" aria-hidden="true"></i>
               </div>
@@ -96,7 +96,7 @@
             {% endif %}
 
             {% if program.contact_hours %}
-            <li class="d-flex">
+            <li class="d-flex contact-item">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
                 <i class="bi bi-clock text-primary" aria-hidden="true"></i>
               </div>

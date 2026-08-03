@@ -606,6 +606,8 @@
             `;
         }).join('');
 
+        // Sin scroller propio: el diálogo ya es modal-dialog-scrollable y dos
+        // contenedores de scroll anidados atrapaban la rueda del ratón.
         list.innerHTML = `
             <div class="d-flex justify-content-between mb-2">
                 <small class="text-muted"><span id="ssSelectedCount">0</span> de ${perms.length} seleccionados</small>
@@ -614,7 +616,7 @@
                     <button type="button" class="btn btn-link btn-sm p-0" id="ssClearAllBtn">Limpiar</button>
                 </div>
             </div>
-            <div class="border rounded p-3 modal-body-scroll">${html}</div>
+            <div class="border rounded p-3">${html}</div>
         `;
 
         loading.classList.add('d-none');

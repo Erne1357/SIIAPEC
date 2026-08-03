@@ -39,6 +39,26 @@ class AcceptanceManager {
         return p ? p.name : '—';
     }
 
+    /** Escapa un valor para usarlo dentro de un atributo HTML. */
+    _escAttr(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    /**
+     * Celda «Programa» del modo «Todos los programas». La columna se acota por
+     * CSS (.program-col) para que un nombre largo no empuje el resto de la
+     * tabla fuera del ancho real del portátil; el nombre completo va en el
+     * title y sigue siendo accesible.
+     */
+    _programCell(name) {
+        const value = name || '';
+        return this._isAllMode()
+            ? `<td class="program-col text-muted small" title="${this._escAttr(value)}">${value}</td>`
+            : '';
+    }
+
     async _fanFetch(urlBuilder) {
         const ids = this._targetProgramIds();
         const tasks = ids.map(async (pid) => {
@@ -284,8 +304,7 @@ class AcceptanceManager {
             const letterStatus = this.renderDocBadge(docs.acceptance_letter);
             const scheduleStatus = this.renderDocBadge(docs.course_schedule);
             const safeName = user.full_name.replace(/'/g, "\\'");
-            const programCell = this._isAllMode()
-                ? `<td class="text-muted small">${a.__program_name || ''}</td>` : '';
+            const programCell = this._programCell(a.__program_name);
 
             return `
                 <tr>
@@ -366,8 +385,7 @@ class AcceptanceManager {
             const user = a.user;
             const docs = a.acceptance_docs;
             const receiptDoc = docs.enrollment_receipt;
-            const programCell = this._isAllMode()
-                ? `<td class="text-muted small">${a.__program_name || ''}</td>` : '';
+            const programCell = this._programCell(a.__program_name);
 
             return `
                 <tr>
@@ -407,8 +425,7 @@ class AcceptanceManager {
         tbody.innerHTML = applicants.map(a => {
             const user = a.user;
             const up = a.user_program;
-            const programCell = this._isAllMode()
-                ? `<td class="text-muted small">${a.__program_name || ''}</td>` : '';
+            const programCell = this._programCell(a.__program_name);
 
             let controlNumberCell;
             if (user.control_number) {
@@ -697,8 +714,7 @@ class AcceptanceManager {
                     requestsTbody.innerHTML = pending_requests.map(p => {
                         const safeName = p.user.full_name.replace(/'/g, "\\'");
                         const safeReason = (p.deferral.reason || '').replace(/'/g, "\\'");
-                        const programCell = this._isAllMode()
-                            ? `<td class="text-muted small">${p.__program_name || ''}</td>` : '';
+                        const programCell = this._programCell(p.__program_name);
                         return `
                             <tr>
                                 ${programCell}
@@ -706,7 +722,8 @@ class AcceptanceManager {
                                 <td>${p.user.email}</td>
                                 <td class="text-center">#${p.deferral.deferral_number}</td>
                                 <td>${p.deferral.deferred_to_period_name || '<em class="text-muted">Por asignar</em>'}</td>
-                                <td class="fst-italic text-muted">${p.deferral.reason || 'Sin especificar'}</td>
+                                <td class="reason-cell fst-italic text-muted"
+                                    title="${this._escAttr(p.deferral.reason || 'Sin especificar')}">${p.deferral.reason || 'Sin especificar'}</td>
                                 <td class="text-center">
                                     <button class="btn btn-sm btn-primary"
                                             onclick="acceptanceManager.showReviewDeferralModal(${p.deferral.id}, '${safeName}', ${p.deferral.deferral_number}, '${p.deferral.deferred_to_period_name || ''}', '${safeReason}')">
@@ -739,8 +756,7 @@ class AcceptanceManager {
                                    <i class="bi bi-person-check-fill me-1"></i>Reactivar
                                </button>`
                             : `<span class="text-muted small">Sin periodo destino</span>`;
-                        const programCell = this._isAllMode()
-                            ? `<td class="text-muted small">${d.__program_name || ''}</td>` : '';
+                        const programCell = this._programCell(d.__program_name);
                         return `
                             <tr>
                                 ${programCell}

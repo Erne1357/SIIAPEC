@@ -4,17 +4,18 @@
 {% block title %}Coordinación · Gestión de Estudiantes{% endblock %}
 
 {% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
 <link href="{{ url_for('static', filename='css/coordinator/dashboard.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4" id="coordinatorDashboardPage">
+<div class="container-fluid coord-page" id="coordinatorDashboardPage">
   <div class="row">
     <div class="col-12">
-      <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center coord-page__header">
         <div>
-          <h1 class="h3 mb-2">Gestión de Estudiantes</h1>
-          <p class="text-secondary mb-0">Supervisa el progreso y gestiona los documentos de tus estudiantes</p>
+          <h1 class="coord-page__title">Gestión de Estudiantes</h1>
+          <p class="coord-page__subtitle">Supervisa el progreso y gestiona los documentos de tus estudiantes</p>
         </div>
         <div class="mt-3 mt-md-0">
           <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadForStudentModal">
@@ -24,7 +25,7 @@
       </div>
 
       <!-- Filtros y controles -->
-      <section class="card mb-4" aria-labelledby="filtersHeading">
+      <section class="card coord-page__panel" aria-labelledby="filtersHeading">
         <div class="card-body">
           <h2 class="visually-hidden" id="filtersHeading">Filtros de la lista de estudiantes</h2>
           <div class="row g-3 align-items-end">
@@ -63,7 +64,7 @@
               </div>
             </div>
           </div>
-          <div class="row mt-3 g-2">
+          <div class="row g-2 coord-page__stack">
             <div class="col-12 col-md-6">
               <label class="form-label" for="studentSearch">Buscar estudiante</label>
               <div class="input-group">
@@ -85,7 +86,7 @@
       </section>
 
       <!-- Pestañas por fase -->
-      <ul class="nav nav-tabs mb-4" id="phaseTabs" role="tablist">
+      <ul class="nav nav-tabs coord-page__tabs" id="phaseTabs" role="tablist">
         <li class="nav-item" role="presentation">
           <button class="nav-link active" id="admission-tab" data-bs-toggle="tab" data-bs-target="#admission-pane"
             type="button" role="tab" aria-controls="admission-pane" aria-selected="true">
@@ -134,7 +135,7 @@
                 <th scope="col">Estudiante</th>
                 <th scope="col">Programa</th>
                 <th scope="col" class="text-center w-px-120">Progreso</th>
-                <th scope="col" class="text-center w-px-140">Documentos</th>
+                <th scope="col" class="text-center w-px-160">Documentos</th>
                 <th scope="col" class="text-center w-px-100">Estado</th>
                 <th scope="col" class="w-px-150">Acciones</th>
               </tr>
@@ -267,7 +268,10 @@
 <!-- Modal: Detalles del estudiante (solo consulta: se cierra con Esc) -->
 <div class="modal fade" id="studentDetailsModal" tabindex="-1" data-bs-backdrop="static"
      aria-labelledby="modalStudentName" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-xl">
+  {# scrollable: con 10 documentos el diálogo mide 754px y en un portátil de
+     740px de viewport sólo hay 684px, así que el pie con «Cerrar» quedaba
+     fuera de pantalla. Ahora sólo scrollea el cuerpo. #}
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
     <div class="modal-content">
       <div class="modal-header">
         <div class="d-flex align-items-center">
@@ -331,7 +335,9 @@
 <!-- Modal: Detalle de permanencia (solo consulta: se cierra con Esc) -->
 <div class="modal fade" id="permanenceDetailsModal" tabindex="-1" data-bs-backdrop="static"
      aria-labelledby="permModalName" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
+  {# scrollable: el resumen apila tarjetas + dos tarjetas + historial, de altura
+     dependiente de los datos. #}
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
     <div class="modal-content">
       <div class="modal-header">
         <div class="d-flex align-items-center gap-3">

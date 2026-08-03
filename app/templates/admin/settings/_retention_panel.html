@@ -22,7 +22,9 @@
 </div>
 
 <div class="row g-3">
-  <div class="col-lg-7">
+  {# A partir de 1400px el formulario de 4 campos no necesita el 41% del ancho:
+     el reparto pasa a 8/4 y la tabla de políticas gana ~150px. #}
+  <div class="col-lg-7 col-xxl-8">
     <div class="card h-100">
       <div class="card-header fw-semibold">Políticas configuradas</div>
       <div class="card-body">
@@ -45,7 +47,7 @@
     </div>
   </div>
 
-  <div class="col-lg-5">
+  <div class="col-lg-5 col-xxl-4">
     <div class="card h-100">
       <div class="card-header fw-semibold">Nueva política / editar</div>
       <div class="card-body">
@@ -78,7 +80,9 @@
             </select>
           </div>
 
-          <div class="d-flex flex-wrap gap-2">
+          {# Anclada al pie: «Guardar» de una configuración irreversible caía
+             hasta 84px bajo el pliegue en un portátil. #}
+          <div class="d-flex flex-wrap align-items-center gap-2 retention-form__actions">
             <button type="submit" class="btn btn-primary">Guardar</button>
             <button type="button" id="btnReset" class="btn btn-outline-secondary">Limpiar</button>
             <button type="button" id="btnDelete" class="btn btn-outline-danger d-none">

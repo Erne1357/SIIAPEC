@@ -21,6 +21,36 @@
   </header>
 
   <!-- Estado de conexión -->
+  {% if ms_account %}
+  {# Barra de una sola línea: el estado y las cuatro acciones comparten fila.
+     La tarjeta con cabecera, alerta y botonera aparte gastaba 224px de pliegue
+     en un portátil, donde el presupuesto útil completo son ~604px. #}
+  <section class="card email-connection mb-4" aria-labelledby="msConnectionTitle">
+    <div class="card-body email-connection__body">
+      <h2 class="h6 mb-0 email-connection__status" id="msConnectionTitle">
+        <i class="bi bi-check-circle-fill text-success-strong flex-shrink-0" aria-hidden="true"></i>
+        <span>
+          Conexión con Microsoft:
+          <span class="fw-normal">conectada como {{ ms_account.name }} ({{ ms_account.username }})</span>
+        </span>
+      </h2>
+      <div class="email-connection__actions">
+        <button type="button" class="btn btn-sm btn-primary" id="btnProcessQueue">
+          <i class="bi bi-send me-1" aria-hidden="true"></i>Procesar cola
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="btnRetryFailed">
+          <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Reintentar fallidos
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnSendTest">
+          <i class="bi bi-envelope-check me-1" aria-hidden="true"></i>Correo de prueba
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-danger" id="btnDisconnect">
+          <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Desconectar
+        </button>
+      </div>
+    </div>
+  </section>
+  {% else %}
   <section class="card mb-4" aria-labelledby="msConnectionTitle">
     <div class="card-header">
       <h2 class="h5 mb-0" id="msConnectionTitle">
@@ -28,31 +58,6 @@
       </h2>
     </div>
     <div class="card-body">
-      {% if ms_account %}
-      <div class="alert alert-success" role="status">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-          <div>
-            <i class="bi bi-check-circle me-2" aria-hidden="true"></i>
-            <strong>Conectado como:</strong> {{ ms_account.name }} ({{ ms_account.username }})
-          </div>
-          <button type="button" class="btn btn-sm btn-outline-danger" id="btnDisconnect">
-            <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Desconectar
-          </button>
-        </div>
-      </div>
-
-      <div class="d-flex flex-wrap gap-2 mt-3">
-        <button type="button" class="btn btn-primary" id="btnProcessQueue">
-          <i class="bi bi-send me-2" aria-hidden="true"></i>Procesar cola de correos
-        </button>
-        <button type="button" class="btn btn-outline-primary" id="btnRetryFailed">
-          <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Reintentar fallidos
-        </button>
-        <button type="button" class="btn btn-outline-secondary" id="btnSendTest">
-          <i class="bi bi-envelope-check me-2" aria-hidden="true"></i>Enviar correo de prueba
-        </button>
-      </div>
-      {% else %}
       <div class="alert alert-warning" role="alert">
         <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
         <strong>No conectado.</strong> Debes iniciar sesión con una cuenta de Microsoft para enviar correos.
@@ -71,13 +76,13 @@
           <li>Volverás a esta pantalla y los correos pendientes se enviarán automáticamente.</li>
         </ol>
       </div>
-      {% endif %}
     </div>
   </section>
+  {% endif %}
 
   <!-- Estadísticas de la cola -->
-  <section class="mb-4" aria-labelledby="queueStatsTitle">
-    <h2 class="h5 mb-3" id="queueStatsTitle">Estado de la cola</h2>
+  <section class="mb-4 email-queue-stats" aria-labelledby="queueStatsTitle">
+    <h2 class="h6 mb-2" id="queueStatsTitle">Estado de la cola</h2>
     <div class="row g-3">
       <div class="col-6 col-lg-3">
         <div class="stat-card stat-card--warning h-100">

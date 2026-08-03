@@ -5,6 +5,10 @@
    (ningún markup de esta página los usaba) y traían colores fuera de la
    marca: se eliminaron. */
 
+#settingsTabsContent {
+  padding: var(--tab-content-pad);
+}
+
 #tblArchives td,
 #tblArchives th {
   vertical-align: middle;
@@ -14,8 +18,11 @@
   text-align: center;
 }
 
+/* 14rem dejaban la tabla de 8 columnas en 1154px de ancho preferido, 16px por
+   encima de lo disponible en un portátil: las cuatro cabeceras .toggle-cell
+   partían en dos líneas. El nombre completo sigue en el title del enlace. */
 .template-link {
-  max-width: 14rem;
+  max-width: 12rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

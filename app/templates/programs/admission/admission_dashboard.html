@@ -9,10 +9,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="container py-4">
+<div class="container admission-panel">
 
-  <h1 class="h3 mb-2">Proceso de admisión</h1>
-  <p class="text-secondary mb-4">{{ program.name }}</p>
+  <h1 class="admission-panel__title">Proceso de admisión</h1>
+  <p class="text-secondary admission-panel__subtitle">{{ program.name }}</p>
 
   {# ── Dónde está el aspirante dentro del proceso completo ── #}
   {% set admission_stages = [
@@ -30,7 +30,7 @@
        'deferred': 4,
        'enrolled': 4
      } %}
-  <div class="mb-4">
+  <div class="admission-panel__stepper">
     {{ stepper(admission_stages, current=stage_map.get(admission_status, 1)) }}
   </div>
 
@@ -291,16 +291,19 @@
   {% else %}
   {# ── Vista normal de documentos ── #}
 
-  <div class="alert alert-info shadow-sm mb-4" role="alert">
-    <h2 class="h5 mb-2">Sube tus documentos</h2>
-    <p class="mb-0">
-      Sube los documentos requeridos en cada paso. Los siguientes pasos
-      se desbloquearán cuando todos los archivos del paso anterior estén aprobados.
-      <br>
-      <strong>Para ver la descripción de un archivo, haz clic en su nombre.</strong>
-    </p>
-    <div class="d-flex justify-content-end mt-3">
-      <button type="button" class="btn btn-outline-primary btn-sm" id="btnRequestProgramChange"
+  {# El botón va en línea con el texto, no en una fila propia: la fila
+     aparte costaba 47px de alto sobre el pliegue en cada visita. #}
+  <div class="alert alert-info shadow-sm admission-intro" role="alert">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+      <div class="admission-intro__text">
+        <h2 class="h6 mb-1">Sube tus documentos</h2>
+        <p class="mb-0">
+          Sube los documentos requeridos en cada paso. Los siguientes pasos se
+          desbloquearán cuando todos los archivos del paso anterior estén aprobados.
+          <strong>Para ver la descripción de un archivo, haz clic en su nombre.</strong>
+        </p>
+      </div>
+      <button type="button" class="btn btn-outline-primary btn-sm flex-shrink-0" id="btnRequestProgramChange"
         data-program-id="{{ program.id }}" data-program-slug="{{ program.slug }}">
         <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>
         Cambiar de programa
@@ -309,7 +312,7 @@
   </div>
 
   <!-- Pestañas de pasos -->
-  <ul class="nav nav-tabs mb-3" id="stepTab" role="tablist">
+  <ul class="nav nav-tabs" id="stepTab" role="tablist">
     {% for item in processed_steps %}
     {% set pane_id = 'pane-' ~ (item.id if item.is_combined else item.step.id) %}
     {% set tab_id = 'tab-' ~ (item.id if item.is_combined else item.step.id) %}
@@ -503,7 +506,7 @@
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
                 aria-label="Cerrar"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body modal-body-scroll">
         <div class="alert alert-info">
           <i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>
           Selecciona el programa al que deseas cambiar. Se analizarán tus documentos actuales

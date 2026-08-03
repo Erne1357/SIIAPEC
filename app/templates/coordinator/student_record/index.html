@@ -4,13 +4,17 @@
 {% block title %}Expediente · {{ target_user.first_name }} {{ target_user.last_name }}{% endblock %}
 
 {% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
 <link href="{{ url_for('static', filename='css/coordinator/student_record/index.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
-<div class="container-xl py-4" id="studentRecordPage">
+{# container-fluid, no container-xl: el tope de 1140px hacía que el expediente
+   se viera IGUAL de ancho en un portátil que en un monitor de 27", y era la
+   causa de que la barra de nueve pestañas envolviera siempre a dos filas. #}
+<div class="container-fluid coord-page" id="studentRecordPage">
   <!-- Encabezado -->
-  <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-3 mb-4">
+  <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-3 coord-page__header">
     <a href="{{ url_for('pages_coordinator.dashboard') }}"
        id="recordBackLink"
        class="btn btn-outline-secondary btn-sm">
@@ -19,10 +23,10 @@
     <div class="flex-grow-1">
       {# Se renderiza en servidor: si el fetch falla o tarda, la página
          conserva su encabezado. El JS sólo lo refresca. #}
-      <h1 class="h3 mb-1" id="recordHeaderName">
+      <h1 class="coord-page__title" id="recordHeaderName">
         {{ target_user.first_name }} {{ target_user.last_name }}
       </h1>
-      <p class="text-secondary mb-0 small" id="recordHeaderMeta">{{ target_user.email }}</p>
+      <p class="coord-page__subtitle small" id="recordHeaderMeta">{{ target_user.email }}</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
       <a href="{{ url_for('api_student_record.export_record_pdf', user_id=target_user.id) }}"
@@ -35,7 +39,7 @@
   </div>
 
   <!-- Pestañas -->
-  <ul class="nav nav-tabs mb-3" id="recordTabs" role="tablist">
+  <ul class="nav nav-tabs coord-page__tabs" id="recordTabs" role="tablist">
     <li class="nav-item" role="presentation">
       <button class="nav-link active" id="tab-info-btn" data-bs-toggle="tab" data-bs-target="#tab-info"
               type="button" role="tab" aria-controls="tab-info" aria-selected="true">
@@ -197,7 +201,10 @@
 <!-- Modal: editar información personal -->
 <div class="modal fade" id="editPersonalInfoModal" tabindex="-1"
      aria-labelledby="editPersonalInfoModalTitle" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-xl">
+  {# scrollable: el formulario mide 830px con sus 13 campos y en un portátil de
+     740px de viewport sólo hay 684px, así que «Guardar cambios» quedaba fuera
+     de pantalla. Ahora la cabecera y el pie se quedan fijos. #}
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
     <div class="modal-content">
       <div class="modal-header">
         <h2 class="modal-title h5" id="editPersonalInfoModalTitle">Editar información personal</h2>

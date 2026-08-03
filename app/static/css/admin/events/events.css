@@ -127,8 +127,12 @@
    PORTADA
    ==================================================== */
 
+/* La altura la dicta el ancho (21/9), así que en un shell donde el ancho crece
+   y el alto no, la portada se hacía MÁS alta cuanto mayor era la pantalla:
+   476px en el portátil. El tope la devuelve a una franja de vista previa. */
 .event-cover-preview {
   aspect-ratio: 21 / 9;
+  max-height: 15rem;
   background-size: cover;
   background-position: center;
   background-color: var(--bg-surface-sunken);
@@ -152,9 +156,12 @@
    GALERÍA
    ==================================================== */
 
+/* Escala por ancho disponible, no por número fijo de columnas: con
+   repeat(3, 1fr) e items 1/1 cada miniatura medía 361px dentro del modal-xl
+   y seis imágenes sumaban 734px en un cuerpo topado a la mitad. */
 .event-gallery {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
   gap: var(--space-3);
 }
 
@@ -306,6 +313,13 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* El contenedor se emite siempre, tenga o no chips: sin esto suma margen
+   muerto en los eventos que aún no tienen datos de ocupación. */
+.event-stat-chips:empty {
+  margin-top: 0;
 }
 
 .event-stat-chip {
@@ -348,8 +362,10 @@
    MODAL: ASIGNAR HORARIO
    ==================================================== */
 
+/* Cede altura al cuerpo del modal en pantallas cortas en vez de mantener un
+   bloque rígido de 20rem que obligaba a una segunda barra de scroll. */
 .assign-students-list {
-  max-height: 20rem;
+  max-height: clamp(12rem, calc(100vh - 32rem), 30rem);
   overflow-y: auto;
 }
 
@@ -389,7 +405,9 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(16.25rem, 1fr));
   gap: var(--space-2);
-  max-height: 50vh;
+  /* 50vh a secas competía con el tope del propio .modal-body y producía dos
+     barras de scroll anidadas en el portátil. Ahora la rejilla cede primero. */
+  max-height: min(50vh, calc(100vh - 30rem));
   overflow-y: auto;
   padding: var(--space-1);
 }
@@ -485,8 +503,8 @@
    FIX: modales largos con footer siempre visible
    Bootstrap modal-dialog-scrollable lo soluciona, pero
    en modales sin esa clase con mucho contenido se oculta
-   el footer. Forzamos altura máxima del body para todos
-   los modales del módulo de eventos.
+   el footer. El cuerpo consume --modal-body-max-h, que ya
+   descuenta cabecera, pie y márgenes del diálogo.
    ==================================================== */
 
 #contentVisualModal .modal-body,
@@ -495,21 +513,64 @@
 #assignSlotModal .modal-body,
 #hostEditorModal .modal-body,
 #viewRegistrationsModal .modal-body {
-  max-height: calc(100vh - var(--space-20) - var(--space-16) - var(--space-12));
+  max-height: var(--modal-body-max-h);
   overflow-y: auto;
 }
 
+/* El .modal-dialog de Bootstrap aporta 1.75rem arriba y abajo (56px): con
+   --space-12 (48px) todo modal largo desbordaba 8px y rompía el centrado. */
 #contentVisualModal .modal-content,
 #editEventInfoModal .modal-content,
 #inviteStudentsModal .modal-content,
 #assignSlotModal .modal-content,
 #hostEditorModal .modal-content {
-  max-height: calc(100vh - var(--space-12));
+  max-height: calc(100vh - var(--space-16));
 }
 
 /* ====================================================
    RESPONSIVE
    ==================================================== */
+
+/* --- TRAMO COMPACTO: portátil de 15-16" (<= 820px de alto) --------------
+   Los tokens ya bajan cabecera, pie, relleno de página, cifras y cajas de
+   icono. Aquí sólo va lo que ningún token puede expresar: el relleno propio
+   del encabezado fijo, los iconos decorativos de las tarjetas de indicador y
+   el `py-4` de la plantilla, que duplica el relleno de #main-content.
+   Mismas condiciones que los tramos de _tokens.css: no hay umbrales nuevos. */
+@media (min-width: 992px) and (max-height: 51.25rem) {
+  .events-list-page,
+  .event-detail-page {
+    padding-top: var(--space-2) !important;
+    padding-bottom: var(--space-3) !important;
+  }
+
+  /* El encabezado es sticky: sus px se pagan durante todo el scroll. */
+  .event-detail-header .card-body {
+    padding: var(--space-3);
+  }
+
+  .event-stat-chips {
+    margin-top: var(--space-2);
+  }
+
+  .event-stat-chip {
+    font-size: var(--fs-xs);
+    padding: var(--space-1) var(--space-2);
+  }
+
+  /* El icono es decorativo y duplica lo que ya dice la etiqueta; en estas dos
+     filas de indicadores es la diferencia entre ver o no la primera fila de
+     la tabla que hay debajo. El tamaño de cifra y etiqueta ya los baja el
+     propio componente (_stat-card.css) en este mismo tramo. */
+  .events-list-page .stat-card__icon,
+  #pane-attendance .stat-card__icon {
+    display: none;
+  }
+
+  .event-cover-preview {
+    max-height: 10rem;
+  }
+}
 
 @media (max-width: 767.98px) {
   .event-detail-header {

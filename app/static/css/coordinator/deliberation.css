@@ -89,6 +89,6 @@
     }
 
     #deliberationPage .notes-cell {
-        max-width: 160px;
+        max-width: 10rem;
     }
 }

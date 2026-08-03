@@ -1,0 +1,217 @@
+/*
+ * Coordinación — cáscara vertical compartida por las cinco pantallas
+ * (Gestión de Estudiantes, Deliberación, Aceptación, Permanencia y el
+ * Expediente del alumno).
+ *
+ * Motivo: en un portátil de 15,6" a 1920x1080 con escalado del 125% el
+ * viewport mide 1536x740 y quedan 604px de alto útil. El bloque anterior a la
+ * primera fila de datos —relleno de página, título, tarjeta de indicadores,
+ * banner de periodo, barra de pestañas y relleno del panel— sumaba entre 473 y
+ * 534px, así que CUATRO de las cinco pantallas no mostraban ni una sola fila
+ * completa. Las mismas pantallas en un monitor de 1920x1080 (950px de
+ * viewport) enseñan de 4 a 15 filas, por eso el fallo era invisible.
+ *
+ * La corrección NO inventa breakpoints: todo lo que puede escalar se mide
+ * contra los tokens por tramo de alto de _tokens.css (--block-pad-y,
+ * --stack-gap, --tab-content-pad, --fs-page-title, --fs-metric), y sólo lo que
+ * ningún token puede expresar —cambiar la disposición de una tarjeta o el
+ * número de columnas de una rejilla— usa un @media con las MISMAS condiciones
+ * literales de esos tramos.
+ *
+ * Se carga antes de la hoja propia de cada página, que puede afinar lo suyo.
+ */
+
+/* ==========================================================================
+   1. CONTENEDOR DE PÁGINA
+   ========================================================================== */
+
+.coord-page {
+  padding-top: var(--block-pad-y);
+  padding-bottom: var(--block-pad-y);
+}
+
+/* ==========================================================================
+   2. ENCABEZADO
+   El h1 deja de heredar el .h3 de Bootstrap (1,75rem fijo en todos los
+   tamaños) y pasa a --fs-page-title: 20px en portátil, 28px en el resto.
+   ========================================================================== */
+
+.coord-page__header {
+  margin-bottom: var(--stack-gap);
+}
+
+.coord-page__title {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-display);
+  font-size: var(--fs-page-title);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+}
+
+.coord-page__subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   3. PANEL DE PROGRAMA + INDICADORES
+   ========================================================================== */
+
+.coord-page__panel {
+  margin-bottom: var(--stack-gap);
+}
+
+.coord-page__panel > .card-body {
+  padding: var(--block-pad-y) var(--space-4);
+}
+
+/* Segunda fila de campos dentro de un panel (filtros del panel de estudiantes). */
+.coord-page__stack {
+  margin-top: var(--stack-gap);
+}
+
+/* Rejilla de indicadores. Antes era `d-flex flex-wrap gap-3`: con sólo 57px de
+   holgura en el portátil, una etiqueta larga («ENTREVISTA COMPLETADA») empujaba
+   una tarjeta a una segunda fila y se llevaba 141px, dejando la tabla sin
+   ninguna fila visible. Con reparto explícito las cuatro nunca saltan. */
+.coord-page__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+}
+
+@media (min-width: 992px) {
+  .coord-page__stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+}
+
+/* ==========================================================================
+   4. AVISOS DE ESTADO (periodo activo / sin periodo)
+   Información estática que se repite en las cuatro pestañas: se queda, pero
+   con la densidad de un banner, no la de un párrafo.
+   ========================================================================== */
+
+.coord-page__notice {
+  margin-bottom: var(--stack-gap);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
+}
+
+/* ==========================================================================
+   5. PESTAÑAS Y PANEL
+   ========================================================================== */
+
+.coord-page__tabs {
+  margin-bottom: var(--stack-gap);
+}
+
+/* Variante pegada al panel: la barra ya apoya sobre el borde del contenido. */
+.coord-page__tabs--flush {
+  margin-bottom: 0;
+}
+
+/* Secciones apiladas dentro de una pestaña (Permanencia → Inscripción apila
+   cuatro tablas con su encabezado). */
+.coord-page__section {
+  margin-bottom: var(--stack-gap);
+}
+
+/* ==========================================================================
+   6. TRAMO COMPACTO — portátiles de 15-16" y 1366x768
+   Condición copiada literalmente del tramo COMPACTO de _tokens.css.
+   Sólo vive aquí lo que ningún token puede expresar.
+   ========================================================================== */
+
+@media (min-width: 992px) and (max-height: 51.25rem) {
+  .coord-page__subtitle {
+    font-size: var(--fs-sm);
+  }
+
+  /* Títulos de sección dentro de una pestaña: bajan un escalón, siguen siendo
+     <h2> y conservan su jerarquía. */
+  .coord-page .tab-pane h2 {
+    font-size: var(--fs-base);
+  }
+
+  /* Indicadores: el icono se coloca AL LADO de la cifra en vez de encima. La
+     tarjeta pasa de 125px a ~83px sin perder icono ni etiqueta, así que el
+     tono sigue sin ser el único portador de significado (WCAG 1.4.1). */
+  .coord-page .stat-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-2);
+    row-gap: 0;
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .coord-page .stat-card__icon {
+    grid-row: 1 / span 2;
+    margin-bottom: 0;
+    font-size: var(--fs-md);
+  }
+
+  /* .stat-card__value no se redeclara: components/_stat-card.css ya lo ata a
+     var(--fs-metric) y el token escala solo por tramo. */
+  .coord-page .stat-card__label {
+    font-size: var(--fs-xs);
+  }
+}
+
+/* Con ratón la caja de pestañas y la de los campos de filtro bajan de 48 a
+   40px y de 38 a 31px. En un híbrido táctil se conservan los 44px de
+   --tap-min (WCAG 2.5.5); 40px sigue cumpliendo WCAG 2.5.8 AA, cuyo mínimo
+   son 24x24. Misma condición y mismo criterio que --nav-link-pad-y. */
+@media (min-width: 992px) and (max-height: 51.25rem) and (pointer: fine) {
+  .coord-page .nav-tabs .nav-link {
+    min-height: 2.5rem;
+    padding-block: var(--space-2);
+    padding-inline: var(--space-3);
+  }
+
+  .coord-page .form-label {
+    margin-bottom: var(--space-1);
+    font-size: var(--fs-sm);
+  }
+
+  .coord-page .form-select,
+  .coord-page .form-control {
+    padding-top: var(--space-1);
+    padding-bottom: var(--space-1);
+    font-size: var(--fs-sm);
+  }
+}
+
+/* ==========================================================================
+   7. COLUMNA «PROGRAMA» INYECTADA POR JS
+   En modo «Todos los programas» (el valor por defecto del selector) el JS
+   añade una columna al frente de cada tabla y los anchos preferidos pasan de
+   ~1139 a ~1369px contra los 1138px reales del portátil: nombres y correos
+   envolvían a dos líneas y la fila crecía de 61 a 85px. La columna se acota y
+   se recorta a dos líneas con el nombre completo en el title, el mismo patrón
+   que ya funcionaba en la columna de notas de Deliberación.
+   ========================================================================== */
+
+.coord-page .program-col {
+  max-width: 10rem;
+}
+
+/* El recorte va en un hijo, NO en el <td>. Cambiar el display de una celda
+   de table-cell a -webkit-box hace que el navegador la envuelva en una celda
+   anónima: deja de participar con normalidad en el reparto de anchos de
+   columna y pierde el colapso de bordes que aplica .table. */
+.coord-page td.program-col {
+  white-space: normal;
+}
+
+.coord-page td.program-col > * {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

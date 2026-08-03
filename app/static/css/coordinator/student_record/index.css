@@ -50,6 +50,16 @@
   margin-top: var(--space-3);
 }
 
+/* En #editPersonalInfoModal el <form> envuelve al cuerpo y al pie, así que es
+   él —y no .modal-body— el hijo flexible de .modal-content. Sin esta regla,
+   .modal-dialog-scrollable recorta el pie con «Guardar cambios» en vez de dar
+   scroll al cuerpo. */
+#editPersonalInfoModal .modal-content > form {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* La barra de 9 pestañas desborda en móvil: se desplaza en horizontal sin
    romper el layout y sin ocultar ninguna. */
 @media (max-width: 767.98px) {

@@ -10,12 +10,11 @@
 
 {% block content %}
 <div class="program-view-container">
-    {# Hero Section #}
-    {% include 'programs/view/_hero.html' %}
-
-    {# Aviso: sin periodo de admisión abierto #}
+    {# Aviso: sin periodo de admisión abierto.
+       Va DELANTE del hero: es la información que decide la visita y detrás
+       del hero quedaba fuera del pliegue en portátil y en monitor de 24". #}
     {% if not admission_open %}
-    <section class="py-3 my-3" id="no-period-banner" data-reveal>
+    <section id="no-period-banner" data-reveal>
       <div class="empty-state empty-state--compact">
         <div class="empty-state__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
         <h2 class="empty-state__title">No hay periodo de admisión abierto</h2>
@@ -51,6 +50,9 @@
       </div>
     </section>
     {% endif %}
+
+    {# Hero Section #}
+    {% include 'programs/view/_hero.html' %}
 
     {# Información del Programa #}
     {% include 'programs/view/_program_info.html' %}

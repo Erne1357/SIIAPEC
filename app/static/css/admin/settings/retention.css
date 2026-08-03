@@ -1,0 +1,40 @@
+/* app/static/css/admin/settings/retention.css
+   Panel de políticas de retención (_retention_panel.html).
+
+   La hoja la cargan las DOS pantallas que incluyen el panel:
+   admin/settings/retention.html y la pestaña «Retención de archivos» de
+   admin/settings/archives.html. Antes el panel no tenía hoja propia y la
+   página independiente se quedaba sin ningún estilo. */
+
+/* ── Barra de guardado ───────────────────────────────────────────────────── */
+
+/* La tarjeta del formulario mide 432px bajo 208px de cabecera y aviso: en un
+   portátil el botón «Guardar» de una configuración irreversible quedaba entre
+   46 y 84px por debajo del pliegue y había que desplazarse a ciegas. */
+.retention-form__actions {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-above);
+  margin-block-start: var(--space-3);
+  margin-block-end: calc(-1 * var(--space-4));
+  margin-inline: calc(-1 * var(--space-4));
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-default);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* ── Compactación vertical en portátil ───────────────────────────────────── */
+
+/* La separación entre etiqueta y campo no tiene token propio: solo en el tramo
+   compacto los cuatro campos se aprietan para que la tarjeta entera quepa
+   sobre el pliegue junto con su barra de guardado. */
+@media (min-width: 992px) and (max-height: 51.25rem) {
+  #formPolicy .form-label {
+    margin-bottom: var(--space-1);
+  }
+
+  #formPolicy .mb-3 {
+    margin-bottom: var(--space-2) !important;
+  }
+}

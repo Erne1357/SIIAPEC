@@ -502,7 +502,7 @@
             : 'event-card';
 
         return `
-            <div class="col-sm-6 col-lg-4">
+            <div class="col-sm-6 col-lg-4 event-card-col">
                 <div class="${cardClass}" data-event-id="${ev.id}">
                     ${coverHtml}
                     <div class="card-body">

@@ -54,10 +54,13 @@
 
 {{ stepper(_admission_steps, current=_status_step.get(admission_status, 1)) }}
 
-{% include 'partials/_events_widget.html' %}
+{# La acción principal va ANTES del widget de eventos: el widget mide entre 0 y
+   228px según cuántas invitaciones traiga, así que dejarlo encima hacía que el
+   botón "Ir a mis documentos" cayera bajo el pliegue sólo para los aspirantes
+   con eventos. La razón de ser de la pantalla no puede depender de los datos. #}
 
 <!-- Acción principal + accesos secundarios -->
-<section class="row mb-4" aria-labelledby="applicantActionsTitle">
+<section class="row dashboard-section" aria-labelledby="applicantActionsTitle">
     <div class="col-12">
         <h2 class="h5 mb-3 fw-bold" id="applicantActionsTitle">
             <i class="bi bi-lightning-charge-fill me-2" aria-hidden="true"></i>¿Qué quieres hacer?
@@ -95,6 +98,8 @@
         </div>
     </div>
 </section>
+
+{% include 'partials/_events_widget.html' %}
 
 <!-- Panel Principal: Estado y Progreso -->
 <div class="row">
@@ -359,7 +364,7 @@
             <div class="col-sm-4">
               <div class="stat-card h-100">
                 <i class="bi bi-calendar2-event stat-card__icon" aria-hidden="true"></i>
-                <p class="stat-card__value">{{ d.deferred_to_period_name or 'Por asignar' }}</p>
+                <p class="stat-card__value stat-card__value--text">{{ d.deferred_to_period_name or 'Por asignar' }}</p>
                 <p class="stat-card__label">Periodo destino</p>
               </div>
             </div>

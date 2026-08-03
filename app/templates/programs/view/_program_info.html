@@ -1,8 +1,8 @@
 {# app/templates/programs/_program_info.html #}
-<section id="programa" class="py-4 bg-light rounded-3 my-4">
-  <div class="text-center mb-4" data-reveal>
-    <h2 class="h3 fw-bold mb-3">Acerca del Programa</h2>
-    <div class="divider-center mb-3"></div>
+<section id="programa" class="bg-light rounded-3">
+  <div class="program-section-head" data-reveal>
+    <h2 class="h3 fw-bold">Acerca del Programa</h2>
+    <div class="divider-center"></div>
     <p class="lead program-lead">
       {{ program.introduction_text or program.description }}
     </p>
@@ -48,7 +48,7 @@
   </div>
 
   {% if program.show_objectives and program.objectives %}
-  <div class="bg-white p-4 rounded shadow-sm mt-4" data-reveal>
+  <div class="bg-white rounded shadow-sm mt-3 program-panel" data-reveal>
     <h3 class="h4 fw-bold mb-3">Objetivos del Programa</h3>
     <ul class="list-unstyled mb-0">
       {% for objective in program.objectives %}

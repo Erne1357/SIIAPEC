@@ -131,6 +131,19 @@ class DeliberationManager {
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    /**
+     * Celda «Programa» del modo «Todos los programas». La columna se acota por
+     * CSS (.program-col): en el portátil los anchos preferidos de la tabla
+     * pasaban de ~1139 a ~1369px contra 1138px reales y las filas crecían de
+     * 61 a 85px. El nombre completo queda en el title.
+     */
+    _programCell(name) {
+        const value = name || '';
+        return this._isAllMode()
+            ? `<td class="program-col text-muted small" title="${this._escAttr(value)}">${value}</td>`
+            : '';
+    }
+
     /** Celda de notas: dos líneas legibles + texto completo en el title. */
     _notesCell(text) {
         const value = text || '-';
@@ -273,8 +286,7 @@ class DeliberationManager {
         const user = item.user;
         const up = item.user_program;
         const formatDate = (dateStr) => this._formatDate(dateStr);
-        const programCell = this._isAllMode()
-            ? `<td class="text-muted small">${item.__program_name || ''}</td>` : '';
+        const programCell = this._programCell(item.__program_name);
 
         return `
             <tr>
@@ -435,8 +447,7 @@ class DeliberationManager {
         const user = item.user;
         const up = item.user_program;
         const formatDate = (dateStr) => this._formatDate(dateStr);
-        const programCell = this._isAllMode()
-            ? `<td class="text-muted small">${item.__program_name || ''}</td>` : '';
+        const programCell = this._programCell(item.__program_name);
 
         switch (status) {
             case 'interview_completed':

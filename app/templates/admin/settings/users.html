@@ -27,44 +27,43 @@
     </div>
   </header>
 
-  <!-- Filtros -->
-  <section class="card mb-4" aria-labelledby="usersFiltersTitle">
-    <div class="card-body">
-      <h2 class="visually-hidden" id="usersFiltersTitle">Filtros de búsqueda</h2>
-      <div class="row g-3">
-        <div class="col-md-4">
-          <label class="form-label" for="searchInput">Buscar</label>
-          <input type="search" id="searchInput" name="searchInput" class="form-control"
-                 placeholder="Nombre, correo, usuario o número de control…">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label" for="roleFilter">Rol</label>
-          <select id="roleFilter" name="roleFilter" class="form-select">
-            <option value="">Todos los roles</option>
-            <option value="applicant">Aspirante</option>
-            <option value="student">Estudiante</option>
-            <option value="graduate">Egresado</option>
-            <option value="program_admin">Administración de programa</option>
-            <option value="postgraduate_admin">Administración de posgrado</option>
-            <option value="social_service">Servicio social</option>
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label" for="activeFilter">Estado</label>
-          <select id="activeFilter" name="activeFilter" class="form-select">
-            <option value="all">Todos</option>
-            <option value="true" selected>Activos</option>
-            <option value="false">Inactivos</option>
-          </select>
-        </div>
-        <div class="col-md-3 d-flex align-items-end flex-wrap gap-2">
-          <button type="button" id="btnSearch" class="btn btn-primary">
-            <i class="bi bi-search me-1" aria-hidden="true"></i>Buscar
-          </button>
-          <button type="button" id="btnClearFilters" class="btn btn-outline-secondary">
-            <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Limpiar
-          </button>
-        </div>
+  {# Filtros: barra sin tarjeta. Envuelta en .card gastaba 128px de pliegue
+     para tres controles que caben en 80px. #}
+  <section class="users-filters" aria-labelledby="usersFiltersTitle">
+    <h2 class="visually-hidden" id="usersFiltersTitle">Filtros de búsqueda</h2>
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label" for="searchInput">Buscar</label>
+        <input type="search" id="searchInput" name="searchInput" class="form-control"
+               placeholder="Nombre, correo, usuario o número de control…">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="roleFilter">Rol</label>
+        <select id="roleFilter" name="roleFilter" class="form-select">
+          <option value="">Todos los roles</option>
+          <option value="applicant">Aspirante</option>
+          <option value="student">Estudiante</option>
+          <option value="graduate">Egresado</option>
+          <option value="program_admin">Administración de programa</option>
+          <option value="postgraduate_admin">Administración de posgrado</option>
+          <option value="social_service">Servicio social</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="activeFilter">Estado</label>
+        <select id="activeFilter" name="activeFilter" class="form-select">
+          <option value="all">Todos</option>
+          <option value="true" selected>Activos</option>
+          <option value="false">Inactivos</option>
+        </select>
+      </div>
+      <div class="col-md-3 d-flex flex-wrap gap-2">
+        <button type="button" id="btnSearch" class="btn btn-primary">
+          <i class="bi bi-search me-1" aria-hidden="true"></i>Buscar
+        </button>
+        <button type="button" id="btnClearFilters" class="btn btn-outline-secondary">
+          <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Limpiar
+        </button>
       </div>
     </div>
   </section>
@@ -80,7 +79,8 @@
       </div>
 
       <div id="usersTableContainer" class="d-none">
-        {{ data_table_open('Usuarios registrados en el sistema', table_class='table-hover align-middle') }}
+        {{ data_table_open('Usuarios registrados en el sistema', table_class='table-hover align-middle',
+                        wrapper_class='siiap-table-wrapper--sticky-head') }}
           <thead>
             <tr>
               <th scope="col">Usuario</th>
@@ -117,7 +117,9 @@
 
 {% block modals %}
 {# ── Detalle del usuario ─────────────────────────────────────────────────── #}
-{% call(section) modal_shell('userDetailModal', 'Detalles del usuario', size='lg', icon='person-badge') %}
+{# Contenido inyectado por JS y de largo indeterminado: el diálogo scrollea. #}
+{% call(section) modal_shell('userDetailModal', 'Detalles del usuario', size='lg', icon='person-badge',
+                             scrollable=true) %}
   {% if section == 'body' %}
     <div id="userDetailContent" aria-live="polite"></div>
   {% endif %}
@@ -249,7 +251,9 @@
 {% endif %}
 
 {# ── Historial de acciones ───────────────────────────────────────────────── #}
-{% call(section) modal_shell('userHistoryModal', 'Historial de acciones', size='lg', icon='clock-history') %}
+{# El historial crece con el número de acciones: el diálogo scrollea. #}
+{% call(section) modal_shell('userHistoryModal', 'Historial de acciones', size='lg', icon='clock-history',
+                             scrollable=true) %}
   {% if section == 'body' %}
     <div id="userHistoryContent" aria-live="polite"></div>
   {% endif %}

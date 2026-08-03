@@ -573,7 +573,7 @@
         // Main action block: appointment card or informational notice
         if (myAppt) {
             block.innerHTML = `
-                <div class="appointment-card p-4 mb-4">
+                <div class="appointment-card p-4 event-section-card">
                     <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start gap-3">
                         <div>
                             <p class="text-muted small mb-1">
@@ -602,7 +602,7 @@
             document.getElementById('btnCancelAppt')?.addEventListener('click', cancelAppointment);
         } else {
             block.innerHTML = `
-                <div class="info-notice d-flex align-items-center gap-3 mb-4">
+                <div class="info-notice d-flex align-items-center gap-3 event-section-card">
                     <i class="bi bi-info-circle-fill notice-icon" aria-hidden="true"></i>
                     <div>
                         <strong>Sin cita asignada aún</strong>
@@ -665,7 +665,7 @@
         }
 
         block.innerHTML = `
-            <div class="card border-0 shadow-sm mb-4">
+            <div class="card border-0 shadow-sm event-section-card">
                 <div class="card-header bg-white border-bottom">
                     <h2 class="h5 mb-0">
                         <i class="bi bi-people-fill me-2 text-primary" aria-hidden="true"></i>Inscripción

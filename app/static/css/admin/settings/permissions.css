@@ -1,9 +1,17 @@
 /* app/static/css/admin/settings/permissions.css
    Estilos para la página de gestión de permisos por rol. */
 
+/* 20rem fijos eran 320px, el 58% del alto útil de un portátil: la columna
+   izquierda desbordaba 98px y el log quedaba cortado por la mitad. Se mide
+   contra la ventana, igual que las demás alturas de superposición. */
 .audit-log-body {
-  max-height: 20rem;
+  max-height: clamp(9rem, 28vh, 20rem);
   overflow-y: auto;
+}
+
+/* El relleno de los paneles de permisos sigue el ritmo de tramo. */
+#permTabsContent {
+  padding: var(--tab-content-pad);
 }
 
 .audit-meta {

@@ -9,10 +9,12 @@
 
 {% block content %}
 {% from '_macros.html' import empty_state %}
-<div class="container-fluid py-4">
+<div class="dashboard-page container-fluid">
   {# El saludo personalizado y el próximo paso los da role_banner dentro de cada
-     dashboard; aquí solo se nombra la página para la navegación por encabezados. #}
-  <h1 class="h3 fw-bold mb-4">Panel de control</h1>
+     dashboard, así que este h1 sería una tercera repetición del mismo mensaje.
+     Se conserva para la navegación por encabezados y el lector de pantalla,
+     pero sin ocupar alto propio: eran 58px del presupuesto vertical. #}
+  <h1 class="visually-hidden">Panel de control</h1>
 
   {% if has_perm('programs.api.enroll') %}
     {% include 'user/dashboard/applicant_dashboard.html' %}

@@ -31,7 +31,7 @@
   <div id="alerts" role="status" aria-live="polite"></div>
 
   {# Información sobre variables #}
-  <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="note">
+  <div class="alert alert-info templates-hint d-flex align-items-start gap-2 mb-3" role="note">
     <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
     <div>
       Las plantillas pueden ser archivos <strong>HTML</strong> o <strong>DOCX</strong> con marcadores
@@ -40,32 +40,31 @@
     </div>
   </div>
 
-  {# Filtros #}
-  <section class="card mb-4" aria-labelledby="templatesFiltersTitle">
-    <div class="card-body py-3">
-      <h2 class="visually-hidden" id="templatesFiltersTitle">Filtros</h2>
-      <div class="row g-2 align-items-end">
-        <div class="col-sm-4 col-lg-3">
-          <label class="form-label mb-1 small fw-semibold" for="filterDocType">Tipo de documento</label>
-          <select id="filterDocType" name="filterDocType" class="form-select form-select-sm">
-            <option value="">Todos</option>
-            <option value="acceptance_letter">Carta de aceptación</option>
-            <option value="enrollment_confirmation">Confirmación de inscripción</option>
-            <option value="course_schedule">Tira de materias</option>
-          </select>
+  {# Filtros: barra sin tarjeta. Envuelta en .card, un único desplegable y un
+     interruptor gastaban 106px de pliegue. #}
+  <section class="templates-filters" aria-labelledby="templatesFiltersTitle">
+    <h2 class="visually-hidden" id="templatesFiltersTitle">Filtros</h2>
+    <div class="row g-2 align-items-end">
+      <div class="col-sm-4 col-lg-3">
+        <label class="form-label mb-1 small fw-semibold" for="filterDocType">Tipo de documento</label>
+        <select id="filterDocType" name="filterDocType" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          <option value="acceptance_letter">Carta de aceptación</option>
+          <option value="enrollment_confirmation">Confirmación de inscripción</option>
+          <option value="course_schedule">Tira de materias</option>
+        </select>
+      </div>
+      <div class="col-sm-auto">
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" role="switch" id="filterActiveOnly"
+                 name="filterActiveOnly" checked>
+          <label class="form-check-label small" for="filterActiveOnly">Solo activas</label>
         </div>
-        <div class="col-sm-auto">
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" role="switch" id="filterActiveOnly"
-                   name="filterActiveOnly" checked>
-            <label class="form-check-label small" for="filterActiveOnly">Solo activas</label>
-          </div>
-        </div>
-        <div class="col-sm-auto ms-sm-auto">
-          <button type="button" class="btn btn-sm btn-outline-secondary" id="btnRefresh">
-            <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Actualizar
-          </button>
-        </div>
+      </div>
+      <div class="col-sm-auto ms-sm-auto">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnRefresh">
+          <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Actualizar
+        </button>
       </div>
     </div>
   </section>

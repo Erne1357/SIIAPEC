@@ -79,9 +79,11 @@
           </li>
         </ul>
 
-        <div class="tab-content">
+        {# El p-3 de cada panel se sumaba al relleno de .card .tab-content: 32px
+           de aire duplicado. El relleno lo pone ahora solo el contenedor. #}
+        <div class="tab-content" id="permTabsContent">
           <!-- Pestaña: permisos base -->
-          <div class="tab-pane fade show active p-3" id="tabSeed" role="tabpanel">
+          <div class="tab-pane fade show active" id="tabSeed" role="tabpanel">
             <label class="form-label visually-hidden" for="seedFilter">Buscar permiso base</label>
             <input type="search" class="form-control form-control-sm mb-3" id="seedFilter" placeholder="Buscar permiso…">
             {{ data_table_open('Permisos base del rol seleccionado', id='seedTable', table_class='table-sm table-hover align-middle') }}
@@ -99,7 +101,7 @@
           </div>
 
           <!-- Pestaña: permisos adicionales -->
-          <div class="tab-pane fade p-3" id="tabOverrides" role="tabpanel">
+          <div class="tab-pane fade" id="tabOverrides" role="tabpanel">
             {{ data_table_open('Permisos adicionales concedidos al rol seleccionado', id='overridesTable', table_class='table-sm table-hover align-middle') }}
               <thead class="table-light">
                 <tr>
@@ -123,7 +125,10 @@
 {% endblock %}
 
 {% block modals %}
-{% call(section) modal_shell('addOverrideModal', 'Agregar permiso a rol', icon='shield-plus') %}
+{# Cuerpo de ~480px por el <select size="8">: el diálogo scrollea para que el
+   pie siga a la vista en un portátil. #}
+{% call(section) modal_shell('addOverrideModal', 'Agregar permiso a rol', icon='shield-plus',
+                             scrollable=true) %}
   {% if section == 'body' %}
     <div class="mb-3">
       <label class="form-label fw-semibold" for="filterResource">Recurso</label>

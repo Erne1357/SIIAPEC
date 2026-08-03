@@ -14,7 +14,7 @@
 
     <!-- KPI cards: filtran la tabla de abajo -->
     <h2 class="visually-hidden">Resumen de la agenda</h2>
-    <div class="row g-3 mb-4 events-kpis" id="eventsKpis">
+    <div class="row g-3 mb-3 events-kpis" id="eventsKpis">
         <div class="col-6 col-md-4 col-lg-2">
             <button type="button" class="stat-card stat-card--interactive h-100" data-kpi-action="today" aria-pressed="false">
                 <i class="bi bi-sun stat-card__icon" aria-hidden="true"></i>
@@ -111,7 +111,8 @@
     <!-- Tabla de eventos -->
     <div class="card">
         {{ data_table_open('Eventos que coinciden con los filtros, con su programa, fecha y ocupación',
-                           id='eventsTable', table_class='table-hover align-middle') }}
+                           id='eventsTable', table_class='table-hover align-middle',
+                        wrapper_class='siiap-table-wrapper--sticky-head') }}
             <thead class="table-light">
                 <tr>
                     <th scope="col" class="events-col-title">Evento</th>
@@ -133,7 +134,8 @@
 
 {% block modals %}
 <!-- Modal: Crear evento (wizard 2 etapas) -->
-{% call(section) modal_shell('createEventModal', 'Crear evento', size='xl', icon='calendar-plus') %}
+{% call(section) modal_shell('createEventModal', 'Crear evento', size='xl',
+                             icon='calendar-plus', scrollable=true) %}
     {% if section == 'body' %}
     <ol class="stepper mb-4" id="wizardStepper" aria-label="Progreso de la creación del evento">
         <li class="stepper__step stepper__step--active" data-step="1" aria-current="step">

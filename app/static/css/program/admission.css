@@ -3,6 +3,54 @@
    Panel de admisión del aspirante.
    ────────────────────────────────────────────────────────────── */
 
+/* ──────────────────────────────────────────────────────────────
+   CABECERA DEL PANEL
+   Antes de la primera fila de la tabla había 496px de cromo (título,
+   stepper, alerta y pestañas) sobre un pliegue de 556px en portátil: se
+   veía el <thead> y un tercio de una fila. Todo el ritmo de esta zona
+   sale ahora de los tokens de tramo.
+   ────────────────────────────────────────────────────────────── */
+
+.admission-panel {
+  padding-block: var(--block-pad-y);
+}
+
+.admission-panel__title {
+  font-size: var(--fs-page-title);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  margin-bottom: var(--space-1);
+}
+
+.admission-panel__subtitle {
+  margin-bottom: var(--stack-gap);
+}
+
+.admission-panel__stepper {
+  margin-bottom: var(--stack-gap);
+}
+
+/* El aviso permanente sobre la tabla: texto que el aspirante lee una vez
+   y luego estorba en cada visita. */
+.admission-intro {
+  padding: var(--block-pad-y) var(--space-4);
+  margin-bottom: var(--stack-gap);
+}
+
+.admission-intro__text {
+  max-width: var(--measure-prose);
+}
+
+/* .nav-tabs y .tab-content son componentes compartidos y aún miden en
+   var(--space-6) fijo: dentro de este panel consumen el tramo. */
+.admission-panel .nav-tabs {
+  margin-bottom: var(--stack-gap);
+}
+
+.admission-panel .tab-content {
+  padding: var(--tab-content-pad) var(--space-4);
+}
+
 /* Reduce el relleno del botón acordeón para que se lea como enlace */
 .accordion-button {
   padding-left: 0;

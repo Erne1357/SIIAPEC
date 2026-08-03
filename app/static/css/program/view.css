@@ -18,6 +18,36 @@
   scroll-margin-top: var(--space-8);
 }
 
+/* Ritmo vertical de las secciones.
+   Antes cada sección traía `py-4 my-4` en la plantilla: 24px de relleno más
+   24px de margen colapsado, o sea 72px por frontera, iguales en un portátil
+   de 740px y en un 4K. Ahora el ritmo sale de los tokens de tramo y baja a
+   24px por frontera en pantallas bajas. */
+.program-view-container > section:not(.program-hero-section) {
+  padding-block: var(--block-pad-y);
+  margin-block: var(--stack-gap);
+}
+
+/* Cabecera compartida de cada sección (título + filete + entradilla).
+   Se repite cinco veces: cada píxel aquí se paga cinco veces. */
+.program-section-head {
+  text-align: center;
+  margin-bottom: var(--stack-gap);
+}
+
+.program-section-head > h2 {
+  font-size: var(--fs-page-title);
+  margin-bottom: var(--space-2);
+}
+
+.program-section-head .divider-center {
+  margin-bottom: var(--space-2);
+}
+
+.program-section-head .program-lead {
+  margin-bottom: 0;
+}
+
 /* Ancho de medida del párrafo introductorio de cada sección */
 .program-lead {
   max-width: var(--measure-prose);
@@ -36,13 +66,16 @@
     var(--color-brand-primary-100),
     var(--bg-surface-sunken));
   border-radius: var(--radius-lg);
-  padding: var(--space-8);
-  margin-bottom: var(--space-8);
+  padding: var(--hero-pad-y) var(--space-8);
+  margin-bottom: var(--stack-gap);
 }
 
+/* El 4vw se saturaba en 40px desde 1000px de ancho: portátil, 24" y 27"
+   recibían el mismo cuerpo aunque el alto útil pasara de 556 a 1126px.
+   Ahora sigue la escala de título de página y nunca baja de 24px. */
 .program-hero__title {
   font-family: var(--font-display);
-  font-size: clamp(1.75rem, 4vw, var(--fs-3xl));
+  font-size: max(var(--fs-xl), var(--fs-page-title));
   font-weight: var(--fw-bold);
   line-height: var(--lh-tight);
   letter-spacing: var(--tracking-tight);
@@ -55,7 +88,7 @@
   line-height: var(--lh-relaxed);
   color: var(--text-secondary);
   max-width: var(--measure-prose);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--stack-gap);
 }
 
 .program-hero__actions {
@@ -92,11 +125,16 @@
   box-shadow: var(--shadow-3);
 }
 
+/* El max-height de 400px era código muerto: con relación 960x540 haría falta
+   una columna de 711px y el contenedor topa antes. La altura la fijaba de
+   facto la imagen (316px en el portátil, el 57% del pliegue) para un elemento
+   decorativo con alt="". Ahora se mide contra el viewport, como el visor de
+   documentos: 178px a 740px de alto, 228px a 950px y 314px a 1310px. */
 .program-hero__image {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 400px;
+  max-height: clamp(10rem, 24vh, 25rem);
   object-fit: cover;
   border-radius: var(--radius-lg);
 }
@@ -108,8 +146,8 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-4);
   list-style: none;
-  margin: var(--space-8) 0 0;
-  padding: var(--space-4) 0 0;
+  margin: var(--stack-gap) 0 0;
+  padding: var(--block-pad-y) 0 0;
   border-top: 1px solid var(--border-default);
 }
 
@@ -182,8 +220,8 @@
 }
 
 .icon-circle {
-  width: 50px;
-  height: 50px;
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
   border-radius: var(--radius-pill);
   display: flex;
   align-items: center;
@@ -229,17 +267,23 @@
    BOTONES FLOTANTES
    ────────────────────────────────────────────────────────────── */
 
+/* Anclados ABAJO en todos los anchos. Con `top: 130px` (valor absoluto que
+   además ignoraba --header-h) y un contenedor que sólo empieza a centrarse
+   por encima de 1598px, 'Regresar' caía sobre el <h1> del programa y
+   'Postularme' sobre la imagen del hero en TODO ancho de 992 a 1798px: justo
+   el del portátil. Al pie no hay colisión posible y el contenedor ya reserva
+   el hueco con su padding-bottom. */
 .floating-back-button {
   position: fixed;
-  top: 130px;
-  left: calc(var(--sidebar-w) + var(--space-3));
+  bottom: calc(var(--footer-h) + var(--space-4));
+  left: calc(var(--sidebar-w) + var(--space-4));
   z-index: var(--z-dropdown);
 }
 
 .floating-inscription-button {
   position: fixed;
-  top: 130px;
-  right: var(--space-8);
+  bottom: calc(var(--footer-h) + var(--space-4));
+  right: var(--space-4);
   z-index: var(--z-fab);
 }
 
@@ -291,23 +335,6 @@
   box-shadow: var(--shadow-4);
 }
 
-/* El sidebar desaparece a 991.98px y --sidebar-w pasa a 0: anclados arriba,
-   ambos botones quedaban encima del <h1> y de la imagen del hero. Debajo de
-   ese ancho pasan al pie, donde .program-view-container ya reserva espacio. */
-@media (max-width: 991.98px) {
-  .floating-back-button {
-    top: auto;
-    bottom: calc(var(--footer-h) + var(--space-4));
-    left: var(--space-4);
-  }
-
-  .floating-inscription-button {
-    top: auto;
-    bottom: calc(var(--footer-h) + var(--space-4));
-    right: var(--space-4);
-  }
-}
-
 @media (max-width: 767.98px) {
   .btn-inscription,
   .btn-back {
@@ -331,7 +358,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-2);
+  padding: var(--nav-link-pad-y) var(--space-2);
 }
 
 .phase-icon-container {
@@ -356,11 +383,46 @@
   font-size: var(--fs-sm);
 }
 
+/* En escritorio hay ~390px por pestaña para una sola palabra ('Admisión',
+   'Permanencia', 'Conclusión'): apilar un icono de 50px sobre la etiqueta
+   costaba 127px de barra. En fila baja a ~48px. No lo resuelve ningún token
+   —es la dirección de la caja—, así que va con la condición de ancho estándar. */
+@media (min-width: 992px) {
+  .admission-phases-nav .nav-link {
+    flex-direction: row;
+    justify-content: center;
+    padding: var(--nav-link-pad-y) var(--space-4);
+  }
+
+  .phase-icon-container {
+    margin-bottom: 0;
+  }
+
+  .phase-icon {
+    width: var(--icon-box-sm);
+    height: var(--icon-box-sm);
+  }
+}
+
+/* El contenedor de pestañas global aporta borde, fondo y 24px de relleno,
+   pensados para .nav-tabs. Aquí la navegación es de píldoras y cada fase ya
+   trae su propia superficie (.phase-content): sin esto quedaban una tarjeta
+   dentro de otra y 48px verticales duplicados. */
+#admision .tab-content {
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+}
+
 .phase-content {
   background-color: var(--bg-surface);
   border-radius: var(--radius-md);
-  padding: var(--space-8);
+  padding: var(--block-pad-y) var(--space-6);
   box-shadow: var(--shadow-1);
+}
+
+.phase-header {
+  margin-bottom: var(--stack-gap);
 }
 
 .steps-timeline {
@@ -381,7 +443,7 @@
 .timeline-item {
   position: relative;
   padding-left: var(--space-12);
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--stack-gap);
 }
 
 .timeline-item:last-child {
@@ -430,8 +492,26 @@
   }
 
   .phase-content {
-    padding: var(--space-6);
+    padding: var(--space-6) var(--space-4);
   }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   TARJETAS DE CONTACTO Y DE PERFIL
+   ────────────────────────────────────────────────────────────── */
+
+/* Las tarjetas informativas ya viven dentro de una sección con relleno:
+   32px fijos por dentro eran aire duplicado. */
+.program-panel {
+  padding: var(--block-pad-y) var(--space-4);
+}
+
+.contact-item {
+  margin-bottom: var(--stack-gap);
+}
+
+.contact-item:last-child {
+  margin-bottom: 0;
 }
 
 /* ──────────────────────────────────────────────────────────────

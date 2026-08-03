@@ -13,8 +13,12 @@
   box-shadow: var(--shadow-4);
 }
 
+/* 180px fijos eran el 40% de una tarjeta de 453px para una imagen decorativa
+   (alt=""), y el único media query los SUBÍA a 200px. Ahora la imagen se mide
+   contra el viewport: 118px a 740px de alto, 152px a 950px y 180px a partir
+   de 1125px, que es donde de verdad sobra sitio. */
 .program-image {
-  height: 180px;
+  height: clamp(7.5rem, 16vh, 11.25rem);
   width: 100%;
   object-fit: cover;
   transition: transform var(--duration-slow) var(--ease-out);
@@ -81,7 +85,7 @@
 }
 
 .program-card-body {
-  padding: var(--space-6);
+  padding: var(--block-pad-y) var(--space-5);
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -114,14 +118,14 @@
 /* === HERO INSTITUCIONAL === */
 .programs-hero {
   position: relative;
-  padding: var(--space-12) var(--space-8);
+  padding: var(--hero-pad-y) var(--space-8);
   background: linear-gradient(135deg,
     var(--color-brand-primary) 0%,
     var(--color-brand-primary-700) 60%,
     var(--color-brand-accent) 130%);
   color: var(--text-inverse);
   border-radius: var(--radius-xl);
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--stack-gap);
   overflow: hidden;
 }
 
@@ -141,12 +145,15 @@
   z-index: 1;
 }
 
+/* El clamp de 3.6vw se saturaba en 44px desde 1223px de ancho: portátil, 24"
+   y 27" recibían el mismo cuerpo y el título rompía en 3 líneas de 52.8px.
+   Con la escala de display por tramo son 32px (2 líneas) en el portátil. */
 .programs-hero__title {
   font-family: var(--font-display);
-  font-size: clamp(1.75rem, 3.6vw, 2.75rem);
+  font-size: clamp(var(--fs-xl), 3.6vw, var(--fs-display));
   font-weight: var(--fw-bold);
   line-height: var(--lh-tight);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
   letter-spacing: var(--tracking-tight);
   color: var(--text-inverse);
 }

@@ -7,8 +7,9 @@
 {%- if up and up.current_semester %} · Semestre {{ up.current_semester }}{% endif -%}
 {% endset %}
 
-<div class="row justify-content-center">
-  <div class="col-lg-9">
+{# Ancho fijo en vez de .col-lg-9: el porcentaje daba 895px en el portátil
+   (donde la línea de contexto del banner se parte) y 1664px en un 27". #}
+<div class="student-dashboard">
 
     {{ role_banner(
       user=current_user,
@@ -21,11 +22,9 @@
       )
     ) }}
 
-    {% include 'partials/_events_widget.html' %}
-
     {# — Alertas de documentos pendientes — #}
     {% if pending_admission_docs %}
-      <div class="alert alert-danger shadow-sm mb-4 d-flex align-items-start gap-3" role="alert">
+      <div class="alert alert-danger shadow-sm dashboard-alert d-flex align-items-start gap-3" role="alert">
         <i class="bi bi-exclamation-triangle-fill fs-2 flex-shrink-0 mt-1" aria-hidden="true"></i>
         <div>
           <h2 class="alert-heading h5 fw-bold mb-1">Documentos de admisión pendientes</h2>
@@ -50,7 +49,7 @@
     {% endif %}
 
     {% if pending_permanence_docs %}
-      <div class="alert alert-danger shadow-sm mb-4 d-flex align-items-start gap-3" role="alert">
+      <div class="alert alert-danger shadow-sm dashboard-alert d-flex align-items-start gap-3" role="alert">
         <i class="bi bi-exclamation-triangle-fill fs-2 flex-shrink-0 mt-1" aria-hidden="true"></i>
         <div>
           <h2 class="alert-heading h5 fw-bold mb-1">Documentos de permanencia pendientes</h2>
@@ -75,11 +74,11 @@
     {% endif %}
 
     {# — Tarjetas de estado — #}
-    <div class="row g-3 mb-4">
+    <div class="row g-3 dashboard-section">
       <div class="col-sm-4">
         <div class="stat-card h-100">
           <i class="bi bi-hash stat-card__icon" aria-hidden="true"></i>
-          <p class="stat-card__value">{{ current_user.control_number or '—' }}</p>
+          <p class="stat-card__value stat-card__value--text">{{ current_user.control_number or '—' }}</p>
           <p class="stat-card__label">Número de control</p>
         </div>
       </div>
@@ -94,18 +93,23 @@
         {% if permanence_data and permanence_data.current_enrollment and permanence_data.current_enrollment.enrollment_confirmed %}
           <div class="stat-card stat-card--success h-100">
             <i class="bi bi-check-circle-fill stat-card__icon" aria-hidden="true"></i>
-            <p class="stat-card__value">Inscrito</p>
+            <p class="stat-card__value stat-card__value--text">Inscrito</p>
             <p class="stat-card__label">Estado del semestre</p>
           </div>
         {% else %}
           <div class="stat-card stat-card--warning h-100">
             <i class="bi bi-hourglass-split stat-card__icon" aria-hidden="true"></i>
-            <p class="stat-card__value">Pendiente</p>
+            <p class="stat-card__value stat-card__value--text">Pendiente</p>
             <p class="stat-card__label">Estado del semestre</p>
           </div>
         {% endif %}
       </div>
     </div>
+
+    {# El widget de eventos va después de las cifras de estado: su alto va de 0
+       a 228px según cuántas invitaciones traiga y empujaba fuera del pliegue
+       justo los datos que el estudiante viene a consultar. #}
+    {% include 'partials/_events_widget.html' %}
 
     {# — Módulo de Permanencia — #}
     <section class="card mb-4" aria-labelledby="permanenceTitle">
@@ -282,5 +286,4 @@
     </section>
     {% endif %}
 
-  </div>
 </div>

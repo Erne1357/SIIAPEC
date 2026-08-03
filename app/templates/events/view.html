@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4" id="eventViewContainer" aria-busy="true">
+<div class="container-fluid events-page" id="eventViewContainer" aria-busy="true">
 
   <!-- Breadcrumb -->
   <nav aria-label="Ruta de navegación" class="mb-3">
@@ -60,7 +60,7 @@
       <div class="col-lg-8">
 
         <!-- Descripción -->
-        <div class="card border-0 shadow-sm mb-4">
+        <div class="card border-0 shadow-sm event-section-card">
           <div class="card-header bg-white border-bottom">
             <h2 class="h5 mb-0">
               <i class="bi bi-text-left me-2 text-primary" aria-hidden="true"></i>Descripción
@@ -72,7 +72,7 @@
         </div>
 
         <!-- Sección ponentes (oculta hasta que se cargue) -->
-        <div class="card border-0 shadow-sm mb-4 d-none" id="hostsCard">
+        <div class="card border-0 shadow-sm event-section-card d-none" id="hostsCard">
           <div class="card-header bg-white border-bottom">
             <h2 class="h5 mb-0">
               <i class="bi bi-mic-fill me-2 text-primary" aria-hidden="true"></i>Ponentes
@@ -86,7 +86,7 @@
         </div>
 
         <!-- Sección galería (oculta hasta que se cargue) -->
-        <div class="card border-0 shadow-sm mb-4 d-none" id="galleryCard">
+        <div class="card border-0 shadow-sm event-section-card d-none" id="galleryCard">
           <div class="card-header bg-white border-bottom">
             <h2 class="h5 mb-0">
               <i class="bi bi-images me-2 text-primary" aria-hidden="true"></i>Galería
@@ -121,7 +121,7 @@
       <div class="col-lg-4">
 
         <!-- Detalles del evento -->
-        <div class="card border-0 shadow-sm mb-4">
+        <div class="card border-0 shadow-sm event-section-card">
           <div class="card-header bg-white border-bottom">
             <h2 class="h5 mb-0">
               <i class="bi bi-info-circle me-2 text-primary" aria-hidden="true"></i>Detalles
@@ -131,7 +131,7 @@
         </div>
 
         <!-- Acciones rápidas -->
-        <div class="card border-0 shadow-sm mb-4" id="quickActionsCard">
+        <div class="card border-0 shadow-sm event-section-card" id="quickActionsCard">
           <div class="card-header bg-white border-bottom">
             <h2 class="h5 mb-0">
               <i class="bi bi-lightning-fill me-2 text-primary" aria-hidden="true"></i>Acciones
@@ -222,7 +222,7 @@
 
 <!-- Modal: Bio del ponente -->
 <div class="modal fade" id="hostBioModal" tabindex="-1" aria-labelledby="hostBioModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="hostBioModalLabel">Ponente</h5>

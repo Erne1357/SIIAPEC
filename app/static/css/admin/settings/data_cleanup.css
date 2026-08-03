@@ -4,6 +4,51 @@
    Los estados de un respaldo usan components/_status-badge.css y los estados
    vacíos usan components/_empty-state.css. Esta hoja no los redeclara. */
 
+/* ── Cromo de la pantalla ────────────────────────────────────────────────── */
+
+/* La política de respaldo es un aviso permanente: su relleno vertical sigue el
+   ritmo de tramo (12 / 20 / 24px) en vez de 16px fijos. */
+.cleanup-policy-alert {
+  padding-block: var(--block-pad-y);
+}
+
+/* Cuatro pestañas con etiquetas largas suman ~1222px y partían en dos filas en
+   el portátil, robando 44px de tabla. Una sola fila desplazable es estable en
+   los tres tamaños y no añade ningún umbral nuevo. */
+#cleanupTabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+#cleanupTabs .nav-link {
+  padding-inline: var(--space-3);
+  white-space: nowrap;
+}
+
+#cleanupTabsContent {
+  padding: var(--tab-content-pad);
+}
+
+/* Barra de acción anclada al pie del área de contenido: el botón primario vive
+   debajo de una tabla de altura variable. */
+.cleanup-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-above);
+  margin-block-start: var(--space-3);
+  margin-block-end: calc(-1 * var(--tab-content-pad));
+  margin-inline: calc(-1 * var(--tab-content-pad));
+  padding: var(--space-2) var(--tab-content-pad);
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-default);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+/* ── Tablas de candidatos y respaldos ────────────────────────────────────── */
+
 .cleanup-table {
   font-size: var(--fs-sm);
 }
