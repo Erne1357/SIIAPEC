@@ -133,8 +133,12 @@ h1, h2, h3,
   cursor: pointer;
 }
 
+/* 70vh a secas dejaba el pie del modal fuera de pantalla en portátiles: a
+   740px de alto un diálogo con cabecera, cuerpo y pie sumaba 779px. La
+   fórmula descuenta el cromo del diálogo y sólo deja mandar al 70vh en
+   pantallas altas, donde el valor coincide con el de siempre. */
 .modal-body-scroll {
-  max-height: 70vh;
+  max-height: var(--modal-body-max-h);
   overflow-y: auto;
 }
 
@@ -167,17 +171,25 @@ h1, h2, h3,
   flex-shrink: 0;
 }
 
-.logo-sep      { max-height: clamp(32px, 4vh, 48px); }
-.logo-tecnm    { max-height: clamp(42px, 5.5vh, 66px); }
-.logo-itcj     { max-height: clamp(42px, 5.5vh, 66px); }
-.logo-posgrado { max-height: clamp(38px, 5vh, 60px); }
+/* Los logos se miden contra --logo-h, que deriva de --header-h. Antes usaban
+   clamp(..., Nvh, ...) y crecían con el alto del viewport mientras el header
+   era un escalón fijo: en el techo de cada tramo desbordaban la cabecera.
+   Las proporciones entre los cuatro se conservan (SEP 73%, Posgrado 91%). */
+.logo-tecnm,
+.logo-itcj     { max-height: var(--logo-h); }
+.logo-posgrado { max-height: calc(var(--logo-h) * 0.91); }
+.logo-sep      { max-height: calc(var(--logo-h) * 0.73); }
 
+/* Sin relleno vertical: la altura de la cabecera la mandan los logos y el
+   objetivo táctil de la campana, no el logotipo. Con relleno, el logotipo
+   producía 108.8px de contenido dentro de una caja de 80px. */
 .brand-container {
   display: flex;
   flex-grow: 1;
   align-items: center;
   justify-content: center;
-  padding: var(--space-2);
+  padding-block: 0;
+  padding-inline: var(--space-2);
 }
 
 .brand-text {
@@ -213,14 +225,39 @@ h1, h2, h3,
   overflow: hidden;
 }
 
+/* Tres bandas: la tarjeta de usuario y el botón de salir quedan fijos y sólo
+   scrollea la navegación. Antes todo el aside era un único contenedor con
+   overflow-y:auto y en pantallas bajas el logout caía fuera del pliegue. */
 #sidebar {
   width: var(--sidebar-w);
   height: 100%;
   flex-shrink: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--bg-surface-sunken);
   border-right: 1px solid var(--border-default);
+}
+
+.sidebar__header,
+.sidebar__footer {
+  flex: 0 0 auto;
+}
+
+.sidebar__scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sidebar__footer {
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-surface-sunken);
+}
+
+.sidebar__footer .nav-link {
+  width: calc(100% - 2 * var(--space-3));
 }
 
 #main-content {
@@ -264,9 +301,12 @@ h1, h2, h3,
   margin-top: var(--space-1);
 }
 
+/* El relleno superior sigue a --nav-link-pad-y para que el menú se compacte
+   como un todo: con esto el menú completo de un administrador cabe sin
+   scroll en un monitor de 1920x1080, donde antes se pasaba por 13px. */
 .sidebar-section-label {
   margin: 0;
-  padding: var(--space-4) var(--space-4) var(--space-1);
+  padding: var(--nav-link-pad-y) var(--space-4) var(--space-1);
   font-size: var(--fs-xs);
   font-weight: var(--fw-bold);
   text-transform: uppercase;
@@ -469,17 +509,10 @@ body.modal-open {
     display: none;
   }
 
-  .header-logo {
-    max-height: clamp(28px, 4vh, 44px);
-  }
-
-  .logo-tecnm,
-  .logo-itcj {
-    max-height: clamp(36px, 5vh, 54px);
-  }
-
+  /* Los logos ya siguen a --logo-h, que deriva de --header-h-md: no hace
+     falta redeclararlos. Sólo el logotipo baja de escalón. */
   .brand-text {
-    font-size: clamp(1.8rem, 5vw, 3rem);
+    font-size: var(--fs-3xl);
   }
 }
 
@@ -495,7 +528,7 @@ body.modal-open {
   }
 
   .brand-text {
-    font-size: clamp(1.6rem, 6vw, 2.5rem);
+    font-size: var(--fs-2xl);
   }
 }
 

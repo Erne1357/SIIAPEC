@@ -159,7 +159,19 @@
   --fs-xl:        1.5rem;     /* 24px */
   --fs-2xl:       2rem;       /* 32px */
   --fs-3xl:       2.5rem;     /* 40px */
-  --fs-display:   clamp(2.5rem, 5vw, 4rem);
+
+  /* --fs-display es el logotipo SIIAP de la cabecera y su ÚNICO consumidor es
+     .brand-text. Era clamp(2.5rem, 5vw, 4rem), que se saturaba en 64px desde
+     1280px de ancho: producía 108.8px de contenido dentro de un header de
+     80px y se recortaba por arriba y por abajo en TODAS las pantallas.
+     Ahora escala por tramo de alto, junto con --header-h. */
+  --fs-display:   3rem;       /* 48px */
+
+  /* Cifras destacadas (.stat-card__value, .kpi-value) y títulos de página.
+     Se separan de la escala general porque son lo primero que se siente
+     desproporcionado cuando baja el alto del viewport. */
+  --fs-metric:      var(--fs-2xl);   /* 32px */
+  --fs-page-title:  1.75rem;         /* 28px */
 
   --fw-regular:   400;
   --fw-medium:    500;
@@ -258,13 +270,33 @@
      8. LAYOUT
      ========================================================================== */
 
-  --header-h:         80px;
+  --header-h:         88px;
   --header-h-md:      72px;
   --header-h-sm:      64px;
   --sidebar-w:        270px;
   --footer-h:         56px;
   --content-max-w:    1280px;
   --content-padding:  var(--space-6);
+
+  /* Los logos institucionales se dimensionan contra la CABECERA, no contra el
+     viewport. Antes usaban clamp(..., Nvh, ...) y crecían con el alto de la
+     pantalla mientras el header era un escalón fijo: en el techo de cada
+     tramo se desbordaban. Atados aquí, el header cuadra a cualquier altura. */
+  --logo-h:           calc(var(--header-h) - var(--space-6));
+
+  /* Ritmo vertical de bloque. Existen aparte de --space-* para poder
+     compactar el eje vertical por tramo sin tocar el espaciado horizontal. */
+  --block-pad-y:      var(--space-6);
+  --stack-gap:        var(--space-6);
+  --hero-pad-y:       var(--space-12);
+  --tab-content-pad:  var(--space-6);
+  --nav-link-pad-y:   var(--space-3);
+
+  /* Alturas de superposición: se miden contra el viewport, así que van
+     fluidas (calc/min), no por tramo. A 1080px de alto --modal-body-max-h
+     da 700px; el tope de 70vh solo manda en pantallas muy altas. */
+  --modal-body-max-h: min(70vh, calc(100vh - 14rem));
+  --doc-viewer-h:     clamp(18rem, calc(100vh - 15rem), 45rem);
 
   /* Cajas de icono (contenedor cuadrado que envuelve un <i class="bi">) */
   --icon-box-sm:      1.75rem;   /* stepper__number */
@@ -293,6 +325,13 @@
   --bp-md: 768px;
   --bp-lg: 992px;
   --bp-xl: 1200px;
+
+  /* Tramos de ALTO (ver sección 10). En rem para que también reaccionen al
+     zoom de texto del navegador (WCAG 1.4.4), no solo al zoom de página.
+       51.25rem   = 820px   → techo del tramo compacto
+       67.5rem    = 1080px  → techo del tramo medio */
+  --bp-short: 51.25rem;
+  --bp-tall:  67.5rem;
 
   /* ==========================================================================
      OVERRIDES DE BOOTSTRAP 5.3 — alinear TODA la app a paleta TECNM
@@ -338,8 +377,85 @@
   --bs-link-hover-color-rgb: 8, 21, 112;
 }
 
-/* Sobreescribir reglas Bootstrap que usan tonalidades hardcoded
-   en lugar de las variables expuestas */
+/* ==========================================================================
+   10. TRAMOS DE ALTO DE VIEWPORT
+   ==========================================================================
+
+   El eje que faltaba es el ALTO, no el ancho. Antes existían tres tramos
+   (991.98 / 767.98 / 575.98 px de ANCHO) y ninguno entre 992px e infinito,
+   así que un portátil de 1536x740 recibía exactamente el mismo CSS que un
+   monitor de 1920x950 pese a tener 210px menos de alto. Todo el daño medido
+   —cabeceras que se comen media pantalla, modales que sacan su botón fuera
+   del viewport, tablas sin una sola fila visible— es vertical, y un
+   breakpoint de ancho no puede distinguir esos dos equipos.
+
+   Los tres tramos, medidos como alto de viewport:
+
+     COMPACTO  <= 820px   portátiles de 15-16" (1920x1080 al 125% → 740px),
+                          1366x768, y cualquier monitor con zoom alto.
+     MEDIO     821-1080px monitores de 1920x1080 al 100% → ~950px.
+                          Es donde vive la mayoría del ITCJ.
+     BASE      >= 1081px  pantallas altas (QHD, 4K). Valores de referencia.
+
+   Van acotados con min-width:992px para no pisar los tramos de ancho, que
+   ya reasignan --header-h a --header-h-md / --header-h-sm.
+   ========================================================================== */
+
+/* --- COMPACTO: portátil ------------------------------------------------- */
+@media (min-width: 992px) and (max-height: 51.25rem) {
+  :root {
+    --header-h:         64px;
+    --footer-h:         40px;
+    --content-padding:  var(--space-4);
+
+    --fs-display:       var(--fs-2xl);   /* 32px */
+    --fs-metric:        var(--fs-xl);    /* 24px */
+    --fs-page-title:    var(--fs-lg);    /* 20px */
+
+    --block-pad-y:      var(--space-3);
+    --stack-gap:        var(--space-3);
+    --hero-pad-y:       var(--space-5);
+    --tab-content-pad:  var(--space-3);
+
+    --icon-box-lg:      3rem;            /* 48px */
+  }
+}
+
+/* La caja del enlace de menú baja de 48 a 40px sólo con ratón. En un híbrido
+   táctil se conservan los 44px de --tap-min (WCAG 2.5.5). 40px sigue
+   cumpliendo WCAG 2.5.8 AA, cuyo mínimo son 24x24. */
+@media (min-width: 992px) and (max-height: 51.25rem) and (pointer: fine) {
+  :root {
+    --nav-link-pad-y: var(--space-2);
+  }
+}
+
+/* --- MEDIO: monitor de 1920x1080 ---------------------------------------- */
+@media (min-width: 992px) and (min-height: 51.3125rem) and (max-height: 67.5rem) {
+  :root {
+    --header-h:         72px;
+    --footer-h:         48px;
+    --content-padding:  var(--space-5);
+
+    --fs-display:       var(--fs-3xl);   /* 40px */
+
+    --block-pad-y:      var(--space-5);
+    --stack-gap:        var(--space-5);
+    --hero-pad-y:       var(--space-8);
+    --tab-content-pad:  var(--space-4);
+  }
+}
+
+/* --- Eje de ancho: dejar de tirar espacio en monitores anchos ------------ */
+/* --content-max-w era 1280px en todos los anchos: un monitor de 1920px
+   desperdiciaba 322px y uno de 2560px, 930px, mientras las columnas de las
+   tablas se truncaban. */
+@media (min-width: 1600px) {
+  :root {
+    --content-max-w: 1600px;
+  }
+}
+
 
 .btn-primary {
   --bs-btn-bg: var(--color-brand-primary);
