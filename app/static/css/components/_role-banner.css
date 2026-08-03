@@ -7,17 +7,21 @@
  * + un icono ancla, no con una barra lateral.
  */
 
+/* Relleno y separacion en tokens de ritmo vertical: el banner es lo primero de
+   cada dashboard y en un portatil de 740px se comia el 33% del alto util antes
+   de mostrar un dato. --block-pad-y y --stack-gap lo compactan a 12px por tramo
+   sin tocar el eje horizontal ni el aire de las pantallas altas. */
 .role-banner {
   display: flex;
   align-items: center;
   gap: var(--space-5);
-  padding: var(--space-5) var(--space-6);
+  padding: var(--block-pad-y) var(--space-6);
   background: linear-gradient(135deg,
     var(--color-brand-primary-50) 0%,
     var(--color-brand-primary-100) 100%);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-brand-subtle);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--stack-gap);
 }
 
 .role-banner__avatar {

@@ -161,6 +161,17 @@
   text-decoration: none;
 }
 
+/* Dentro de una tabla el chip es la celda mas ancha e indivisible por el
+   white-space:nowrap: "Entrevista completada" exige 165px y en un portatil,
+   con 1218px de contenido repartidos entre 8 columnas (152px cada una), es
+   quien dispara el scroll horizontal. Con el relleno de tabla baja a 153px y
+   deja de robar ancho a las demas columnas. Se aplica en todos los tamanos
+   —una tabla es un contexto denso en cualquier pantalla— y respeta el
+   modificador --lg cuando la plantilla lo pide de forma explicita. */
+.siiap-table .status-badge:not(.status-badge--sm):not(.status-badge--lg) {
+  padding: var(--space-1) var(--space-2);
+}
+
 /* Tamaños alternativos */
 .status-badge--sm {
   padding: 0 var(--space-2);

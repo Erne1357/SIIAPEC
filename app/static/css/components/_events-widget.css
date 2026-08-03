@@ -46,6 +46,9 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-1);
   overflow: hidden;
+  /* El widget se incrusta en dashboards ajenos: su separación inferior sigue
+     el ritmo vertical de los tokens (12 / 20 / 24px) en vez del mb-4 fijo. */
+  margin-bottom: var(--stack-gap);
 }
 
 /* ── Cabecera ─────────────────────────────────────────────────────────── */
@@ -80,9 +83,12 @@
 
 /* ── Cuerpo y secciones ───────────────────────────────────────────────── */
 
+/* La separacion entre secciones va con --stack-gap (24/20/12 px por tramo de
+   alto): el widget es el tercer bloque del dashboard del aspirante y en un
+   portatil solo quedaban 297px para el. */
 .events-widget__body {
   display: grid;
-  gap: var(--space-6);
+  gap: var(--stack-gap);
   padding: var(--space-5);
 }
 
@@ -283,6 +289,56 @@ a.events-widget__badge:focus-visible {
 .events-widget__empty > .bi {
   font-size: var(--fs-2xl);
   color: var(--color-neutral-400);   /* icono decorativo, no texto */
+}
+
+/* ── Tramo COMPACTO (portatil, viewport <= 820px de alto) ─────────────────
+   Los rellenos de la cabecera y del item son asimetricos (20/20/16 y 12/16),
+   asi que ningun token de ritmo vertical los expresa sin cambiar tambien el
+   eje horizontal. Cabecera 61 -> 49px, item 117 -> 101px; con dos secciones
+   el widget baja de 421 a ~357px. */
+
+@media (min-width: 992px) and (max-height: 51.25rem) {
+  .events-widget__header {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .events-widget__body {
+    padding: var(--space-4);
+  }
+
+  .events-widget__item {
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-1);
+  }
+
+  .events-widget__empty {
+    padding: var(--space-4);
+  }
+
+  .events-widget__section {
+    gap: var(--space-2);
+  }
+
+  /* get_dashboard_widget no limita las invitaciones pendientes: con cuatro,
+     la rejilla de 2 columnas suma 260px y expulsa del pliegue el resto del
+     panel. Se contiene la lista; los enlaces siguen siendo alcanzables con
+     el teclado y el scroll acompaña al foco. */
+  .events-widget__list--2col {
+    max-height: 16rem;
+    overflow-y: auto;
+  }
+}
+
+/* Los chips de «Estás inscrito» reservan 44px de objetivo táctil cada uno: con
+   seis inscripciones son dos filas de 44px dentro de un panel que en el
+   portátil dispone de ~300px. Con ratón bastan 32px (WCAG 2.5.8 AA pide 24);
+   en cualquier equipo táctil se conservan los 44px de --tap-min. */
+@media (min-width: 992px) and (max-height: 51.25rem) and (pointer: fine) {
+  .events-widget__badge {
+    min-height: 2rem;
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--fs-xs);
+  }
 }
 
 /* ── Movil ────────────────────────────────────────────────────────────── */

@@ -38,6 +38,52 @@
   opacity: 0;
 }
 
+/* ==========================================================================
+   Cabecera fija
+   ==========================================================================
+   OJO con el gotcha de position:sticky: .siiap-table-wrapper declara
+   overflow-x:auto, asi que su overflow-y calculado tambien es auto y el
+   wrapper ES el contenedor de scroll de referencia del <thead>. Mientras el
+   wrapper no tenga alto maximo no hay scroll vertical DENTRO de el y la regla
+   sticky, aunque valida, no se manifiesta: el unico que scrollea es
+   #main-content. Por eso van dos piezas:
+
+     1. La declaracion sticky, siempre activa a partir de 992px. Es inocua y
+        entra en funcionamiento en cuanto el wrapper queda acotado (es lo que
+        ya hace a mano .csv-table-wrapper en student_bulk_import.css).
+     2. El modificador --sticky-head, que acota el wrapper con una altura
+        FLUIDA medida contra el viewport. Se anade en la plantilla a las
+        tablas largas: en un portatil de 740px la cabecera de columnas se iba
+        de pantalla tras cuatro filas.
+
+   El modificador es opcional a proposito: acotar TODAS las tablas crearia un
+   segundo scroller anidado dentro de #main-content tambien donde no hace
+   falta. */
+
+@media (min-width: 992px) {
+  /* Acotado al modificador a proposito. Sin acotar, la especificidad (0,1,2)
+     gana a la regla de Bootstrap `.table > :not(caption) > * > *` (0,1,1) y
+     repinta el fondo de TODOS los <thead class="table-light"> de la app como
+     efecto colateral. Ademas, sin scroll interno la cabecera nunca se solapa
+     con las filas, asi que ahi el sticky no aporta nada. */
+  .siiap-table-wrapper--sticky-head thead th {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-raised);
+    /* Obligatorio: sin fondo opaco las filas se transparentan bajo la
+       cabecera al desplazarse. */
+    background-color: var(--bg-surface-sunken);
+  }
+
+  .siiap-table-wrapper--sticky-head {
+    /* 22rem = cabecera de pagina + filtros + footer, el cromo tipico de un
+       listado. El minimo de 14rem garantiza tres filas visibles. */
+    --table-scroll-h: clamp(14rem, calc(100vh - 22rem), 60rem);
+    max-height: var(--table-scroll-h);
+    overflow-y: auto;
+  }
+}
+
 @media (max-width: 767.98px) {
   .siiap-table th:first-child,
   .siiap-table td:first-child {

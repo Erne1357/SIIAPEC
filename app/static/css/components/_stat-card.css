@@ -45,9 +45,11 @@
   margin-bottom: var(--space-1);
 }
 
+/* La cifra usa --fs-metric (24px en portatil, 32px en el resto) y no --fs-2xl
+   fijo: era el 4.3% del alto TOTAL del viewport de un portatil de 740px. */
 .stat-card__value {
   font-family: var(--font-display);
-  font-size: var(--fs-2xl);
+  font-size: var(--fs-metric);
   font-weight: var(--fw-bold);
   line-height: var(--lh-tight);
   color: var(--text-primary);
@@ -177,7 +179,7 @@
 .kpi-value {
   display: block;
   font-family: var(--font-display);
-  font-size: var(--fs-2xl);
+  font-size: var(--fs-metric);
   font-weight: var(--fw-bold);
   line-height: var(--lh-tight);
   color: var(--text-primary);
@@ -185,8 +187,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* --sm y --lg se derivan de --fs-metric para que conserven su proporcion en
+   los tres tramos de alto sin necesidad de una media query propia. */
 .kpi-value--sm { font-size: var(--fs-xl); }
-.kpi-value--lg { font-size: var(--fs-3xl); }
+.kpi-value--lg { font-size: calc(var(--fs-metric) * 1.25); }
 
 .kpi-label {
   display: block;
@@ -212,5 +216,33 @@
   .stat-card__value,
   .kpi-value {
     font-size: var(--fs-xl);
+  }
+}
+
+/* ==========================================================================
+   Tramo COMPACTO (portatil de 15-16", viewport <= 820px de alto).
+   La cifra ya baja sola via --fs-metric; lo que ningun token expresa es el
+   relleno de la caja (16 -> 12px, que a 24px de tipo seria desproporcionado
+   en pantallas altas) ni la presion tipografica de la etiqueta. Con
+   letter-spacing normal y --fs-xs, "PROXIMOS 7 DIAS" pasa de ~128 a ~92px y
+   deja de partirse en dos lineas dentro de una col-lg-2 de 153px utiles:
+   cuando UNA etiqueta parte, las cinco tarjetas de la fila crecen 21px por
+   el h-100.
+   La tarjeta pasa de 125 a ~101px y la fila de KPIs de 149 a 125px.
+   ========================================================================== */
+
+@media (min-width: 992px) and (max-height: 51.25rem) {
+  .stat-card {
+    padding: var(--space-3);
+  }
+
+  .stat-card__icon {
+    margin-bottom: 0;
+  }
+
+  .stat-card__label,
+  .kpi-label {
+    font-size: var(--fs-xs);
+    letter-spacing: var(--tracking-normal);
   }
 }

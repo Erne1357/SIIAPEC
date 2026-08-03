@@ -95,6 +95,19 @@
 .skeleton-card--md { --skeleton-card-h: 12.5rem; }   /* 200px */
 .skeleton-card--lg { --skeleton-card-h: 20rem; }     /* 320px */
 
+/* Tramo COMPACTO (portatil, viewport <= 820px de alto).
+   La altura del esqueleto no puede salir de --block-pad-y ni de ninguna otra
+   escala: describe el hueco que ocupara el contenido real. Lo que sustituye
+   normalmente es una .stat-card, que en este tramo mide ~101px, asi que los
+   200px de --md provocaban un salto de layout de 75px hacia arriba al
+   terminar la carga (el 36% del alto util solo en placeholders). */
+@media (min-width: 992px) and (max-height: 51.25rem) {
+  .skeleton-card,
+  .skeleton-card--md { --skeleton-card-h: 8rem; }    /* 128px */
+  .skeleton-card--sm { --skeleton-card-h: 5.5rem; }  /*  88px */
+  .skeleton-card--lg { --skeleton-card-h: 14rem; }   /* 224px */
+}
+
 /* Medidas de un boton estandar: 40px de alto por 128px de ancho.
    No se tokenizan porque describen el tamano de un .btn, no una escala. */
 .skeleton-button {
