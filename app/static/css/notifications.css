@@ -40,19 +40,30 @@
     50%      { transform: scale(1.1); }
 }
 
+/* Cuadrada y exactamente del tamaño del objetivo táctil. Con min-height la
+   campana crecía hasta 52px: el icono heredaba line-height 1.5, así que su
+   caja medía ~36px y no los 24 del glifo. Esos 8px de más mandaban sobre la
+   altura de toda la cabecera y la desbordaban en portátil. */
 .notification-bell-btn {
     position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: var(--tap-min);
-    min-height: var(--tap-min);
+    width: var(--tap-min);
+    height: var(--tap-min);
     padding: var(--space-2);
     background: none;
     border: none;
     border-radius: var(--radius-pill);
     cursor: pointer;
     transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+/* El tamaño del icono lo fija la escala del proyecto, no la clase fs-4 de
+   Bootstrap, que además es fluida (calc(1.275rem + 0.3vw)). */
+.notification-bell-btn .bi {
+    font-size: var(--fs-xl);
+    line-height: 1;
 }
 
 .notification-bell-btn:hover {

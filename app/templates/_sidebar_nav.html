@@ -91,7 +91,7 @@
   <div class="dropdown-menu-container">
     {# No navega: es un disclosure. base.js sincroniza aria-expanded. #}
     <button type="button"
-       class="nav-link dropdown-toggle-custom w-100 border-0 bg-transparent text-start {% if request.endpoint in ['pages_coordinator.deliberation', 'pages_coordinator.acceptance'] %}active{% endif %}"
+       class="nav-link dropdown-toggle-custom border-0 bg-transparent text-start {% if request.endpoint in ['pages_coordinator.deliberation', 'pages_coordinator.acceptance'] %}active{% endif %}"
        data-dropdown="{{ prefix }}admission-menu"
        aria-expanded="false" aria-controls="{{ prefix }}admission-menu">
       <i class="bi bi-person-plus-fill me-2" aria-hidden="true"></i>Gestión de Admisión
@@ -132,7 +132,7 @@
   <div class="dropdown-menu-container">
     {# No navega: es un disclosure. base.js sincroniza aria-expanded. #}
     <button type="button"
-       class="nav-link dropdown-toggle-custom w-100 border-0 bg-transparent text-start {% if request.endpoint.startswith('pages_admin.pages_settings') or request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
+       class="nav-link dropdown-toggle-custom border-0 bg-transparent text-start {% if request.endpoint.startswith('pages_admin.pages_settings') or request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
        data-dropdown="{{ prefix }}config-menu"
        aria-expanded="false" aria-controls="{{ prefix }}config-menu">
       <i class="bi bi-gear-fill me-2" aria-hidden="true"></i>Configuración

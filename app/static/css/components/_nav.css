@@ -68,6 +68,15 @@
   margin: var(--space-1) var(--space-3);
 }
 
+/* Un <button> no encoge como un <div>: con width:auto no descuenta sus
+   márgenes, así que ocupaba el ancho completo del menú y se salía 24px por
+   la derecha, recortando su chevron. Afecta a los desplegables del menú y
+   al botón de cerrar sesión, que son los únicos .nav-link que son <button>. */
+#sidebar button.nav-link,
+.offcanvas-body button.nav-link {
+  width: calc(100% - 2 * var(--space-3));
+}
+
 #sidebar .nav-link .bi,
 .offcanvas-body .nav-link .bi {
   flex-shrink: 0;
