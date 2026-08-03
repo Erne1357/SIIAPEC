@@ -91,6 +91,45 @@
   margin-bottom: var(--stack-gap);
 }
 
+/* Aviso de admisión cerrada. Vive dentro del hero, junto a la decisión, y no
+   como un bloque previo que empujaba el nombre del programa fuera del
+   pliegue. Fondo suave + borde teñido de 1px: nada de borde lateral grueso. */
+.program-hero__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: var(--measure-prose);
+  margin-block: 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-warning-100);
+  border: 1px solid var(--border-warning-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-warning-700);      /* 6.87:1 sobre warning-100 */
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.program-hero__notice .bi {
+  flex-shrink: 0;
+  margin-top: 0.15em;
+  font-size: var(--fs-md);
+}
+
+/* Quién puede informar cuando no se puede postular todavía. */
+.program-hero__coordinator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-4) 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.program-hero__coordinator .bi {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
 .program-hero__actions {
   display: flex;
   flex-wrap: wrap;
@@ -273,13 +312,6 @@
    'Postularme' sobre la imagen del hero en TODO ancho de 992 a 1798px: justo
    el del portátil. Al pie no hay colisión posible y el contenedor ya reserva
    el hueco con su padding-bottom. */
-.floating-back-button {
-  position: fixed;
-  bottom: calc(var(--footer-h) + var(--space-4));
-  left: calc(var(--sidebar-w) + var(--space-4));
-  z-index: var(--z-dropdown);
-}
-
 .floating-inscription-button {
   position: fixed;
   bottom: calc(var(--footer-h) + var(--space-4));
@@ -287,31 +319,24 @@
   z-index: var(--z-fab);
 }
 
-/* El CTA y el botón de regreso son visibles SIN JavaScript: son la única
-   entrada a la postulación. Antes nacían con opacity:0 y dependían de un
-   setTimeout de 500 ms para existir. */
+/* El CTA es visible SIN JavaScript: es la única entrada a la postulación.
+   Antes nacía con opacity:0 y dependía de un setTimeout de 500 ms. */
 
-.btn-inscription,
-.btn-back {
+.btn-inscription {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: var(--tap-min);
-  padding: var(--space-3) var(--space-6);
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--color-brand-accent);
   border-radius: var(--radius-pill);
+  background-color: var(--color-brand-accent);
+  color: var(--text-inverse);            /* 6.72:1 */
+  font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
-  box-shadow: var(--shadow-3);
+  box-shadow: var(--shadow-4);
   transition: box-shadow var(--duration-fast) var(--ease-out),
               background-color var(--duration-fast) var(--ease-out);
-}
-
-.btn-inscription {
-  background-color: var(--color-brand-accent);
-  border: 1px solid var(--color-brand-accent);
-  color: var(--text-inverse);
-  font-size: var(--fs-md);
-  padding: var(--space-4) var(--space-8);
-  box-shadow: var(--shadow-4);
 }
 
 .btn-inscription:hover,
@@ -322,22 +347,32 @@
   box-shadow: var(--shadow-5);
 }
 
-.btn-back {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--color-brand-primary);
-  color: var(--color-brand-primary);
+/* Regreso al listado. Enlace en el flujo, encabezando la página: como
+   botón fijo abajo a la izquierda tapaba el "Configurar" del hero en
+   pantallas de poca altura. */
+.program-back {
+  margin-bottom: var(--space-3);
 }
 
-.btn-back:hover,
-.btn-back:focus-visible {
-  background-color: var(--color-brand-primary-100);
+.program-back__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  color: var(--color-brand-primary);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+
+.program-back__link:hover,
+.program-back__link:focus-visible {
   color: var(--color-brand-primary-700);
-  box-shadow: var(--shadow-4);
+  text-decoration: underline;
 }
 
 @media (max-width: 767.98px) {
-  .btn-inscription,
-  .btn-back {
+  .btn-inscription {
     padding: var(--space-3) var(--space-5);
     font-size: var(--fs-sm);
   }

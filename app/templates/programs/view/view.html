@@ -10,48 +10,15 @@
 
 {% block content %}
 <div class="program-view-container">
-    {# Aviso: sin periodo de admisión abierto.
-       Va DELANTE del hero: es la información que decide la visita y detrás
-       del hero quedaba fuera del pliegue en portátil y en monitor de 24". #}
-    {% if not admission_open %}
-    <section id="no-period-banner" data-reveal>
-      <div class="empty-state empty-state--compact">
-        <div class="empty-state__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
-        <h2 class="empty-state__title">No hay periodo de admisión abierto</h2>
-        <p class="empty-state__description">
-          {% if next_period %}
-            El próximo proceso de admisión inicia el
-            <strong>{{ next_period.admission_start_date|fecha_es }}</strong>
-            (periodo <strong>{{ next_period.name }}</strong>).
-          {% else %}
-            Aún no hay una fecha confirmada para el próximo periodo.
-          {% endif %}
-          {% if program.coordinator %}
-            Si te interesa inscribirte en {{ program.name }}, puedes comunicarte con el coordinador del programa.
-          {% endif %}
-        </p>
-        {% if program.coordinator %}
-        <div class="empty-state__actions">
-          <a href="mailto:{{ program.coordinator.email }}" class="btn btn-primary">
-            <i class="bi bi-envelope-fill me-2" aria-hidden="true"></i>Contactar al coordinador
-          </a>
-          {% if program.contact_email %}
-          <a href="mailto:{{ program.contact_email }}" class="btn btn-outline-secondary">
-            <i class="bi bi-envelope me-2" aria-hidden="true"></i>Contacto del programa
-          </a>
-          {% endif %}
-        </div>
-        <p class="text-muted small mt-3 mb-0">
-          <i class="bi bi-person-fill me-1" aria-hidden="true"></i>
-          <strong>{{ program.coordinator.first_name }} {{ program.coordinator.last_name }}</strong>
-          · <span class="text-muted">{{ program.coordinator.email }}</span>
-        </p>
-        {% endif %}
-      </div>
-    </section>
-    {% endif %}
+    <nav class="program-back" aria-label="Ruta de navegación">
+      <a href="{{ url_for('program.list_programs') }}" class="program-back__link">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i>Todos los programas
+      </a>
+    </nav>
 
-    {# Hero Section #}
+    {# Hero Section — el estado de la admisión se comunica DENTRO del hero
+       (ver _hero.html), no como un bloque previo: el visitante necesita saber
+       primero qué programa está viendo. #}
     {% include 'programs/view/_hero.html' %}
 
     {# Información del Programa #}
@@ -77,6 +44,9 @@
 {% endblock %}
 
 {% block modals %}
+{# Sólo existe cuando se puede postular: sin periodo abierto no hay
+   ningún control que lo abra. #}
+{% if admission_open %}
 <div class="modal fade" id="enrollmentModal" tabindex="-1" aria-labelledby="enrollmentModalLabel"
     aria-hidden="true">
     <div class="modal-dialog">
@@ -108,42 +78,11 @@
     </div>
 </div>
 
-{# Modal: Inscripciones cerradas — muestra cuándo inicia el próximo proceso #}
-<div class="modal fade" id="enrollmentClosedModal" tabindex="-1"
-    aria-labelledby="enrollmentClosedModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
+{% endif %}
 
-            <div class="modal-header border-0">
-                <h2 class="modal-title h5" id="enrollmentClosedModalLabel">
-                    <i class="bi bi-calendar-x text-warning-strong me-2" aria-hidden="true"></i>Inscripciones cerradas
-                </h2>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-
-            <div class="modal-body">
-                <p>En este momento el proceso de admisión para <strong>{{ program.name }}</strong>
-                no está abierto.</p>
-                {% if next_period %}
-                <div class="alert alert-info mb-0">
-                    <i class="bi bi-calendar-check me-2" aria-hidden="true"></i>
-                    El próximo proceso de admisión inicia el
-                    <strong>{{ next_period.admission_start_date|fecha_es }}</strong>
-                    (periodo <strong>{{ next_period.name }}</strong>).
-                </div>
-                {% else %}
-                <p class="text-muted mb-0">Aún no hay una fecha confirmada para el próximo periodo.
-                Te invitamos a estar pendiente de los avisos del programa.</p>
-                {% endif %}
-            </div>
-
-            <div class="modal-footer border-0">
-                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button>
-            </div>
-
-        </div>
-    </div>
-</div>
+{# El modal de "inscripciones cerradas" se eliminó: no queda ningún control
+   que pueda abrirlo. Cuando el periodo está cerrado no se ofrece postularse,
+   así que no hace falta un diálogo para explicar por qué no se puede. #}
 {% endblock %}
 
 {% block scripts %}

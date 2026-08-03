@@ -1,18 +1,20 @@
 {# app/templates/programs/view/_floating_buttons.html
-   Ambos botones se renderizan visibles: no dependen de JavaScript. #}
-<div class="floating-back-button">
-  <a href="{{ url_for('program.list_programs') }}" class="btn btn-outline-primary btn-back">
-    <i class="bi bi-arrow-left me-2" aria-hidden="true"></i>Regresar
-  </a>
-</div>
+   El enlace de regreso dejó de ser flotante: anclado abajo a la izquierda
+   tapaba el botón "Configurar" del hero en pantallas de poca altura. Ahora
+   encabeza la página (ver view.html), donde se espera un regreso.
 
-{# Refuerzo del CTA del hero: acompaña al aspirante durante todo el scroll #}
+   Refuerzo del CTA del hero: acompaña al aspirante durante todo el scroll.
+   Sólo existe cuando de verdad se puede postular; si no, sería el tercer
+   "Postularme" de una página que anuncia que las inscripciones están
+   cerradas. #}
+{% if admission_open %}
 <div class="floating-inscription-button">
   <button
       type="button"
       class="btn btn-primary btn-inscription"
       data-bs-toggle="modal"
-      data-bs-target="{{ '#enrollmentModal' if admission_open else '#enrollmentClosedModal' }}">
+      data-bs-target="#enrollmentModal">
     <i class="bi bi-mortarboard-fill me-2" aria-hidden="true"></i>Postularme
   </button>
 </div>
+{% endif %}
