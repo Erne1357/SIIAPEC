@@ -1,28 +1,44 @@
 {# app/templates/programs/view/_floating_buttons.html
-   Ambos botones se renderizan visibles: no dependen de JavaScript. #}
-<div class="floating-back-button">
+
+   Dos píldoras flotantes, una en cada esquina inferior. Son opacas y con
+   sombra propia para que el texto no asome por debajo, el contenedor reserva
+   su altura al final del documento, y en móvil el FAB de notificaciones se
+   aparta hacia arriba en vez de recortar el CTA.
+
+   El CTA es "Postularme" siempre, con convocatoria abierta o cerrada, y con
+   su pulso en los dos casos: es la acción de conversión de la página. Con el
+   periodo cerrado no promete nada falso — al pulsarlo se abre un diálogo que
+   dice que no hay periodo activo, cuándo abre el siguiente, a quién escribir
+   y ofrece activar el aviso.
+
+   Sólo se ofrece a quien puede usarlo. La página está tras @login_required sin
+   permiso, así que la ven los cinco roles, pero POST /inscription exige
+   'programs.api.enroll', que sólo tiene el aspirante: para los demás el CTA
+   terminaba en un 403 con un flash de "no tienes permiso". #}
+{% set can_apply = has_perm('programs.api.enroll') %}
+
+<div class="program-fab program-fab--back">
   <a href="{{ url_for('program.list_programs') }}" class="btn btn-back">
     <i class="bi bi-arrow-left me-2" aria-hidden="true"></i>Regresar
   </a>
 </div>
 
-{# Refuerzo del CTA del hero: acompaña al aspirante durante todo el scroll.
-   Con el periodo cerrado no cambia de sitio ni de peso, sólo de acción: el
-   botón sigue ahí pero lleva a quien sí puede informar, en vez de invitar a
-   una postulación que terminaría en un "no puedes". #}
-<div class="floating-inscription-button">
-  {% if admission_open %}
+{% if can_apply %}
+<div class="program-fab program-fab--apply">
+  {% if viewer_program %}
+  {# Ya tiene un proceso abierto: enroll_user_once rechaza cualquier segunda
+     inscripción, así que el CTA lleva a donde sí puede avanzar. #}
+  <a href="{{ url_for('pages_user.dashboard') }}" class="btn btn-inscription btn-inscription--waiting">
+    <i class="bi bi-person-check-fill me-2" aria-hidden="true"></i>Ir a mi proceso
+  </a>
+  {% else %}
   <button
       type="button"
       class="btn btn-inscription"
       data-bs-toggle="modal"
-      data-bs-target="#enrollmentModal">
+      data-bs-target="{% if admission_open %}#enrollmentModal{% else %}#admissionClosedModal{% endif %}">
     <i class="bi bi-mortarboard-fill me-2" aria-hidden="true"></i>Postularme
   </button>
-  {% elif program.coordinator %}
-  <a href="mailto:{{ program.coordinator.email }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
-     class="btn btn-inscription btn-inscription--contact">
-    <i class="bi bi-envelope-fill me-2" aria-hidden="true"></i>Contactar al coordinador
-  </a>
   {% endif %}
 </div>
+{% endif %}

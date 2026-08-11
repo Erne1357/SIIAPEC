@@ -1,62 +1,70 @@
-{# app/templates/programs/_program_info.html #}
-<section id="programa" class="bg-light rounded-3">
+{# app/templates/programs/view/_program_info.html #}
+
+{# Duración y Modalidad se enuncian una sola vez, en la fila de hechos del
+   hero. Antes se repetían aquí palabra por palabra 600px más abajo.
+   Reconocimiento y Becas sólo se pintan si el programa los tiene capturados:
+   los literales de relleno ("Programa reconocido por su excelencia
+   académica", "Posibilidad de becas para estudiantes") se leían como dato
+   configurado y no informaban nada. #}
+{% set has_extra_facts = program.recognition_text or program.scholarship_info %}
+
+{% if program.introduction_text or program.description or has_extra_facts
+      or (program.show_objectives and program.objectives) %}
+<section id="programa" class="program-section--tinted">
   <div class="program-section-head" data-reveal>
-    <h2 class="h3 fw-bold">Acerca del Programa</h2>
+    <h2>Acerca del Programa</h2>
     <div class="divider-center"></div>
+    {% if program.introduction_text or program.description %}
     <p class="lead program-lead">
       {{ program.introduction_text or program.description }}
     </p>
+    {% endif %}
   </div>
 
-  <div class="row g-3 mt-3">
-    <div class="col-md-3" data-reveal data-reveal-delay="100">
-      <div class="bg-white p-3 rounded shadow-sm text-center h-100">
-        <div class="icon-circle bg-primary-light mb-3 mx-auto">
-          <i class="bi bi-book-fill text-primary" aria-hidden="true"></i>
-        </div>
-        <h3 class="h5 fw-bold">Duración</h3>
-        <p class="mb-0">{{ program.duration_display }}</p>
-      </div>
-    </div>
-    <div class="col-md-3" data-reveal data-reveal-delay="200">
-      <div class="bg-white p-3 rounded shadow-sm text-center h-100">
-        <div class="icon-circle bg-primary-light mb-3 mx-auto">
+  {% if has_extra_facts %}
+  <div class="row g-4">
+    {% if program.recognition_text %}
+    <div class="col-md-6" data-reveal data-reveal-delay="100">
+      <div class="program-fact-card">
+        <div class="icon-circle bg-primary-soft">
           <i class="bi bi-award-fill text-primary" aria-hidden="true"></i>
         </div>
-        <h3 class="h5 fw-bold">Reconocimiento</h3>
-        <p class="mb-0">{{ program.recognition_text or 'Programa reconocido por su excelencia académica' }}</p>
-      </div>
-    </div>
-    <div class="col-md-3" data-reveal data-reveal-delay="300">
-      <div class="bg-white p-3 rounded shadow-sm text-center h-100">
-        <div class="icon-circle bg-primary-light mb-3 mx-auto">
-          <i class="bi bi-clock text-primary" aria-hidden="true"></i>
+        <div>
+          <h3 class="fw-bold">Reconocimiento</h3>
+          <p class="mb-0">{{ program.recognition_text }}</p>
         </div>
-        <h3 class="h5 fw-bold">Modalidad</h3>
-        <p class="mb-0">{{ program.modality or 'Presencial' }}{% if program.schedule_info %}<br><small>{{ program.schedule_info }}</small>{% endif %}</p>
       </div>
     </div>
-    <div class="col-md-3" data-reveal data-reveal-delay="400">
-      <div class="bg-white p-3 rounded shadow-sm text-center h-100">
-        <div class="icon-circle bg-primary-light mb-3 mx-auto">
+    {% endif %}
+    {% if program.scholarship_info %}
+    <div class="col-md-6" data-reveal data-reveal-delay="200">
+      <div class="program-fact-card">
+        <div class="icon-circle bg-primary-soft">
           <i class="bi bi-people-fill text-primary" aria-hidden="true"></i>
         </div>
-        <h3 class="h5 fw-bold">Becas</h3>
-        <p class="mb-0">{{ program.scholarship_info or 'Posibilidad de becas para estudiantes' }}</p>
+        <div>
+          <h3 class="fw-bold">Becas</h3>
+          <p class="mb-0">{{ program.scholarship_info }}</p>
+        </div>
       </div>
     </div>
+    {% endif %}
   </div>
+  {% endif %}
 
   {% if program.show_objectives and program.objectives %}
-  <div class="bg-white rounded shadow-sm mt-3 program-panel" data-reveal>
-    <h3 class="h4 fw-bold mb-3">Objetivos del Programa</h3>
-    <ul class="list-unstyled mb-0">
+  {# Mismo panel que "Perfil del Egresado": dos bloques de prosa con la misma
+     función no pueden tener dos elevaciones distintas. #}
+  <div class="program-panel program-panel--plain mt-4" data-reveal data-reveal-delay="120">
+    <h3 class="fw-bold mb-4">Objetivos del Programa</h3>
+    <ul class="program-checklist">
       {% for objective in program.objectives %}
-      <li {% if not loop.last %}class="mb-2"{% endif %}>
-        <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i> {{ objective }}
+      <li>
+        <i class="bi bi-check-circle-fill" aria-hidden="true"></i>{{ objective }}
       </li>
       {% endfor %}
     </ul>
   </div>
   {% endif %}
 </section>
+{% endif %}

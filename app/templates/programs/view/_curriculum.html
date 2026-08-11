@@ -1,154 +1,127 @@
-{# app/templates/programs/_curriculum.html #}
-{% from '_macros.html' import data_table_open, data_table_close, empty_state %}
+{# app/templates/programs/view/_curriculum.html #}
+{% from '_macros.html' import data_table_open, data_table_close %}
 {% if program.show_curriculum %}
-<section id="plan-estudios" class="bg-light rounded-3">
+{# program.curriculum_semesters normaliza los dos formatos que se han guardado
+   en curriculum_structure. Antes esta plantilla sólo leía uno de ellos y los
+   planes cargados con el otro se anunciaban como "no disponible". #}
+{% set semesters = program.curriculum_semesters %}
+{% set has_research = program.show_research_lines and program.research_lines %}
+
+{# show_curriculum_section lo calcula la ruta con esta misma condición, y el
+   enlace del hero se gatilla con ella: si cambia una, cambia la otra. #}
+{% if semesters or has_research %}
+<section id="plan-estudios">
   <div class="program-section-head" data-reveal>
-    <h2 class="h3 fw-bold">Plan de Estudios</h2>
+    <h2>Plan de Estudios</h2>
     <div class="divider-center"></div>
     <p class="lead program-lead">
-      Explora la estructura académica de nuestro programa, diseñada para brindarte una formación integral y especializada.
+      La estructura académica del programa, semestre por semestre.
     </p>
   </div>
 
+  {% if semesters %}
+  {# Sin `col-lg-11 mx-auto`: centraba el acordeón dejando 51px de sangría a la
+     izquierda, así que el encabezado "Plan de Estudios" quedaba colgado fuera
+     de la columna del contenido que titula. #}
   <div class="row">
-    <div class="col-lg-11 mx-auto">
-      {# Filtrar semestres mal-formados: sin courses o con courses vacío y sin numero válido #}
-      {% set valid_semesters = [] %}
-      {% if program.curriculum_structure and program.curriculum_structure.semesters %}
-        {% for s in program.curriculum_structure.semesters %}
-          {% if (s.semester and s.semester|int > 0) or (s.courses and s.courses|length > 0) %}
-            {% set _ = valid_semesters.append(s) %}
-          {% endif %}
-        {% endfor %}
-      {% endif %}
-      {% if valid_semesters %}
-        <!-- Mapa Curricular por Semestres -->
-        <div class="accordion accordion-flush" id="curriculumAccordion" data-reveal>
-          {% for semester in valid_semesters %}
-          {% set sem_num = semester.semester if (semester.semester and semester.semester|int > 0) else loop.index %}
-          {% set sem_uid = loop.index %}
-          <div class="accordion-item mb-3 border rounded overflow-hidden shadow-sm">
-            <h2 class="accordion-header" id="heading-semester-{{ sem_uid }}">
-              <button class="accordion-button {% if loop.index > 1 %}collapsed{% endif %} fw-bold"
-                      type="button"
-                      data-bs-toggle="collapse"
-                      data-bs-target="#collapse-semester-{{ sem_uid }}"
-                      aria-expanded="{{ 'true' if loop.index == 1 else 'false' }}"
-                      aria-controls="collapse-semester-{{ sem_uid }}">
-                <i class="bi bi-calendar-check me-2" aria-hidden="true"></i>
-                Semestre {{ sem_num }}
-                <span class="badge bg-light text-dark ms-2">{{ semester.courses | length if semester.courses else 0 }} materia{{ 's' if (semester.courses | length if semester.courses else 0) != 1 else '' }}</span>
-              </button>
-            </h2>
-            <div id="collapse-semester-{{ sem_uid }}"
-                 class="accordion-collapse collapse {% if loop.index == 1 %}show{% endif %}"
-                 data-bs-parent="#curriculumAccordion">
-              <div class="accordion-body p-0">
-                {% if semester.courses %}
-                {{ data_table_open('Materias del semestre ' ~ sem_num ~ ' del plan de estudios',
-                                   table_class='table-hover curriculum-table') }}
-                    <thead class="table-light">
-                      <tr>
-                        <th scope="col" class="w-px-100">Código</th>
-                        <th scope="col">Materia</th>
-                        <th scope="col" class="text-center w-px-90">Créditos</th>
-                        <th scope="col" class="text-center w-px-120">Tipo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {% for course in semester.courses %}
-                      <tr>
-                        <td class="font-monospace text-muted">{{ course.code or 'N/D' }}</td>
-                        <td class="fw-semibold">{{ course.name }}</td>
-                        <td class="text-center">
-                          <span class="badge bg-info">{{ course.credits or '0' }}</span>
-                        </td>
-                        <td class="text-center">
-                          {% if course.type == 'obligatoria' %}
-                            <span class="badge bg-primary">Obligatoria</span>
-                          {% elif course.type == 'optativa' %}
-                            <span class="badge bg-warning">Optativa</span>
-                          {% elif course.type == 'electiva' %}
-                            <span class="badge bg-secondary">Electiva</span>
-                          {% else %}
-                            <span class="badge bg-secondary">{{ course.type }}</span>
-                          {% endif %}
-                        </td>
-                      </tr>
-                      {% endfor %}
-                    </tbody>
-                {{ data_table_close() }}
-                {% else %}
-                {{ empty_state(
-                     icon='inbox',
-                     title='Semestre sin materias',
-                     description='Todavía no se cargaron las materias de este semestre.',
-                     compact=true
-                   ) }}
-                {% endif %}
-              </div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
+    <div class="col-12">
+      <div class="accordion accordion-flush" id="curriculumAccordion" data-reveal>
+        {% for semester in semesters %}
+        {% set sem_uid = loop.index %}
+        <div class="accordion-item mb-3">
+          <h3 class="accordion-header" id="heading-semester-{{ sem_uid }}">
+            <button class="accordion-button {% if loop.index > 1 %}collapsed{% endif %} fw-bold"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#collapse-semester-{{ sem_uid }}"
+                    aria-expanded="{{ 'true' if loop.index == 1 else 'false' }}"
+                    aria-controls="collapse-semester-{{ sem_uid }}">
+              <i class="bi bi-calendar-check me-2" aria-hidden="true"></i>
+              Semestre {{ semester.semester }}
+              <span class="badge semester-count ms-2">{{ semester.courses | length }} materia{{ 's' if semester.courses | length != 1 else '' }}</span>
+            </button>
+          </h3>
+          <div id="collapse-semester-{{ sem_uid }}"
+               class="accordion-collapse collapse {% if loop.index == 1 %}show{% endif %}"
+               data-bs-parent="#curriculumAccordion">
+            <div class="accordion-body p-0">
+              {# Los planes antiguos guardan sólo el nombre de la materia. Sin
+                 código, créditos ni tipo, una tabla de 4 columnas serían tres
+                 columnas de "N/D": en ese caso basta la lista. #}
+              {% set ns = namespace(detailed=false) %}
+              {% for course in semester.courses %}
+                {% if course.code or course.credits or course.type %}{% set ns.detailed = true %}{% endif %}
+              {% endfor %}
 
-        <!-- Resumen de Créditos -->
-        {% set total_credits = namespace(value=0) %}
-        {% for semester in valid_semesters %}
-          {% for course in (semester.courses or []) %}
-            {% set total_credits.value = total_credits.value + (course.credits | int if course.credits else 0) %}
-          {% endfor %}
-        {% endfor %}
-        
-        {% if total_credits.value > 0 %}
-        <p class="curriculum-total" data-reveal>
-          <i class="bi bi-award-fill" aria-hidden="true"></i>
-          <strong>Total de créditos del programa:</strong> {{ total_credits.value }} créditos
-        </p>
-        {% endif %}
-      {% else %}
-        {{ empty_state(
-             icon='journal-x',
-             title='Plan de estudios no disponible',
-             description='Aún no se publica el mapa curricular de este programa. Escríbenos y te lo enviamos por correo.',
-             action_label='Solicitar plan de estudios',
-             action_url='mailto:' ~ (program.contact_email or 'posgrado@itcj.edu.mx') ~ '?subject=Plan%20de%20estudios%20' ~ (program.name|urlencode),
-             compact=true
-           ) }}
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Líneas de Investigación -->
-  {% if program.show_research_lines %}
-  <div class="mt-4" data-reveal>
-    <h3 class="h4 fw-bold text-center mb-3">Líneas de Investigación</h3>
-    <div class="row g-3 justify-content-center">
-      {% if program.research_lines %}
-        {% for line in program.research_lines %}
-        <div class="col-md-4">
-          <div class="card h-100 border-0 shadow-sm hover-card">
-            <div class="card-body p-3">
-              <h4 class="h5 fw-bold text-primary mb-2">{{ line.name or line }}</h4>
-              {% if line.description %}
-              <p class="card-text mb-0">{{ line.description }}</p>
+              {% if ns.detailed %}
+              {{ data_table_open('Materias del semestre ' ~ semester.semester ~ ' del plan de estudios',
+                                 table_class='curriculum-table') }}
+                  <thead>
+                    <tr>
+                      <th scope="col" class="w-px-100">Código</th>
+                      <th scope="col">Materia</th>
+                      <th scope="col" class="text-center w-px-90">Créditos</th>
+                      <th scope="col" class="text-center w-px-120">Tipo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for course in semester.courses %}
+                    <tr>
+                      <td class="font-monospace curriculum-table__code">{{ course.code or '—' }}</td>
+                      <td class="fw-semibold">{{ course.name }}</td>
+                      <td class="text-center">{{ course.credits if course.credits else '—' }}</td>
+                      <td class="text-center">
+                        {% if course.type %}
+                        <span class="course-type course-type--{{ course.type|lower }}">{{ course.type|capitalize }}</span>
+                        {% else %}—{% endif %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+              {{ data_table_close() }}
+              {% else %}
+              <ul class="curriculum-list">
+                {% for course in semester.courses %}
+                <li>{{ course.name }}</li>
+                {% endfor %}
+              </ul>
               {% endif %}
             </div>
           </div>
         </div>
         {% endfor %}
-      {% else %}
-        <div class="col-md-8">
-          {{ empty_state(
-               icon='diagram-3',
-               title='Líneas de investigación en definición',
-               description='El comité académico aún no publica las líneas de investigación de este programa.',
-               compact=true
-             ) }}
-        </div>
+      </div>
+
+      {% if program.curriculum_total_credits > 0 %}
+      <p class="curriculum-total" data-reveal>
+        <i class="bi bi-award-fill" aria-hidden="true"></i>
+        <strong>Total de créditos del programa:</strong> {{ program.curriculum_total_credits }} créditos
+      </p>
       {% endif %}
     </div>
   </div>
   {% endif %}
+
+  {# Líneas de Investigación. Sólo si existen: la bandera sola publicaba una
+     disculpa ("Líneas de investigación en definición") en los cuatro
+     programas, siempre inmediatamente después de otro estado vacío. #}
+  {% if has_research %}
+  <div class="mt-5">
+    <h3 class="fw-bold mb-4" data-reveal>Líneas de Investigación</h3>
+    <div class="row g-4">
+      {% for line in program.research_lines %}
+      <div class="col-md-4" data-reveal data-reveal-delay="{{ [loop.index0 * 80, 240]|min }}">
+        <div class="hover-card research-card">
+          <h4 class="fw-bold">{{ line.name or line }}</h4>
+          {% if line.description %}
+          <p>{{ line.description }}</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 </section>
+{% endif %}
 {% endif %}

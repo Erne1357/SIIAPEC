@@ -1,167 +1,462 @@
 /* ──────────────────────────────────────────────────────────────
    app/static/css/program/view.css
-   Página pública de un programa (única superficie persuasiva).
-   Todo el color, espaciado, radio y tipografía sale de _tokens.css.
+   Página de un programa: la única superficie persuasiva de SIIAP.
+
+   Esta hoja tiene una regla que no comparte con el resto de la app:
+   NO consume los tramos de densidad de _tokens.css (--block-pad-y,
+   --stack-gap, --hero-pad-y, --fs-page-title). Esos tramos existen para
+   meter tablas de administración sobre el pliegue, y aplicados aquí
+   comprimían la página a 12px de aire por frontera en un portátil.
+   Una landing necesita respiración: define su propia escala de tramo,
+   derivada de los mismos tokens de espacio.
+
+   Todo el color, radio, sombra y tipografía sigue saliendo de _tokens.css.
    ────────────────────────────────────────────────────────────── */
 
-/* Contenedor principal */
+/* ──────────────────────────────────────────────────────────────
+   0. ESCALA PROPIA DE LA PÁGINA
+   ────────────────────────────────────────────────────────────── */
+
+/* Espacio que hay que dejar libre al pie de la página para que las píldoras
+   flotantes no se posen encima del contenido. Sólo existe en esta página, así
+   que se declara aquí y no en _tokens.css. Va en `html` y no en
+   .program-landing porque quien la necesita primero es el `scroll-padding` del
+   contenedor de scroll, y ese contenedor cambia: normalmente es #main-content,
+   pero por debajo de 30rem de alto base.css libera el shell y pasa a serlo el
+   documento. Declarada en la raíz le llega a los dos. */
+html {
+  --fab-reserve: calc(var(--tap-min) + var(--space-6));
+}
+
+.program-landing {
+  /* Ritmo vertical de la landing. Independiente de --block-pad-y. */
+  --section-pad-y: var(--space-16);   /* 64px */
+  --section-gap:   var(--space-12);   /* 48px */
+  --hero-pad:      var(--space-20);   /* 80px */
+
+  /* Sangrado del hero: tiene que valer exactamente el padding de
+     #main-content. base.css lo fija en --content-padding y sólo lo cambia a
+     --space-4 dentro de `max-width: 575.98px` (base.css:553), así que el
+     respaldo de esta variable cambia en ESE punto y no en 767.98px: entre 576
+     y 768px el relleno real sigue siendo 24px y un sangrado de 16px dejaba una
+     franja de 8px de fondo a cada lado del hero. */
+  --bleed: var(--content-padding);
+}
+
+@media (max-width: 991.98px) {
+  .program-landing {
+    --section-pad-y: var(--space-12);
+    --section-gap:   var(--space-8);
+    --hero-pad:      var(--space-12);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .program-landing {
+    --section-pad-y: var(--space-10);
+    --section-gap:   var(--space-6);
+    --hero-pad:      var(--space-8);
+  }
+}
+
+/* Mismo punto de corte que base.css:553, donde #main-content baja su relleno */
+@media (max-width: 575.98px) {
+  .program-landing {
+    --section-pad-y: var(--space-8);
+    --hero-pad:      var(--space-6);
+    --bleed:         var(--space-4);
+  }
+}
+
+/* Las píldoras flotantes son opacas y fijas: al tabular, el navegador desplaza
+   cada control lo MÍNIMO, así que un elemento enfocado en una esquina inferior
+   aterrizaba justo detrás de ellas y quedaba invisible (WCAG 2.2 SC 2.4.11).
+   Esta hoja sólo carga en la página del programa, así que el ajuste no sale de
+   aquí. */
+#main-content {
+  scroll-padding-bottom: calc(var(--fab-reserve) + var(--space-4));
+}
+
+/* ──────────────────────────────────────────────────────────────
+   1. ESTRUCTURA
+   ────────────────────────────────────────────────────────────── */
+
+.program-landing {
+  /* Las píldoras flotantes no pueden tapar el final del contenido */
+  padding-bottom: calc(var(--fab-reserve) + var(--space-8));
+}
+
+/* Contenido centrado. El hero vive FUERA de este contenedor porque sangra
+   a todo el ancho del área principal. */
 .program-view-container {
   max-width: var(--content-max-w);
-  margin: 0 auto;
-  padding-inline: var(--content-padding);
-  /* Deja aire bajo el último bloque para que el CTA flotante no lo tape */
-  padding-bottom: var(--space-16);
+  margin-inline: auto;
 }
 
-/* Anclas internas: el desplazamiento suave no debe pegar el título al borde */
-.program-view-container section {
-  scroll-margin-top: var(--space-8);
+/* Anclas internas: el destino no debe quedar bajo la cabecera fija */
+.program-landing section {
+  scroll-margin-top: var(--space-4);
 }
 
-/* Ritmo vertical de las secciones.
-   Antes cada sección traía `py-4 my-4` en la plantilla: 24px de relleno más
-   24px de margen colapsado, o sea 72px por frontera, iguales en un portátil
-   de 740px y en un 4K. Ahora el ritmo sale de los tokens de tramo y baja a
-   24px por frontera en pantallas bajas. */
-.program-view-container > section:not(.program-hero-section) {
-  padding-block: var(--block-pad-y);
-  margin-block: var(--stack-gap);
+/* Ritmo vertical de las secciones */
+.program-view-container > section {
+  padding-block: var(--section-pad-y);
+}
+
+/* El hero ya aporta la separación de la primera sección: sumarle 64px más
+   dejaba 112px de vacío antes del primer título. */
+.program-view-container > section:first-of-type {
+  padding-top: 0;
+}
+
+/* Filete separador entre dos secciones planas seguidas. Es una línea de ritmo,
+   no un borde de tarjeta: el ojo necesita saber dónde termina un tema y empieza
+   otro cuando no hay cambio de superficie. Tras una sección tintada sobra —el
+   borde de la superficie ya marcó la frontera— y por eso la condición va en el
+   PRIMER hermano: escrita como una anulación aparte nunca ganaba, porque
+   `:not()` aporta la especificidad de su argumento y la regla base quedaba
+   siempre por encima. */
+.program-view-container > section:not(.program-section--tinted) + section:not(.program-section--tinted) {
+  border-top: 1px solid var(--border-default);
+}
+
+/* Secciones con superficie propia: rompen la monotonía de seis bloques
+   idénticos apilados. Alternan con las secciones planas, así que el relleno
+   de las vecinas es toda la separación que necesitan. */
+.program-section--tinted {
+  position: relative;
+  padding-inline: var(--space-8);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(180deg,
+      var(--color-brand-primary-50) 0%,
+      var(--bg-surface-sunken) 100%);
+  box-shadow: var(--shadow-1);
+}
+
+@media (max-width: 767.98px) {
+  .program-section--tinted {
+    padding-inline: var(--space-5);
+    border-radius: var(--radius-lg);
+  }
+}
+
+/* ── Escala de encabezados de la página ──────────────────────────────────
+   Las plantillas usaban las utilidades .h3/.h4/.h5 de Bootstrap, que son
+   tamaños absolutos y en el tramo compacto salían MÁS GRANDES que el h2 que
+   las contiene. Aquí la escala es una sola, sale de los tokens de tipo y el
+   h1 siempre queda por encima del h2. */
+.program-landing h3 {
+  font-size: var(--fs-lg);
+  line-height: var(--lh-tight);
+}
+
+.program-landing h4 {
+  font-size: var(--fs-md);
+  line-height: var(--lh-tight);
+}
+
+.program-landing h5,
+.program-landing h6 {
+  font-size: var(--fs-base);
+  line-height: var(--lh-tight);
 }
 
 /* Cabecera compartida de cada sección (título + filete + entradilla).
-   Se repite cinco veces: cada píxel aquí se paga cinco veces. */
+   Alineada a la izquierda: centrar seis entradillas de hasta diez líneas
+   deja al ojo sin borde de retorno en cada barrido. */
 .program-section-head {
-  text-align: center;
-  margin-bottom: var(--stack-gap);
+  margin-bottom: var(--space-8);
 }
 
+/* No consume --fs-page-title: ese token cae a 20px en portátil y dejaba
+   los seis títulos de sección del tamaño de una etiqueta de formulario. */
 .program-section-head > h2 {
-  font-size: var(--fs-page-title);
-  margin-bottom: var(--space-2);
-}
-
-.program-section-head .divider-center {
-  margin-bottom: var(--space-2);
+  font-family: var(--font-display);
+  font-size: clamp(var(--fs-xl), 3.2vw, var(--fs-2xl));
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  margin-bottom: var(--space-3);
 }
 
 .program-section-head .program-lead {
   margin-bottom: 0;
 }
 
+/* Filete de marca bajo el título. Puntúa el arranque de cada sección sin
+   añadir una línea de texto más. */
+.divider-center {
+  width: var(--space-16);
+  height: var(--space-1);
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-accent) 100%);
+}
+
 /* Ancho de medida del párrafo introductorio de cada sección */
 .program-lead {
   max-width: var(--measure-prose);
-  margin-inline: auto;
   font-size: var(--fs-md);
   line-height: var(--lh-relaxed);
   color: var(--text-secondary);
 }
 
 /* ──────────────────────────────────────────────────────────────
-   HERO
+   2. HERO
    ────────────────────────────────────────────────────────────── */
 
+/* Sangra a todo el ancho del área principal anulando el padding de
+   #main-content. Es lo que separa una landing de una pantalla de gestión:
+   la primera pieza no vive dentro de la misma caja que el resto. */
 .program-hero-section {
-  background: linear-gradient(to right,
-    var(--color-brand-primary-100),
-    var(--bg-surface-sunken));
-  border-radius: var(--radius-lg);
-  padding: var(--hero-pad-y) var(--space-8);
-  margin-bottom: var(--stack-gap);
+  position: relative;
+  margin-top: calc(-1 * var(--bleed));
+  margin-inline: calc(-1 * var(--bleed));
+  margin-bottom: var(--section-gap);
+  padding-block: var(--hero-pad);
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-default);
+  background:
+    radial-gradient(90% 120% at 88% -10%,
+      var(--color-brand-primary-100) 0%,
+      transparent 62%),
+    linear-gradient(158deg,
+      var(--bg-surface) 0%,
+      var(--color-brand-primary-50) 52%,
+      var(--bg-surface-sunken) 100%);
 }
 
-/* El 4vw se saturaba en 40px desde 1000px de ancho: portátil, 24" y 27"
-   recibían el mismo cuerpo aunque el alto útil pasara de 556 a 1126px.
-   Ahora sigue la escala de título de página y nunca baja de 24px. */
+/* Franja de marca en el borde superior: firma institucional del programa,
+   dos colores de la paleta TECNM y nada más. */
+.program-hero-section::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: var(--space-1);
+  background: linear-gradient(90deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-primary) 55%,
+    var(--color-brand-accent) 100%);
+}
+
+/* El contenido del hero sí respeta la medida del resto de la página.
+
+   El max-width lleva `+ 2 * --bleed` a propósito: con box-sizing:border-box el
+   relleno cuenta dentro del ancho, así que un tope de --content-max-w a secas
+   dejaba el texto del hero 24px por dentro del de las secciones — el título
+   del programa no arrancaba en la misma vertical que "Cómo ingresar". Sumando
+   el relleno, los dos bordes de texto coinciden en cualquier ancho. */
+.program-hero__inner {
+  max-width: calc(var(--content-max-w) + 2 * var(--bleed));
+  margin-inline: auto;
+  padding-inline: var(--bleed);
+}
+
+.program-hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-12);
+}
+
+@media (max-width: 991.98px) {
+  .program-hero__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
+  }
+}
+
+/* El 4vw se saturaba en 40px desde 1000px de ancho, y anclarlo a
+   --fs-page-title lo dejaba EMPATADO con los h2 de sección: el nombre del
+   programa y "Contacto" salían los dos a 28px. Ahora escala en su propio
+   eje y arranca por encima del título de sección en cualquier pantalla. */
 .program-hero__title {
   font-family: var(--font-display);
-  font-size: max(var(--fs-xl), var(--fs-page-title));
+  font-size: clamp(var(--fs-2xl), 4.6vw, calc(var(--fs-3xl) * 1.2));
   font-weight: var(--fw-bold);
   line-height: var(--lh-tight);
   letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-4);
+  text-wrap: balance;
 }
 
+/* --text-secondary daba 4.30:1 sobre el extremo tintado del degradado del
+   hero: fallaba 1.4.3 AA justo donde vive este párrafo. La rampa neutral-700
+   da 7.28:1 en el mismo punto. */
 .program-hero__lead {
   font-size: var(--fs-md);
   line-height: var(--lh-relaxed);
-  color: var(--text-secondary);
+  color: var(--color-neutral-700);
   max-width: var(--measure-prose);
-  margin-bottom: var(--stack-gap);
+  margin-bottom: var(--space-8);
 }
 
 .program-hero__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
-/* Acciones secundarias: enlaces de navegación interna, no botones.
-   El peso visual de botón queda reservado al CTA real. */
-.program-hero__jump {
+/* Navegación interna del hero. Vuelven a ser botones: como enlaces de texto
+   subrayados quedaban por debajo del peso de la página que encabezan, y el
+   primero de ellos es la acción que el visitante busca al llegar.
+   No compiten con el CTA: éstos son azul de marca y navegan dentro de la
+   página; "Postularme" es rojo de acento y vive en la barra inferior. */
+.program-hero__action {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   min-height: var(--tap-min);
-  padding-inline: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-pill);
   font-weight: var(--fw-semibold);
-  font-size: var(--fs-sm);
-  color: var(--color-brand-primary);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  font-size: var(--fs-base);
+  border: 1px solid var(--color-brand-primary);
+  background-color: transparent;
+  color: var(--color-brand-primary);     /* 13.40:1 sobre el hero */
+  text-decoration: none;
+  transition: transform var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out),
+              background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
 }
 
-.program-hero__jump:hover,
-.program-hero__jump:focus-visible {
-  color: var(--color-brand-primary-700);
-}
-
-.program-image-container {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--radius-lg);
+.program-hero__action:hover,
+.program-hero__action:focus-visible {
+  background-color: var(--color-brand-primary);
+  color: var(--text-inverse);
+  transform: translateY(-2px);
   box-shadow: var(--shadow-3);
 }
 
-/* El max-height de 400px era código muerto: con relación 960x540 haría falta
-   una columna de 711px y el contenedor topa antes. La altura la fijaba de
-   facto la imagen (316px en el portátil, el 57% del pliegue) para un elemento
-   decorativo con alt="". Ahora se mide contra el viewport, como el visor de
-   documentos: 178px a 740px de alto, 228px a 950px y 314px a 1310px. */
+/* El primero es el que el visitante vino a pulsar: sólido, no contorneado. */
+.program-hero__action--primary {
+  background-color: var(--color-brand-primary);
+  color: var(--text-inverse);            /* 13.40:1 */
+  box-shadow: var(--shadow-2);
+}
+
+.program-hero__action--primary:hover,
+.program-hero__action--primary:focus-visible {
+  background-color: var(--color-brand-primary-700);
+  border-color: var(--color-brand-primary-700);
+  color: var(--text-inverse);
+  box-shadow: var(--shadow-4);
+}
+
+/* Acceso a configuración: sólo lo ve quien puede editar, y no compite con
+   la navegación del visitante. */
+.program-hero__config {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-3) var(--space-4);
+  margin-inline-start: auto;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+}
+
+.program-hero__config:hover,
+.program-hero__config:focus-visible {
+  background-color: var(--bg-surface);
+  color: var(--color-brand-primary);
+}
+
+@media (max-width: 575.98px) {
+  .program-hero__config {
+    margin-inline-start: 0;
+  }
+}
+
+/* Imagen del hero. Volvió a tener presencia: el clamp de 24vh la dejaba en
+   una miniatura de 160px en un portátil, para la única imagen de la única
+   página persuasiva de la app. */
+.program-image-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-4);
+}
+
+/* Velo de marca en el borde inferior: cose la foto al degradado del hero en
+   lugar de dejarla flotando como un recorte pegado. */
+.program-image-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--border-brand-subtle);
+}
+
 .program-hero__image {
   display: block;
   width: 100%;
   height: auto;
-  max-height: clamp(10rem, 24vh, 25rem);
+  aspect-ratio: 16 / 10;
+  max-height: clamp(14rem, 36vh, 26rem);
   object-fit: cover;
-  border-radius: var(--radius-lg);
+  transition: transform var(--duration-slow) var(--ease-out);
 }
 
-/* Datos concretos del programa bajo el hero (sustituyen a 3 tarjetas
-   decorativas con copy genérico). Fila de hechos, no tarjetas anidadas. */
+.program-image-container:hover .program-hero__image {
+  transform: scale(1.03);
+}
+
+/* Datos concretos del programa bajo el hero. Es el ÚNICO sitio donde se
+   enuncian: las tarjetas de "Acerca del Programa" ya no los repiten. */
 .program-hero__facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-4);
   list-style: none;
-  margin: var(--stack-gap) 0 0;
-  padding: var(--block-pad-y) 0 0;
-  border-top: 1px solid var(--border-default);
+  margin: var(--space-10) 0 0;
+  padding: 0;
 }
 
 .program-hero__fact {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.program-hero__fact:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-3);
 }
 
 .program-hero__fact i {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-brand-primary-100);
   font-size: var(--fs-lg);
   color: var(--color-brand-primary);
   line-height: 1;
-  margin-top: 2px;
 }
 
 .program-hero__fact-label {
@@ -175,48 +470,52 @@
 
 .program-hero__fact-value {
   display: block;
-  font-size: var(--fs-base);
+  font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
   color: var(--text-primary);
 }
 
-@media (max-width: 767.98px) {
-  .program-hero-section {
-    padding: var(--space-6);
-  }
+/* Apunte bajo un hecho del hero: "Información de horarios" bajo Modalidad.
+   Es un textarea, así que puede traer varias líneas y se deja fluir. */
+.program-hero__fact-note {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-normal);
+  color: var(--text-secondary);
+  white-space: pre-line;
+}
 
+@media (max-width: 767.98px) {
   .program-hero__facts {
     grid-template-columns: 1fr;
     gap: var(--space-3);
-  }
-}
-
-@media (max-width: 575.98px) {
-  .program-hero-section {
-    padding: var(--space-4);
+    margin-top: var(--space-8);
   }
 }
 
 /* ──────────────────────────────────────────────────────────────
-   PIEZAS COMPARTIDAS DE SECCIÓN
+   3. PIEZAS COMPARTIDAS
    ────────────────────────────────────────────────────────────── */
 
-.divider-center {
-  width: 60px;
-  height: 3px;
-  background-color: var(--color-brand-primary);
-  margin: 0 auto;
-}
-
+/* Tarjeta que responde al puntero. La elevación en reposo existe: una
+   tarjeta sin sombra que sólo aparece al hacer hover no se lee como
+   tarjeta hasta que el ratón la toca. */
 .hover-card {
   border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-1);
   transition: transform var(--duration-normal) var(--ease-out),
-              box-shadow var(--duration-normal) var(--ease-out);
+              box-shadow var(--duration-normal) var(--ease-out),
+              border-color var(--duration-normal) var(--ease-out);
 }
 
 .hover-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-3);
+  transform: translateY(-5px);
+  border-color: var(--border-brand-subtle);
+  box-shadow: var(--shadow-4);
 }
 
 .icon-circle {
@@ -229,67 +528,170 @@
   flex-shrink: 0;
 }
 
-.bg-primary-light {
-  background-color: var(--color-brand-primary-100);
-}
-
 @media (max-width: 767.98px) {
   .icon-circle {
-    width: 40px;
-    height: 40px;
+    width: var(--avatar-sm);
+    height: var(--avatar-sm);
   }
 }
 
-/* Enlaces a plantillas de documento */
-.document-link {
+/* Panel informativo. Las secciones ya aportan superficie y relleno; meter
+   una .card dentro daba dos bordes y 48px verticales duplicados. Este panel
+   ES la tarjeta. */
+.program-panel {
+  padding: var(--space-8);
+}
+
+.program-panel--plain {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  padding: var(--space-8);
+}
+
+@media (max-width: 767.98px) {
+  .program-panel,
+  .program-panel--plain {
+    padding: var(--space-5);
+  }
+}
+
+/* Listas de puntos con marca de verificación (objetivos, competencias) */
+.program-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.program-checklist li {
+  position: relative;
+  padding-left: var(--space-8);
+  line-height: var(--lh-relaxed);
+}
+
+.program-checklist li + li {
+  margin-top: var(--space-3);
+}
+
+.program-checklist li i {
+  position: absolute;
+  left: 0;
+  top: 0.35em;
   color: var(--color-brand-primary);
-  transition: color var(--duration-fast) var(--ease-out);
+}
+
+/* Enlaces a plantillas de documento. Como texto subrayado en una lista de
+   once elementos la sección se leía como un índice de sitio web de 2004;
+   como fichas se leen como lo que son: descargas. */
+.document-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-brand-subtle);
+  background-color: var(--color-brand-primary-50);
+  color: var(--color-brand-primary);     /* 12.9:1 sobre primary-50 */
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  transition: transform var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out),
+              background-color var(--duration-fast) var(--ease-out);
 }
 
 .document-link:hover,
 .document-link:focus-visible {
+  background-color: var(--color-brand-primary-100);
   color: var(--color-brand-primary-700);
-  text-decoration: underline;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
 }
 
-/* Correos largos dentro de un botón a ancho completo */
-.btn .text-break {
+/* Documento sin plantilla descargable: es un requisito, no un enlace roto.
+   Sin borde de marca ni afordancia de pulsación. */
+.document-link--static {
+  border-color: var(--border-default);
+  background-color: var(--bg-surface-sunken);
+  color: var(--text-secondary);
+}
+
+.document-link--static:hover {
+  transform: none;
+  box-shadow: none;
+  background-color: var(--bg-surface-sunken);
+  color: var(--text-secondary);
+}
+
+/* Fila de fichas de documento */
+.document-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Correos largos dentro de un enlace o botón a ancho completo */
+.text-break {
   overflow-wrap: anywhere;
 }
 
 /* Foco de campos: el anillo de marca, nunca el azul de Bootstrap */
-.program-view-container .form-control:focus {
+.program-landing .form-control:focus {
   border-color: var(--color-brand-primary);
   box-shadow: var(--shadow-focus);
 }
 
+/* El foco global de _tokens.css (`*:focus-visible`) reescribe el border-radius
+   a --radius-xs, así que cada control de píldora de esta página se cuadraba al
+   tabular. El contorno ya sigue la forma del elemento: basta con conservarla. */
+.program-hero__action:focus-visible,
+.program-hero__config:focus-visible,
+.document-link:focus-visible,
+.btn-inscription:focus-visible,
+.btn-back:focus-visible {
+  border-radius: var(--radius-pill);
+}
+
 /* ──────────────────────────────────────────────────────────────
-   BOTONES FLOTANTES
+   4. BOTONES FLOTANTES
    ────────────────────────────────────────────────────────────── */
 
-/* Anclados ABAJO en todos los anchos. Con `top: 130px` (valor absoluto que
-   además ignoraba --header-h) y un contenedor que sólo empieza a centrarse
-   por encima de 1598px, 'Regresar' caía sobre el <h1> del programa y
-   'Postularme' sobre la imagen del hero en TODO ancho de 992 a 1798px: justo
-   el del portátil. Al pie no hay colisión posible y el contenedor ya reserva
-   el hueco con su padding-bottom. */
-.floating-back-button {
+/* Dos píldoras flotantes, una en cada esquina, como en el diseño original.
+   Lo que sí se conserva de la barra que las sustituyó un tiempo: son opacas y
+   con sombra propia (para que el texto no asome por debajo), el contenedor
+   reserva su altura al final del documento, y el FAB de notificaciones se
+   aparta en móvil en vez de pelear la misma esquina. */
+.program-fab {
   position: fixed;
   bottom: calc(var(--footer-h) + var(--space-4));
-  left: calc(var(--sidebar-w) + var(--space-4));
-  z-index: var(--z-dropdown);
-}
-
-.floating-inscription-button {
-  position: fixed;
-  bottom: calc(var(--footer-h) + var(--space-4));
-  right: var(--space-4);
   z-index: var(--z-fab);
+  /* Entran deslizándose una vez, no en bucle. */
+  animation: siiap-program-fab-in var(--duration-slow) var(--ease-out) both;
 }
 
-/* El CTA y el boton de regreso son visibles SIN JavaScript: son la unica
-   entrada a la postulacion. Antes nacian con opacity:0 y dependian de un
-   setTimeout de 500 ms para existir. */
+@keyframes siiap-program-fab-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-4));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.program-fab--back {
+  left: calc(var(--sidebar-w) + var(--space-5));
+}
+
+.program-fab--apply {
+  right: var(--space-5);
+}
 
 .btn-inscription,
 .btn-back {
@@ -297,60 +699,120 @@
   align-items: center;
   justify-content: center;
   min-height: var(--tap-min);
-  padding: var(--space-3) var(--space-6);
+  padding: var(--space-3) var(--space-8);
   border-radius: var(--radius-pill);
   font-weight: var(--fw-semibold);
-  box-shadow: var(--shadow-3);
   transition: box-shadow var(--duration-fast) var(--ease-out),
               background-color var(--duration-fast) var(--ease-out),
               transform var(--duration-fast) var(--ease-out);
 }
 
-/* Pulso del CTA. El original usaba rgba(13,110,253) — el azul de Bootstrap,
-   no el de la marca — y un degradado azul a rojo. Aqui el halo se tine con
-   el rojo institucional del propio boton. */
+/* Pulso del CTA. Documentado en CLAUDE.md como excepción deliberada: es la
+   única acción de conversión de la única superficie persuasiva de la app.
+   El original usaba rgba(13,110,253) — el azul de Bootstrap, no el de la
+   marca — y un halo de desplazamiento cero, que es decoración. Aquí respira
+   entre dos escalones de la escala de sombra: mismo efecto de llamada, cero
+   literales de color y profundidad con desplazamiento real. */
 @keyframes siiap-program-cta-pulse {
   0%,
   100% {
-    box-shadow: var(--shadow-4), 0 0 0 0 rgba(178, 31, 45, 0.55);
+    box-shadow: var(--shadow-2);
+    transform: scale(1);
   }
   50% {
-    box-shadow: var(--shadow-5), 0 0 0 var(--space-2) rgba(178, 31, 45, 0);
+    box-shadow: var(--shadow-5);
+    transform: scale(1.04);
   }
 }
 
+/* Bootstrap declara `:not(.btn-check) + .btn:active, .btn:first-child:active`
+   leyendo --bs-btn-active-*, que la clase base .btn nunca define: los var()
+   salen inválidos y el color cae a `inherit` (#212529) con el borde a
+   currentColor. Al mantener pulsado, "Postularme" quedaba en gris oscuro sobre
+   el rojo —2.2:1— y "Regresar" perdía su borde azul. Se resuelve dando valor a
+   esas propiedades, no añadiendo más selectores :active. */
 .btn-inscription {
-  padding: var(--space-4) var(--space-8);
+  --bs-btn-active-color: var(--text-inverse);
+  --bs-btn-active-bg: var(--color-brand-accent-600);
+  --bs-btn-active-border-color: var(--color-brand-accent-600);
+  position: relative;
+  overflow: hidden;
   border: 1px solid var(--color-brand-accent);
-  background-color: var(--color-brand-accent);
+  background: linear-gradient(135deg,
+    var(--color-brand-accent) 0%,
+    var(--color-brand-accent-600) 100%);
   color: var(--text-inverse);            /* 6.72:1 */
   font-size: var(--fs-md);
-  box-shadow: var(--shadow-4);
+  box-shadow: var(--shadow-3);
   animation: siiap-program-cta-pulse var(--duration-pulse) var(--ease-in-out) infinite;
+}
+
+/* Barrido de luz al pasar el puntero. Es la microinteracción que tenía el
+   botón antes de la auditoría y la que lo distinguía de un botón de tabla. */
+.btn-inscription::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: -60%;
+  width: 40%;
+  transform: skewX(-20deg);
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--color-neutral-0) 50%,
+    transparent 100%);
+  opacity: 0;
+  transition: inset-inline-start var(--duration-slow) var(--ease-out),
+              opacity var(--duration-fast) var(--ease-out);
+  pointer-events: none;
+}
+
+.btn-inscription:hover::after,
+.btn-inscription:focus-visible::after {
+  inset-inline-start: 120%;
+  opacity: 0.28;
 }
 
 .btn-inscription:hover,
 .btn-inscription:focus-visible {
-  background-color: var(--color-brand-accent-600);
+  background: linear-gradient(135deg,
+    var(--color-brand-accent-600) 0%,
+    var(--color-brand-accent-600) 100%);
   border-color: var(--color-brand-accent-600);
   color: var(--text-inverse);
-  transform: translateY(-2px);
-  /* El pulso se detiene al interactuar: ya tiene la atencion. */
+  transform: translateY(-3px);
+  /* El pulso se detiene al interactuar: ya tiene la atención. */
   animation-play-state: paused;
   box-shadow: var(--shadow-5);
 }
 
-/* Variante de contacto (periodo cerrado): mismo sitio y mismo peso, pero sin
-   pulso. Llama a una accion util, no urgente. */
-.btn-inscription--contact {
+/* Ya tiene un proceso abierto: el botón lleva al panel, no a postularse otra
+   vez. Sin pulso — no es una acción de conversión, es un atajo. */
+.btn-inscription--waiting {
+  --bs-btn-active-bg: var(--color-brand-primary-700);
+  --bs-btn-active-border-color: var(--color-brand-primary-700);
   animation: none;
-  text-decoration: none;
+  background: linear-gradient(135deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-primary-700) 100%);
+  border-color: var(--color-brand-primary);
+}
+
+.btn-inscription--waiting:hover,
+.btn-inscription--waiting:focus-visible {
+  background: linear-gradient(135deg,
+    var(--color-brand-primary-700) 0%,
+    var(--color-brand-primary-700) 100%);
+  border-color: var(--color-brand-primary-700);
 }
 
 .btn-back {
+  --bs-btn-active-color: var(--color-brand-primary-700);
+  --bs-btn-active-bg: var(--color-brand-primary-100);
+  --bs-btn-active-border-color: var(--color-brand-primary);
   background-color: var(--bg-surface);
   border: 1px solid var(--color-brand-primary);
   color: var(--color-brand-primary);     /* 13.40:1 sobre --bg-surface */
+  box-shadow: var(--shadow-3);
 }
 
 .btn-back:hover,
@@ -361,36 +823,77 @@
   box-shadow: var(--shadow-4);
 }
 
-/* El pulso es decorativo: sin el, el boton sigue siendo igual de visible. */
-@media (prefers-reduced-motion: reduce) {
-  .btn-inscription {
-    animation: none;
+@media (max-width: 991.98px) {
+  /* El sidebar pasa a offcanvas: la píldora recupera el borde de la ventana. */
+  .program-fab--back {
+    left: var(--space-4);
   }
 
-  .btn-inscription:hover,
-  .btn-back:hover {
-    transform: none;
+  .program-fab--apply {
+    right: var(--space-4);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .btn-inscription,
+  .btn-back {
+    padding: var(--space-2) var(--space-5);
+    font-size: var(--fs-sm);
+  }
+
+  /* El FAB de notificaciones y el CTA declaran ambos --z-fab y comparten la
+     esquina inferior derecha: ganaba el orden del DOM y el FAB recortaba la
+     etiqueta a "Postularm". Esta hoja sólo carga en la página del programa,
+     así que el desplazamiento vive donde nace el conflicto: el FAB sube por
+     encima del CTA en lugar de solaparlo.
+
+     Los valores van en tokens y no en --fab-reserve porque el FAB no desciende
+     de .program-landing; --fab-reserve sí le llega porque se declara en `html`,
+     pero aquí la cuenta es otra: alto del CTA + su separación del pie. */
+  .notification-fab {
+    bottom: calc(var(--footer-h) + var(--space-4) + var(--tap-min) + var(--space-3));
+  }
+}
+
+/* Alto útil muy bajo (móvil apaisado, zoom alto): base.css libera el shell y el
+   scroll pasa al documento. Las píldoras siguen siendo `fixed`, así que se
+   anclan al borde de la ventana — si no, flotarían sobre el contenido a la
+   altura donde estaba el pie. */
+@media (max-height: 30rem) {
+  html {
+    scroll-padding-bottom: calc(var(--fab-reserve) + var(--space-4));
+  }
+
+  .program-fab {
+    bottom: var(--space-3);
   }
 }
 
 /* ──────────────────────────────────────────────────────────────
-   FRANJA DE ESTADO DE ADMISION (bajo el hero)
+   5. FRANJA DE ESTADO DE ADMISIÓN (bajo el hero)
    ────────────────────────────────────────────────────────────── */
 
 .program-notice {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--section-gap);
+  padding: var(--space-5) var(--space-6);
   background: var(--color-warning-100);
   border: 1px solid var(--border-warning-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   color: var(--color-warning-700);       /* 6.87:1 sobre warning-100 */
 }
 
 .program-notice__icon {
   flex-shrink: 0;
-  margin-top: 0.1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-surface);
   font-size: var(--fs-lg);
 }
 
@@ -400,150 +903,104 @@
 
 .program-notice__text {
   margin: 0;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   line-height: var(--lh-normal);
 }
 
-.program-notice__meta {
-  margin: var(--space-1) 0 0;
-  font-size: var(--fs-sm);
-  color: var(--color-neutral-700);       /* 7.9:1 sobre warning-100 */
-}
-
-.program-notice__meta a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-@media (max-width: 767.98px) {
-  .btn-inscription,
-  .btn-back {
-    padding: var(--space-3) var(--space-5);
-    font-size: var(--fs-sm);
-  }
-}
-
 /* ──────────────────────────────────────────────────────────────
-   PROCESO DE ADMISIÓN (fases + línea de tiempo)
+   6. CÓMO INGRESAR (línea de tiempo + fases posteriores)
    ────────────────────────────────────────────────────────────── */
-
-.admission-phases-nav {
-  background-color: var(--bg-surface-sunken);
-  border-radius: var(--radius-md);
-  padding: var(--space-2);
-  box-shadow: var(--shadow-1);
-}
-
-.admission-phases-nav .nav-link {
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--nav-link-pad-y) var(--space-2);
-}
-
-.phase-icon-container {
-  margin-bottom: var(--space-2);
-}
-
-.phase-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: var(--radius-pill);
-  background-color: var(--bg-surface);
-  color: var(--color-brand-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto;
-  box-shadow: var(--shadow-1);
-}
-
-.phase-name {
-  font-weight: var(--fw-semibold);
-  font-size: var(--fs-sm);
-}
-
-/* En escritorio hay ~390px por pestaña para una sola palabra ('Admisión',
-   'Permanencia', 'Conclusión'): apilar un icono de 50px sobre la etiqueta
-   costaba 127px de barra. En fila baja a ~48px. No lo resuelve ningún token
-   —es la dirección de la caja—, así que va con la condición de ancho estándar. */
-@media (min-width: 992px) {
-  .admission-phases-nav .nav-link {
-    flex-direction: row;
-    justify-content: center;
-    padding: var(--nav-link-pad-y) var(--space-4);
-  }
-
-  .phase-icon-container {
-    margin-bottom: 0;
-  }
-
-  .phase-icon {
-    width: var(--icon-box-sm);
-    height: var(--icon-box-sm);
-  }
-}
-
-/* El contenedor de pestañas global aporta borde, fondo y 24px de relleno,
-   pensados para .nav-tabs. Aquí la navegación es de píldoras y cada fase ya
-   trae su propia superficie (.phase-content): sin esto quedaban una tarjeta
-   dentro de otra y 48px verticales duplicados. */
-#admision .tab-content {
-  padding: 0;
-  border: 0;
-  background-color: transparent;
-}
 
 .phase-content {
   background-color: var(--bg-surface);
-  border-radius: var(--radius-md);
-  padding: var(--block-pad-y) var(--space-6);
-  box-shadow: var(--shadow-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  padding: var(--space-8);
 }
 
 .phase-header {
-  margin-bottom: var(--stack-gap);
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.phase-header h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.phase-header h3 i {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-brand-primary-100);
+  font-size: var(--fs-md);
+  color: var(--color-brand-primary);
 }
 
 .steps-timeline {
   position: relative;
-  padding: var(--space-4) 0;
+  padding: var(--space-2) 0;
 }
 
+/* La línea se dibuja al entrar la sección en pantalla. No es un bucle: es
+   la misma revelación de scroll que el resto, expresada en la pieza que
+   representa una secuencia. */
 .steps-timeline::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 20px;
+  left: calc(var(--avatar-sm) / 2 - 1px);
   height: 100%;
   width: 2px;
-  background-color: var(--color-brand-primary-100);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-primary-100) 100%);
+  transform: scaleY(0);
+  transform-origin: top center;
+  transition: transform var(--duration-slow) var(--ease-out) 120ms;
+}
+
+.steps-timeline.revealed::before {
+  transform: scaleY(1);
 }
 
 .timeline-item {
   position: relative;
-  padding-left: var(--space-12);
-  margin-bottom: var(--stack-gap);
+  padding-left: calc(var(--avatar-sm) + var(--space-6));
 }
 
-.timeline-item:last-child {
-  margin-bottom: 0;
+.timeline-item + .timeline-item {
+  margin-top: var(--space-6);
 }
 
 .timeline-dot {
   position: absolute;
   left: 0;
   top: 0;
-  width: 40px;
-  height: 40px;
+  width: var(--avatar-sm);
+  height: var(--avatar-sm);
   border-radius: var(--radius-pill);
-  background-color: var(--color-brand-primary);
+  background: linear-gradient(135deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-primary-700) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: var(--z-raised);
-  box-shadow: var(--shadow-2);
+  box-shadow: 0 0 0 4px var(--bg-surface), var(--shadow-3);
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+.timeline-item:hover .timeline-dot {
+  transform: scale(1.08);
 }
 
 .step-number {
@@ -552,70 +1009,223 @@
   font-size: var(--fs-md);
 }
 
+/* Sin .card anidada: la fase ya es una superficie. */
 .timeline-content {
-  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out),
+              border-color var(--duration-normal) var(--ease-out);
+}
+
+.timeline-item:hover .timeline-content {
+  transform: translateY(-3px);
+  border-color: var(--border-brand-subtle);
+  box-shadow: var(--shadow-3);
+}
+
+.timeline-content__head {
+  padding: var(--space-4) var(--space-5);
+  background: linear-gradient(90deg,
+    var(--color-brand-primary-50) 0%,
+    var(--bg-surface-sunken) 100%);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.timeline-content__body {
+  padding: var(--space-5);
+}
+
+/* Etiqueta, no encabezado: se repetía once veces como <h5> y dejaba el árbol
+   de encabezados inservible para navegar en una página de 4 000px. */
+.timeline-docs__label {
+  display: block;
+  margin-bottom: var(--space-3);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Fases posteriores a la admisión, plegadas */
+.admission-later {
+  margin-top: var(--space-8);
+}
+
+/* El selector lleva `.accordion-flush` a propósito: Bootstrap declara
+   `.accordion-flush > .accordion-item:first-child { border-top: 0 }` y su
+   gemela `:last-child` con especificidad (0,3,0). Como aquí sólo hay UN item,
+   es a la vez el primero y el último, así que sin igualar esa especificidad la
+   caja se quedaba sin borde superior ni inferior: dos hairlines sueltos a los
+   lados. */
+.admission-later.accordion-flush > .accordion-item {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-1);
+}
+
+.admission-later .accordion-button {
+  font-size: var(--fs-base);
+  padding: var(--space-4) var(--space-5);
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.admission-later .accordion-button:hover {
+  background-color: var(--color-brand-primary-50);
+}
+
+.admission-later .accordion-button:not(.collapsed) {
+  background-color: var(--bg-surface-sunken);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+/* Bootstrap pone outline:0 en .accordion-button y esta hoja anula además su
+   box-shadow de foco, así que sin esto un usuario de teclado no vería NADA al
+   tabular. El contorno va hacia dentro (offset negativo) porque el
+   .accordion-item recorta con overflow:hidden. */
+.admission-later .accordion-button:focus {
+  border-color: var(--color-brand-primary);
+  box-shadow: none;
+}
+
+.admission-later .accordion-button:focus-visible {
+  outline: 2px solid var(--color-brand-primary);
+  outline-offset: -3px;
+}
+
+.admission-later__phase + .admission-later__phase {
+  margin-top: var(--space-6);
+}
+
+.admission-later__phase h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  color: var(--color-brand-primary);
+}
+
+.admission-later__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admission-later__list li {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface-sunken);
+}
+
+.admission-later__list li + li {
+  margin-top: var(--space-2);
+}
+
+.admission-later__step-name {
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+}
+
+.admission-later__step-desc {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
 }
 
 @media (max-width: 767.98px) {
-  .admission-phases-nav .nav-link {
-    padding: var(--space-3) var(--space-1);
-  }
-
-  .phase-icon {
-    width: 40px;
-    height: 40px;
-    font-size: var(--fs-sm);
-  }
-
-  .phase-name {
-    font-size: var(--fs-xs);
-  }
-
   .phase-content {
-    padding: var(--space-6) var(--space-4);
+    padding: var(--space-5);
+  }
+
+  .timeline-item {
+    padding-left: calc(var(--avatar-sm) + var(--space-4));
   }
 }
 
 /* ──────────────────────────────────────────────────────────────
-   TARJETAS DE CONTACTO Y DE PERFIL
+   7. ACERCA DEL PROGRAMA
    ────────────────────────────────────────────────────────────── */
 
-/* Las tarjetas informativas ya viven dentro de una sección con relleno:
-   32px fijos por dentro eran aire duplicado. */
-.program-panel {
-  padding: var(--block-pad-y) var(--space-4);
+/* Dos hechos como mucho, y sólo si están capturados. No es la estructura de
+   la página: es un apunte al margen de la introducción. */
+.program-fact-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  height: 100%;
+  padding: var(--space-6);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out),
+              border-color var(--duration-normal) var(--ease-out);
 }
 
-.contact-item {
-  margin-bottom: var(--stack-gap);
+.program-fact-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-brand-subtle);
+  box-shadow: var(--shadow-3);
 }
 
-.contact-item:last-child {
-  margin-bottom: 0;
+.program-fact-card h3 {
+  font-size: var(--fs-base);
+  margin-bottom: var(--space-2);
+}
+
+.program-fact-card p {
+  color: var(--text-secondary);
+  line-height: var(--lh-relaxed);
 }
 
 /* ──────────────────────────────────────────────────────────────
-   PLAN DE ESTUDIOS
+   8. PLAN DE ESTUDIOS
    ────────────────────────────────────────────────────────────── */
 
 #plan-estudios .accordion-item {
   border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+  transition: box-shadow var(--duration-normal) var(--ease-out);
+}
+
+#plan-estudios .accordion-item:hover {
+  box-shadow: var(--shadow-3);
 }
 
 #plan-estudios .accordion-button {
   font-size: var(--fs-md);
-  padding: var(--space-4) var(--space-5);
-  background-color: var(--bg-surface-sunken);
+  font-weight: var(--fw-semibold);
+  padding: var(--space-4) var(--space-6);
+  background-color: var(--bg-surface);
   color: var(--text-primary);
   transition: background-color var(--duration-fast) var(--ease-out),
               color var(--duration-fast) var(--ease-out);
 }
 
+#plan-estudios .accordion-button:hover {
+  background-color: var(--color-brand-primary-50);
+}
+
 /* Semestre abierto: fondo de marca + chevron blanco.
    Sin esto, abierto y cerrado se veían idénticos. */
 #plan-estudios .accordion-button:not(.collapsed) {
-  background-color: var(--color-brand-primary);
+  background: linear-gradient(90deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-primary-700) 100%);
   color: var(--text-inverse);
   box-shadow: none;
 }
@@ -629,14 +1239,46 @@
   box-shadow: none;
 }
 
-#plan-estudios .accordion-button .badge {
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-medium);
+/* Semestre cerrado: fondo claro, contorno de marca. Semestre abierto: fondo
+   de marca, así que el contorno tiene que ser claro para verse encima. */
+#plan-estudios .accordion-button:focus-visible {
+  outline: 2px solid var(--color-brand-primary);
+  outline-offset: -3px;
 }
 
-/* La tabla no debe comprimirse en móvil: se desplaza dentro del wrapper. */
+#plan-estudios .accordion-button:not(.collapsed):focus-visible {
+  outline-color: var(--color-neutral-0);
+}
+
+/* Contador de materias. Es `badge` sin utilidad `bg-*`: las utilidades de
+   Bootstrap llevan !important y obligarían a esta hoja a escalar la guerra de
+   especificidad para recolorearlo sobre la cabecera de marca. */
+.semester-count {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  background-color: var(--color-brand-primary-100);
+  color: var(--color-brand-primary);     /* 11.7:1 sobre primary-100 */
+}
+
+#plan-estudios .accordion-button:not(.collapsed) .semester-count {
+  background-color: var(--color-neutral-0);
+  color: var(--color-brand-primary);     /* 13.40:1 sobre blanco */
+}
+
+/* Tabla de materias: losa con cabecera de marca. Como tabla desnuda de
+   Bootstrap era indistinguible de una pantalla de gestión.
+
+   NO se toca aquí ni el overflow ni el radio del wrapper: .siiap-table-wrapper
+   ya recorta con --radius-md y su overflow-x:auto es lo que permite desplazar
+   la tabla en móvil. Un `overflow:hidden` de esta hoja lo anularía.
+
+   Tampoco lleva sombra: el wrapper llena el .accordion-body de borde a borde y
+   el .accordion-item recorta con overflow:hidden, así que cualquier sombra se
+   pintaría fuera de la caja y quedaría cortada entera. La elevación la aporta
+   el propio .accordion-item. */
+
 #plan-estudios .curriculum-table {
-  min-width: 560px;
+  min-width: 35rem;   /* no se comprime en móvil: se desplaza en el wrapper */
   margin-bottom: 0;
 }
 
@@ -645,17 +1287,36 @@
   font-size: var(--fs-sm);
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
-  padding: var(--space-3);
-  border-bottom: 2px solid var(--border-default);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-brand-primary);
+  color: var(--text-inverse);            /* 13.40:1 */
+  border-bottom: 0;
+  /* Bootstrap 5.3 pinta `box-shadow: inset 0 0 0 9999px var(--bs-table-*)`
+     sobre cada celda: sin esto la cabecera de marca queda tapada en cuanto
+     una variante de tabla defina esa variable. */
+  box-shadow: none;
 }
 
 #plan-estudios .curriculum-table tbody td {
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   vertical-align: middle;
+  transition: background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
 }
 
-#plan-estudios .curriculum-table tbody tr:hover {
-  background-color: var(--color-brand-primary-50);
+/* La columna de código llevaba la utilidad .text-secondary de Bootstrap, que
+   NO es el token del proyecto: resuelve a rgba(--bs-secondary-rgb) = #6c757d,
+   un gris que _tokens.css nunca redefine. Se colorea desde aquí. */
+#plan-estudios .curriculum-table tbody td.curriculum-table__code {
+  color: var(--text-secondary);          /* 5.21:1 sobre --bg-surface */
+}
+
+/* El texto sube a --text-primary al iluminar la fila: sobre el tinte de marca
+   el gris secundario caía a 4.30:1 y fallaba 1.4.3 AA. Los estados de hover no
+   están exentos. */
+#plan-estudios .curriculum-table tbody tr:hover td {
+  background-color: var(--color-brand-primary-100);
+  color: var(--text-primary);            /* 12.2:1 sobre primary-100 */
 }
 
 #plan-estudios .font-monospace {
@@ -663,39 +1324,229 @@
   letter-spacing: var(--tracking-wide);
 }
 
-#plan-estudios .badge {
-  font-size: var(--fs-xs);
+/* Plan antiguo sin código, créditos ni tipo: lista, no una tabla de cuatro
+   columnas con tres llenas de guiones. */
+.curriculum-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-4) var(--space-6);
+}
+
+.curriculum-list li {
+  padding-block: var(--space-3);
   font-weight: var(--fw-medium);
+  color: var(--text-primary);
+}
+
+.curriculum-list li + li {
+  border-top: 1px solid var(--border-default);
+}
+
+/* Tipo de materia. No es `badge bg-*`: eso queda reservado a contadores
+   numéricos. Y no es .status-badge--*, que no tiene miembro para esto. */
+.course-type {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  background-color: var(--bg-surface-sunken);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+}
+
+.course-type--obligatoria {
+  background-color: var(--color-brand-primary-100);
+  border-color: var(--border-brand-subtle);
+  color: var(--color-brand-primary);     /* 11.7:1 sobre primary-100 */
+}
+
+.course-type--optativa {
+  background-color: var(--color-warning-100);
+  border-color: var(--border-warning-subtle);
+  color: var(--color-warning-700);       /* 6.87:1 sobre warning-100 */
 }
 
 /* Resumen de créditos */
 .curriculum-total {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin-top: var(--space-6);
-  padding: var(--space-4);
+  padding: var(--space-5) var(--space-6);
   border: 1px solid var(--border-success-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background-color: var(--color-success-100);
   color: var(--color-success-700);
   font-size: var(--fs-md);
 }
 
+.curriculum-total i {
+  font-size: var(--fs-xl);
+}
+
 /* Líneas de investigación: tarjetas informativas, NO clicables */
-#plan-estudios .hover-card .card-body {
+#plan-estudios .research-card {
+  height: 100%;
   padding: var(--space-6);
 }
 
-#plan-estudios .hover-card h4 {
+#plan-estudios .research-card h4 {
   font-size: var(--fs-md);
   margin-bottom: var(--space-3);
   color: var(--color-brand-primary);
 }
 
-#plan-estudios .hover-card .card-text {
+#plan-estudios .research-card p {
   font-size: var(--fs-sm);
   line-height: var(--lh-relaxed);
   color: var(--text-secondary);
+  margin-bottom: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   9. CONTACTO
+   ────────────────────────────────────────────────────────────── */
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.contact-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out),
+              border-color var(--duration-normal) var(--ease-out);
+}
+
+.contact-item:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-brand-subtle);
+  box-shadow: var(--shadow-3);
+}
+
+.contact-item__body {
+  min-width: 0;
+}
+
+.contact-item h3 {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.contact-item p {
+  margin-bottom: 0;
+  line-height: var(--lh-relaxed);
+  color: var(--text-primary);
+}
+
+/* El dato ES la acción. Sin subrayado permanente — el color de marca y el
+   peso ya lo separan del texto — pero con subrayado al pasar y al enfocar,
+   que es donde WCAG lo exige dentro de un bloque de texto. */
+.contact-item a {
+  color: var(--color-brand-primary);     /* 13.40:1 sobre --bg-surface */
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.contact-item a:hover,
+.contact-item a:focus-visible {
+  color: var(--color-brand-primary-700);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   10. DIÁLOGO DE CONVOCATORIA CERRADA
+   ────────────────────────────────────────────────────────────── */
+
+/* Vive siempre en el árbol para que la región viva anuncie de forma fiable;
+   se oculta sola mientras no tenga texto. */
+.admission-closed__feedback {
+  margin-top: var(--space-4);
+  margin-bottom: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+}
+
+.admission-closed__feedback:empty {
+  display: none;
+}
+
+.admission-closed__feedback:focus-visible {
+  outline: 2px solid var(--color-brand-primary);
+  outline-offset: 2px;
+}
+
+.admission-closed__feedback--ok {
+  background-color: var(--color-success-100);
+  border: 1px solid var(--border-success-subtle);
+  color: var(--color-success-700);
+}
+
+.admission-closed__feedback--error {
+  background-color: var(--color-danger-100);
+  border: 1px solid var(--border-danger-subtle);
+  color: var(--color-danger);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   11. MOVIMIENTO REDUCIDO
+   ────────────────────────────────────────────────────────────── */
+
+/* El pulso, el barrido y los desplazamientos son decorativos: sin ellos la
+   página comunica exactamente lo mismo. Los cambios de color y sombra se
+   conservan, porque son la señal de hover y de foco. */
+@media (prefers-reduced-motion: reduce) {
+  .btn-inscription {
+    animation: none;
+  }
+
+  .btn-inscription::after {
+    display: none;
+  }
+
+  /* Sin desplazamiento de entrada, pero sin dejarlas invisibles: `both`
+     mantendría el estado inicial del keyframe si sólo se quitara la animación. */
+  .program-fab {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .btn-inscription:hover,
+  .btn-back:hover,
+  .program-hero__action:hover,
+  .hover-card:hover,
+  .program-hero__fact:hover,
+  .program-fact-card:hover,
+  .contact-item:hover,
+  .timeline-item:hover .timeline-content,
+  .timeline-item:hover .timeline-dot,
+  .program-image-container:hover .program-hero__image {
+    transform: none;
+  }
+
+  .steps-timeline::before {
+    transform: scaleY(1);
+    transition: none;
+  }
 }

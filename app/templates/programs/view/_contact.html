@@ -1,115 +1,127 @@
-{# app/templates/programs/_contact.html #}
-{% if program.show_contact_section %}
-<section id="contacto" class="bg-light rounded-3">
+{# app/templates/programs/view/_contact.html
+
+   Un solo bloque. Antes la sección imprimía los mismos dos correos cuatro
+   veces: botón principal, botón alterno, y otra vez los dos como texto en la
+   lista de al lado. Aquí el dato ES la acción: cada correo y cada teléfono es
+   un enlace, dentro de una ficha propia. #}
+{# Los correos sólo cuentan como contenido si show_contact_form los deja salir:
+   si no, la sección se publicaría vacía en un programa que sólo tiene correos. #}
+{% set show_emails = program.show_contact_form
+                     and (program.contact_email or program.contact_email_secondary) %}
+{% set has_contact_data = show_emails
+                          or program.contact_phone or program.contact_phone_secondary
+                          or program.contact_address or program.contact_office
+                          or program.contact_hours %}
+
+{% if program.show_contact_section and (has_contact_data or program.coordinator) %}
+<section id="contacto">
   <div class="program-section-head" data-reveal>
-    <h2 class="h3 fw-bold">Contacto</h2>
+    <h2>Contacto</h2>
     <div class="divider-center"></div>
     <p class="lead program-lead">
-      ¿Tienes preguntas sobre nuestro programa? Estamos aquí para ayudarte.
+      ¿Tienes preguntas sobre el programa? Escríbenos.
     </p>
   </div>
 
-  <div class="row g-4">
-    {% if program.show_contact_form %}
-    <div class="col-lg-6" data-reveal="fade-right">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body program-panel">
-          <h3 class="h4 fw-bold mb-3">Escríbenos por correo</h3>
-          {% set primary_email = program.contact_email or 'posgrado@itcj.edu.mx' %}
-          <p class="mb-3">
-            Al pulsar el botón se abrirá tu cliente de correo con el asunto ya escrito.
-            Respondemos en horario de oficina.
-          </p>
-          <a href="mailto:{{ primary_email }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
-             class="btn btn-primary w-100">
-            <i class="bi bi-envelope-fill me-2" aria-hidden="true"></i>Escribir a <span class="text-break">{{ primary_email }}</span>
-          </a>
+  <ul class="contact-grid">
+
+    {% if program.coordinator %}
+    <li class="contact-item" data-reveal>
+      <div class="icon-circle bg-primary-soft">
+        <i class="bi bi-person-fill text-primary" aria-hidden="true"></i>
+      </div>
+      <div class="contact-item__body">
+        <h3>Coordinación del programa</h3>
+        <p>
+          {{ program.coordinator.first_name }} {{ program.coordinator.last_name }}<br>
+          <a href="mailto:{{ program.coordinator.email }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
+             class="text-break">{{ program.coordinator.email }}</a>
+        </p>
+      </div>
+    </li>
+    {% endif %}
+
+    {# show_contact_form gobernaba el panel "Escríbenos por correo", que era
+       exactamente esto: los correos del programa como acción de escritura. Al
+       desaparecer el panel el switch se quedó sin efecto —se guardaba y no
+       cambiaba nada— así que recupera su significado aquí. #}
+    {% if show_emails %}
+    <li class="contact-item" data-reveal data-reveal-delay="80">
+      <div class="icon-circle bg-primary-soft">
+        <i class="bi bi-envelope-fill text-primary" aria-hidden="true"></i>
+      </div>
+      <div class="contact-item__body">
+        <h3>Correo electrónico</h3>
+        <p>
+          {% if program.contact_email %}
+          <a href="mailto:{{ program.contact_email }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
+             class="text-break">{{ program.contact_email }}</a>
+          {% endif %}
+          {% if program.contact_email and program.contact_email_secondary %}<br>{% endif %}
           {% if program.contact_email_secondary %}
           <a href="mailto:{{ program.contact_email_secondary }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
-             class="btn btn-outline-primary w-100 mt-2">
-            <i class="bi bi-envelope me-2" aria-hidden="true"></i>Correo alterno: <span class="text-break">{{ program.contact_email_secondary }}</span>
-          </a>
+             class="text-break">{{ program.contact_email_secondary }}</a>
           {% endif %}
-        </div>
+        </p>
       </div>
-    </div>
+    </li>
     {% endif %}
-    <div class="col-lg-{% if program.show_contact_form %}6{% else %}12{% endif %}" data-reveal="fade-left">
-      <div class="card border-0 shadow-sm mb-3">
-        <div class="card-body program-panel">
-          <h3 class="h4 fw-bold mb-3">Información de Contacto</h3>
-          <ul class="list-unstyled mb-0">
-            {% if program.contact_email or program.contact_email_secondary %}
-            <li class="d-flex contact-item">
-              <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
-                <i class="bi bi-envelope-fill text-primary" aria-hidden="true"></i>
-              </div>
-              <div>
-                <h4 class="h6 fw-bold">Correo Electrónico</h4>
-                <p class="mb-0">
-                  {% if program.contact_email %}{{ program.contact_email }}{% endif %}
-                  {% if program.contact_email and program.contact_email_secondary %}<br>{% endif %}
-                  {% if program.contact_email_secondary %}{{ program.contact_email_secondary }}{% endif %}
-                </p>
-              </div>
-            </li>
-            {% endif %}
 
-            {% if program.contact_phone or program.contact_phone_secondary %}
-            <li class="d-flex contact-item">
-              <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
-                <i class="bi bi-telephone text-primary" aria-hidden="true"></i>
-              </div>
-              <div>
-                <h4 class="h6 fw-bold">Teléfono</h4>
-                <p class="mb-0">
-                  {% if program.contact_phone %}{{ program.contact_phone }}{% endif %}
-                  {% if program.contact_phone and program.contact_phone_secondary %}<br>{% endif %}
-                  {% if program.contact_phone_secondary %}{{ program.contact_phone_secondary }}{% endif %}
-                </p>
-              </div>
-            </li>
-            {% endif %}
-
-            {% if program.contact_address %}
-            <li class="d-flex contact-item">
-              <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
-                <i class="bi bi-geo-alt-fill text-primary" aria-hidden="true"></i>
-              </div>
-              <div>
-                <h4 class="h6 fw-bold">Dirección</h4>
-                <p class="mb-0">{{ program.contact_address }}</p>
-              </div>
-            </li>
-            {% endif %}
-
-            {% if program.contact_office %}
-            <li class="d-flex contact-item">
-              <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
-                <i class="bi bi-building text-primary" aria-hidden="true"></i>
-              </div>
-              <div>
-                <h4 class="h6 fw-bold">Oficina</h4>
-                <p class="mb-0">{{ program.contact_office }}</p>
-              </div>
-            </li>
-            {% endif %}
-
-            {% if program.contact_hours %}
-            <li class="d-flex contact-item">
-              <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
-                <i class="bi bi-clock text-primary" aria-hidden="true"></i>
-              </div>
-              <div>
-                <h4 class="h6 fw-bold">Horario de Atención</h4>
-                <p class="mb-0">{{ program.contact_hours }}</p>
-              </div>
-            </li>
-            {% endif %}
-          </ul>
-        </div>
+    {% if program.contact_phone or program.contact_phone_secondary %}
+    <li class="contact-item" data-reveal data-reveal-delay="160">
+      <div class="icon-circle bg-primary-soft">
+        <i class="bi bi-telephone-fill text-primary" aria-hidden="true"></i>
       </div>
-    </div>
-  </div>
+      <div class="contact-item__body">
+        <h3>Teléfono</h3>
+        <p>
+          {% if program.contact_phone %}
+          <a href="tel:{{ program.contact_phone|replace(' ', '')|replace('(', '')|replace(')', '')|replace('-', '') }}">{{ program.contact_phone }}</a>
+          {% endif %}
+          {% if program.contact_phone and program.contact_phone_secondary %}<br>{% endif %}
+          {% if program.contact_phone_secondary %}
+          <a href="tel:{{ program.contact_phone_secondary|replace(' ', '')|replace('(', '')|replace(')', '')|replace('-', '') }}">{{ program.contact_phone_secondary }}</a>
+          {% endif %}
+        </p>
+      </div>
+    </li>
+    {% endif %}
+
+    {% if program.contact_office %}
+    <li class="contact-item" data-reveal data-reveal-delay="240">
+      <div class="icon-circle bg-primary-soft">
+        <i class="bi bi-building text-primary" aria-hidden="true"></i>
+      </div>
+      <div class="contact-item__body">
+        <h3>Oficina</h3>
+        <p>{{ program.contact_office }}</p>
+      </div>
+    </li>
+    {% endif %}
+
+    {% if program.contact_address %}
+    <li class="contact-item" data-reveal data-reveal-delay="240">
+      <div class="icon-circle bg-primary-soft">
+        <i class="bi bi-geo-alt-fill text-primary" aria-hidden="true"></i>
+      </div>
+      <div class="contact-item__body">
+        <h3>Dirección</h3>
+        <p>{{ program.contact_address }}</p>
+      </div>
+    </li>
+    {% endif %}
+
+    {% if program.contact_hours %}
+    <li class="contact-item" data-reveal data-reveal-delay="240">
+      <div class="icon-circle bg-primary-soft">
+        <i class="bi bi-clock-fill text-primary" aria-hidden="true"></i>
+      </div>
+      <div class="contact-item__body">
+        <h3>Horario de atención</h3>
+        <p>{{ program.contact_hours }}</p>
+      </div>
+    </li>
+    {% endif %}
+  </ul>
 </section>
 {% endif %}

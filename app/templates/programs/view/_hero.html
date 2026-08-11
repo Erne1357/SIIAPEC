@@ -1,87 +1,96 @@
-{# app/templates/programs/view/_hero.html #}
+{# app/templates/programs/view/_hero.html
+
+   Sangra a todo el ancho de #main-content: el .program-hero__inner devuelve
+   el contenido a la medida del resto de la página. #}
 <section id="hero" class="program-hero-section">
-    <div class="row align-items-center">
-        <div class="col-lg-6 mb-3 mb-lg-0" data-reveal="fade-right">
-            <h1 class="program-hero__title">{{ program.name }}</h1>
-            <p class="program-hero__lead">{{ program.description }}</p>
+  <div class="program-hero__inner">
 
-            <div class="program-hero__actions">
-                {% if admission_open %}
-                {# Acción de valor: postularse. Es el único botón sólido del hero. #}
-                <button
-                    type="button"
-                    class="btn btn-primary btn-lg"
-                    data-bs-toggle="modal"
-                    data-bs-target="#enrollmentModal">
-                    <i class="bi bi-mortarboard-fill me-2" aria-hidden="true"></i>Postularme
-                </button>
-                {% elif program.coordinator %}
-                {# Cerrado: la acción útil es hablar con quien puede informarte. #}
-                <a href="mailto:{{ program.coordinator.email }}" class="btn btn-primary btn-lg">
-                    <i class="bi bi-envelope-fill me-2" aria-hidden="true"></i>Contactar al coordinador
-                </a>
-                {% endif %}
+    <div class="program-hero__grid">
+      <div data-reveal="fade-right">
+        <h1 class="program-hero__title">{{ program.name }}</h1>
+        <p class="program-hero__lead">{{ program.description }}</p>
 
-                {# Navegación interna: enlaces, no botones. #}
-                <a href="#admision" class="program-hero__jump">
-                    <i class="bi bi-list-check" aria-hidden="true"></i>Proceso de admisión
-                </a>
-                <a href="#plan-estudios" class="program-hero__jump">
-                    <i class="bi bi-journal-text" aria-hidden="true"></i>Plan de estudios
-                </a>
+        {# Navegación interna. Vuelven a ser botones: como enlaces de texto
+           subrayados quedaban por debajo del peso de la página que encabezan.
+           No duplican el CTA — éstos navegan dentro de la página y son azul de
+           marca; "Postularme" es rojo de acento y vive en la barra inferior. #}
+        <div class="program-hero__actions">
+          <a href="#admision" class="program-hero__action program-hero__action--primary">
+            <i class="bi bi-list-check" aria-hidden="true"></i>Cómo ingresar
+          </a>
+          {% if show_curriculum_section %}
+          <a href="#plan-estudios" class="program-hero__action">
+            <i class="bi bi-journal-text" aria-hidden="true"></i>Plan de estudios
+          </a>
+          {% endif %}
+          {% if program.show_contact_section %}
+          <a href="#contacto" class="program-hero__action">
+            <i class="bi bi-envelope" aria-hidden="true"></i>Contacto
+          </a>
+          {% endif %}
 
-                {% if has_perm('academic_periods.api.create') or program.coordinator_id == current_user.id %}
-                <a href="{{ url_for('pages_admin.pages_settings.config_program', slug=program.slug) }}"
-                   class="btn btn-outline-secondary">
-                    <i class="bi bi-gear-fill me-1" aria-hidden="true"></i>Configurar
-                </a>
-                {% endif %}
-            </div>
+          {% if has_perm('academic_periods.api.create') or program.coordinator_id == current_user.id %}
+          <a href="{{ url_for('pages_admin.pages_settings.config_program', slug=program.slug) }}"
+             class="program-hero__config">
+            <i class="bi bi-gear-fill" aria-hidden="true"></i>Configurar
+          </a>
+          {% endif %}
         </div>
-        <div class="col-lg-6" data-reveal="fade-left">
-            <div class="program-image-container">
-                {% if program.image_filename %}
-                <img src="{{ url_for('static', filename='assets/images/' ~ program.image_filename) }}?v={{ static_version }}"
-                     alt=""
-                     class="program-hero__image"
-                     width="960" height="540"
-                     loading="eager" decoding="async">
-                {% else %}
-                <img src="{{ url_for('static', filename='assets/images/default.jpg') }}?v={{ static_version }}"
-                     alt=""
-                     class="program-hero__image"
-                     width="960" height="540"
-                     loading="eager" decoding="async">
-                {% endif %}
-            </div>
+      </div>
+
+      <div data-reveal="fade-left" data-reveal-delay="120">
+        <div class="program-image-container">
+          {% if program.image_filename %}
+          <img src="{{ url_for('static', filename='assets/images/' ~ program.image_filename) }}?v={{ static_version }}"
+               alt=""
+               class="program-hero__image"
+               width="960" height="600"
+               loading="eager" decoding="async">
+          {% else %}
+          <img src="{{ url_for('static', filename='assets/images/default.jpg') }}?v={{ static_version }}"
+               alt=""
+               class="program-hero__image"
+               width="960" height="600"
+               loading="eager" decoding="async">
+          {% endif %}
         </div>
+      </div>
     </div>
 
-    {% if program.show_hero_cards %}
-    {# Datos concretos del programa. Sustituyen a tres tarjetas con copy
-       genérico que no aportaban ni información ni acción. #}
-    <ul class="program-hero__facts" data-reveal>
-        <li class="program-hero__fact">
-            <i class="bi bi-calendar3" aria-hidden="true"></i>
-            <span>
-                <span class="program-hero__fact-label">Duración</span>
-                <span class="program-hero__fact-value">{{ program.duration_display }}</span>
-            </span>
-        </li>
-        <li class="program-hero__fact">
-            <i class="bi bi-clock" aria-hidden="true"></i>
-            <span>
-                <span class="program-hero__fact-label">Modalidad</span>
-                <span class="program-hero__fact-value">{{ program.modality or 'Presencial' }}</span>
-            </span>
-        </li>
-        <li class="program-hero__fact">
-            <i class="bi bi-award-fill" aria-hidden="true"></i>
-            <span>
-                <span class="program-hero__fact-label">Nivel</span>
-                <span class="program-hero__fact-value">{{ program.program_level or 'Posgrado' }}</span>
-            </span>
-        </li>
+    {# Datos concretos del programa. Es el único sitio donde se enuncian: las
+       tarjetas de "Acerca del Programa" ya no los repiten, así que la fila NO
+       va detrás de `show_hero_cards`. Ese switch nació para no duplicar tres
+       tarjetas de relleno; con la duplicación ya eliminada, respetarlo aquí
+       significaba borrar duración, modalidad y nivel de toda la página. #}
+    <ul class="program-hero__facts">
+      <li class="program-hero__fact" data-reveal data-reveal-delay="60">
+        <i class="bi bi-calendar3" aria-hidden="true"></i>
+        <span>
+          <span class="program-hero__fact-label">Duración</span>
+          <span class="program-hero__fact-value">{{ program.duration_display }}</span>
+        </span>
+      </li>
+      <li class="program-hero__fact" data-reveal data-reveal-delay="140">
+        <i class="bi bi-clock" aria-hidden="true"></i>
+        <span>
+          <span class="program-hero__fact-label">Modalidad</span>
+          <span class="program-hero__fact-value">{{ program.modality or 'Presencial' }}</span>
+          {# "Información de horarios" es un campo editable del panel de
+             configuración que, tras la auditoría, no se pintaba en ninguna
+             pantalla: el coordinador lo llenaba y no aparecía nunca. #}
+          {% if program.schedule_info %}
+          <span class="program-hero__fact-note">{{ program.schedule_info }}</span>
+          {% endif %}
+        </span>
+      </li>
+      <li class="program-hero__fact" data-reveal data-reveal-delay="220">
+        <i class="bi bi-award-fill" aria-hidden="true"></i>
+        <span>
+          <span class="program-hero__fact-label">Nivel</span>
+          <span class="program-hero__fact-value">{{ program.program_level or 'Posgrado' }}</span>
+        </span>
+      </li>
     </ul>
-    {% endif %}
+
+  </div>
 </section>

@@ -1,40 +1,34 @@
-{# app/templates/programs/_graduate_profile.html #}
-{% from '_macros.html' import empty_state %}
-{% if program.show_graduate_profile %}
-<section id="perfil-egresado">
+{# app/templates/programs/view/_graduate_profile.html
+   La bandera sola no basta: con show_graduate_profile activo y sin contenido,
+   la sección publicaba una disculpa ("Perfil de egreso en construcción") en
+   una página cuyo trabajo es convencer. Si no hay perfil, no hay sección. #}
+{% if program.show_graduate_profile and (program.graduate_profile_intro or program.graduate_competencies) %}
+<section id="perfil-egresado" class="program-section--tinted">
   <div class="program-section-head" data-reveal>
-    <h2 class="h3 fw-bold">Perfil del Egresado</h2>
+    <h2>Perfil del Egresado</h2>
     <div class="divider-center"></div>
+    <p class="lead program-lead">
+      Lo que sabrás hacer al terminar {{ program.name }}.
+    </p>
   </div>
 
-  <div class="row justify-content-center">
+  <div class="row">
     <div class="col-lg-10">
-      {% if program.graduate_profile_intro or program.graduate_competencies %}
-      <div class="card border-0 shadow-sm" data-reveal>
-        <div class="card-body program-panel">
-          {% if program.graduate_profile_intro %}
-          <p class="lead mb-3">{{ program.graduate_profile_intro }}</p>
-          {% endif %}
+      <div class="program-panel program-panel--plain" data-reveal>
+        {% if program.graduate_profile_intro %}
+        <p class="lead mb-4">{{ program.graduate_profile_intro }}</p>
+        {% endif %}
 
-          {% if program.graduate_competencies %}
-          <ul class="list-unstyled mb-0">
-            {% for competency in program.graduate_competencies %}
-            <li {% if not loop.last %}class="mb-2"{% endif %}>
-              <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i> {{ competency }}
-            </li>
-            {% endfor %}
-          </ul>
-          {% endif %}
-        </div>
+        {% if program.graduate_competencies %}
+        <ul class="program-checklist">
+          {% for competency in program.graduate_competencies %}
+          <li>
+            <i class="bi bi-check-circle-fill" aria-hidden="true"></i>{{ competency }}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
       </div>
-      {% else %}
-      {{ empty_state(
-           icon='person-badge',
-           title='Perfil de egreso en construcción',
-           description='Este apartado se publicará próximamente. Mientras tanto, el coordinador puede resolverte cualquier duda sobre el perfil profesional.',
-           compact=true
-         ) }}
-      {% endif %}
     </div>
   </div>
 </section>

@@ -26,11 +26,29 @@ def view_program(slug):
     admission_open = open_period is not None
     next_period = svc.get_next_upcoming_period() if not admission_open else None
 
+    # Una sola verdad sobre si la sección del plan de estudios existe. El enlace
+    # del hero se calculaba sólo con show_curriculum y la sección además exige
+    # contenido: con la bandera activa y sin materias, el enlace apuntaba a un
+    # ancla inexistente y el clic no hacía absolutamente nada.
+    show_curriculum_section = bool(
+        program.show_curriculum
+        and (program.curriculum_semesters
+             or (program.show_research_lines and program.research_lines))
+    )
+
+    # El visitante ya inscrito en algún programa no puede postularse a otro:
+    # enroll_user_once levanta AlreadyEnrolledError ante cualquier UserProgram.
+    # Ofrecerle "Postularme" era un callejón sin salida; se le lleva a su
+    # proceso en curso.
+    viewer_program = svc.get_user_program(current_user.id)
+
     return render_template(
         'programs/view/view.html',
         program=program,
         admission_open=admission_open,
         next_period=next_period,
+        show_curriculum_section=show_curriculum_section,
+        viewer_program=viewer_program,
     )
 
 @program_bp.route('/<int:program_id>/inscription', methods=['POST'])

@@ -1,4 +1,4 @@
-{# app/templates/programs/_admission_steps.html #}
+{# app/templates/programs/view/_admission_steps.html #}
 {% from '_macros.html' import empty_state %}
 
 {# Diccionario de traducción para nombres de fases #}
@@ -10,7 +10,7 @@
 
 {# Diccionario de descripciones para cada fase #}
 {% set phase_descriptions = {
-  'admission': 'Completa estos pasos para iniciar tu proceso de admisión al programa.',
+  'admission': 'Estos son los pasos y documentos para postularte al programa.',
   'permanence': 'Requisitos y actividades durante tu estancia en el programa.',
   'conclusion': 'Pasos finales para obtener tu grado académico.'
 } %}
@@ -24,10 +24,12 @@
 
 <section id="admision">
   <div class="program-section-head" data-reveal>
-    <h2 class="h3 fw-bold">Proceso de Inscripción</h2>
+    {# "Proceso de Inscripción" prometía inscribir y luego mostraba dos fases
+       que son para gente ya admitida. #}
+    <h2 class="fw-bold">Cómo ingresar</h2>
     <div class="divider-center"></div>
     <p class="lead program-lead">
-      Conoce los pasos para formar parte de nuestro programa y prepararte para una experiencia académica transformadora.
+      Lo que se necesita para postularte a {{ program.name }}, paso por paso.
     </p>
   </div>
 
@@ -41,113 +43,143 @@
   {% set _ = phase_groups.setdefault(ps.step.phase, []).append(ps) %}
   {% endfor %}
 
-  {# 3) Generar lista de fases ordenadas por id #}
+  {# 3) Separar la fase de admisión del resto. El visitante viene a averiguar
+        cómo entrar: esa fase se muestra abierta y sin pestañas. Permanencia y
+        Conclusión son posteriores a la admisión y van plegadas. #}
   {% set sorted_phases = phase_groups.keys() | list | sort(attribute='id') %}
+  {% set admission_phase = (sorted_phases | selectattr('name', 'equalto', 'admission') | list | first)
+                           or (sorted_phases | first) %}
+  {% set later_phases = sorted_phases | reject('equalto', admission_phase) | list %}
 
   <div class="admission-process" data-reveal>
-    <!-- Navegación de fases horizontal -->
-    <ul class="nav nav-pills nav-justified admission-phases-nav mb-3" id="admissionPhasesTab" role="tablist">
-      {% for phase in sorted_phases %}
-      <li class="nav-item" role="presentation">
-        <button class="nav-link {% if loop.first %}active{% endif %}" 
-                id="phase-{{ phase.id }}-tab" 
-                data-bs-toggle="pill" 
-                data-bs-target="#phase-{{ phase.id }}" 
-                type="button" 
-                role="tab" 
-                aria-controls="phase-{{ phase.id }}" 
-                aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
-          <div class="phase-icon-container">
-            <div class="phase-icon">
-              {% set phase_key = phase.name|lower %}
-              {% if phase_key in phase_icons %}
-                <i class="bi {{ phase_icons[phase_key] }}" aria-hidden="true"></i>
+
+    {# ── Fase de admisión, siempre visible ────────────────────────────────── #}
+    {% if admission_phase %}
+    <div class="phase-content">
+      {% set phase_key = admission_phase.name|lower %}
+      <div class="phase-header">
+        <h3 class="fw-bold">
+          <i class="bi {{ phase_icons.get(phase_key, 'bi-clipboard-data') }}" aria-hidden="true"></i>
+          {{ phase_translations.get(phase_key, admission_phase.name|title) }}
+        </h3>
+        <p class="text-secondary mb-0">
+          {{ phase_descriptions.get(phase_key, 'Sigue estos pasos para completar esta fase del programa.') }}
+        </p>
+      </div>
+
+      {# data-reveal aquí y no sólo en los pasos: la línea vertical se dibuja
+         de arriba abajo cuando la lista entra en pantalla (.revealed::before).
+         Sin JS o con movimiento reducido, reveal.js marca .revealed de
+         inmediato y la línea aparece completa. #}
+      <div class="steps-timeline" data-reveal>
+        {% for ps in phase_groups[admission_phase] %}
+        <div class="timeline-item" data-reveal data-reveal-delay="{{ [loop.index0 * 60, 240]|min }}">
+          <div class="timeline-dot">
+            {# loop.index, no ps.sequence: la secuencia es clave de orden y
+               arranca en 0, así que el primer paso se anunciaba como "0". #}
+            <span class="step-number">{{ loop.index }}</span>
+          </div>
+          <div class="timeline-content">
+            <div class="timeline-content__head">
+              <h4 class="fw-bold mb-0">{{ ps.step.name }}</h4>
+            </div>
+            <div class="timeline-content__body">
+              <p class="mb-3">
+                {{ ps.step.description or "Sin descripción." }}
+              </p>
+
+              {% if ps.step.archives %}
+              {# Etiqueta, no encabezado: repetida once veces convertía el árbol
+                 de encabezados en ruido y lo dejaba inservible para navegar.
+                 Los documentos son fichas y no una lista de enlaces subrayados:
+                 lo que hay que hacer con ellos es descargarlos. #}
+              <span class="timeline-docs__label">Documentos requeridos</span>
+              <ul class="document-list">
+                {% for file in ps.step.archives %}
+                <li>
+                  {% if file.is_downloadable and file.file_path %}
+                  <a href="{{ url_for('api_archives.download_template', archive_id=file.id) }}"
+                     target="_blank" rel="noopener"
+                     class="document-link">
+                    <i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>{{ file.name }}
+                    <span class="visually-hidden">(descarga la plantilla en una pestaña nueva)</span>
+                  </a>
+                  {% else %}
+                  <span class="document-link document-link--static">
+                    <i class="bi bi-file-earmark-text" aria-hidden="true"></i>{{ file.name }}
+                  </span>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
               {% else %}
-                <i class="bi bi-clipboard-data" aria-hidden="true"></i>
+              <p class="fst-italic text-secondary mb-0">No hay documentos asociados a este paso.</p>
               {% endif %}
             </div>
           </div>
-          <span class="phase-name">{{ phase_translations.get(phase.name|lower, phase.name|title) }}</span>
-        </button>
-      </li>
-      {% endfor %}
-    </ul>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
 
-    <!-- Contenido de las fases -->
-    <div class="tab-content" id="admissionPhasesContent">
-      {% for phase in sorted_phases %}
-      {% set items = phase_groups[phase] %}
-      <div class="tab-pane fade {% if loop.first %}show active{% endif %}" 
-           id="phase-{{ phase.id }}" 
-           role="tabpanel" 
-           aria-labelledby="phase-{{ phase.id }}-tab">
-        
-        <div class="phase-content">
-          <div class="phase-header">
-            {% set phase_key = phase.name|lower %}
-            <h3 class="h4 fw-bold text-primary">{{ phase_translations.get(phase_key, phase.name|title) }}</h3>
-            <p class="text-muted">
-              {{ phase_descriptions.get(phase_key, 'Sigue estos pasos para completar esta fase del programa.') }}
+    {# ── Fases posteriores, plegadas ──────────────────────────────────────── #}
+    {% if later_phases %}
+    <div class="accordion accordion-flush admission-later" id="admissionLaterPhases">
+      <div class="accordion-item">
+        <h3 class="accordion-header" id="admissionLaterHeading">
+          <button class="accordion-button collapsed fw-semibold" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#admissionLaterBody"
+                  aria-expanded="false" aria-controls="admissionLaterBody">
+            <i class="bi bi-signpost-split me-2" aria-hidden="true"></i>
+            Qué sigue después de ser admitido
+          </button>
+        </h3>
+        <div id="admissionLaterBody" class="accordion-collapse collapse"
+             aria-labelledby="admissionLaterHeading">
+          <div class="accordion-body">
+            <p class="text-secondary">
+              Estas etapas ocurren una vez que ya formas parte del programa. No
+              hace falta que hagas nada con ellas para postularte.
             </p>
-          </div>
-          
-          <!-- Timeline de pasos -->
-          <div class="steps-timeline">
-            {% for ps in items %}
-            <div class="timeline-item" data-reveal data-reveal-delay="{{ [loop.index0 * 60, 240]|min }}">
-              <div class="timeline-dot">
-                <span class="step-number">{{ ps.sequence }}</span>
-              </div>
-              <div class="timeline-content card border-0 shadow-sm">
-                <div class="card-header bg-light py-3">
-                  <h4 class="h5 fw-bold mb-0">{{ ps.step.name }}</h4>
-                </div>
-                <div class="card-body">
-                  <p class="mb-3">
-                    {{ ps.step.description or "Sin descripción." }}
-                  </p>
 
-                  {% if ps.step.archives %}
-                  <h5 class="h6 fw-bold text-primary mb-2">Documentos requeridos:</h5>
-                  <ul class="list-unstyled mb-0">
-                    {% for file in ps.step.archives %}
-                    <li class="mb-2">
-                      {% if file.is_downloadable and file.file_path %}
-                      <a href="{{ url_for('api_archives.download_template', archive_id=file.id) }}"
-                         target="_blank" rel="noopener"
-                         class="text-decoration-none document-link">
-                        <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>{{ file.name }}
-                        <i class="bi bi-download ms-1" aria-hidden="true"></i>
-                        <span class="visually-hidden">(descarga la plantilla en una pestaña nueva)</span>
-                      </a>
-                      {% else %}
-                      <span class="text-decoration-none document-link text-muted">
-                        <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>{{ file.name }}
-                      </span>
-                      {% endif %}
-                    </li>
-                    {% endfor %}
-                  </ul>
-                  {% else %}
-                  <p class="fst-italic text-muted mb-0">No hay documentos asociados a este paso.</p>
+            {% for phase in later_phases %}
+            {% set phase_key = phase.name|lower %}
+            <div class="admission-later__phase">
+              <h4 class="fw-bold text-primary">
+                <i class="bi {{ phase_icons.get(phase_key, 'bi-clipboard-data') }} me-2" aria-hidden="true"></i>
+                {{ phase_translations.get(phase_key, phase.name|title) }}
+              </h4>
+              <ul class="admission-later__list">
+                {% for ps in phase_groups[phase] %}
+                <li>
+                  <span class="admission-later__step-name">{{ ps.step.name }}</span>
+                  {% if ps.step.description %}
+                  <span class="admission-later__step-desc">{{ ps.step.description }}</span>
                   {% endif %}
-                </div>
-              </div>
+                </li>
+                {% endfor %}
+              </ul>
             </div>
             {% endfor %}
           </div>
         </div>
       </div>
-      {% endfor %}
     </div>
+    {% endif %}
   </div>
   {% else %}
+  {# El correo del coordinador es un respaldo, no una garantía: un programa sin
+     coordinator_id hacía estallar la plantilla en `program.coordinator.email`
+     justo en el caso en que menos datos hay. #}
+  {% set fallback_email = program.contact_email
+                          or (program.coordinator.email if program.coordinator else none) %}
   {{ empty_state(
        icon='list-check',
        title='Proceso de admisión en preparación',
        description='Los pasos y requisitos de este programa todavía no se publican. Escríbenos y te avisamos en cuanto estén disponibles.',
-       action_label='Consultar al programa',
-       action_url='mailto:' ~ (program.contact_email or 'posgrado@itcj.edu.mx'),
+       action_label='Consultar al programa' if fallback_email else none,
+       action_url=('mailto:' ~ fallback_email) if fallback_email else none,
        compact=true
      ) }}
   {% endif %}

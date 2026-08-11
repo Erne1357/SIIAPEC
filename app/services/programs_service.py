@@ -67,6 +67,11 @@ def get_next_upcoming_period():
     )
 
 
+def get_user_program(user_id: int):
+    """The user's current UserProgram, or None. A user has at most one."""
+    return UserProgram.query.filter_by(user_id=user_id).first()
+
+
 def enroll_user_once(program_id: int, user_id: int):
     program = Program.query.get(program_id)
     if not program:
