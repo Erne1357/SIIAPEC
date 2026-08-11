@@ -159,6 +159,129 @@ def register_cli(app):
             click.echo(click.style('Sin errores.', fg='green'))
         click.echo('')
 
+    @app.cli.command('apply-patches')
+    @click.option('--confirm', is_flag=True, help='Confirmar la ejecucion sin prompt')
+    @click.option('--status', is_flag=True, help='Solo mostrar que parches faltan, sin aplicar nada')
+    @click.option('--only', default=None, help='Aplicar unicamente el parche con ese nombre de archivo')
+    @click.option('--force', is_flag=True, help='Re-aplicar parches ya registrados como aplicados')
+    @with_appcontext
+    def apply_patches(confirm, status, only, force):
+        """
+        Aplica los parches de datos de database/DML/patches/ en orden alfabetico.
+
+        Son SQL incrementales pensados para correr sobre una base YA sembrada,
+        incluida produccion. Los archivos de database/DML/permissions/ son la
+        semilla de una base nueva y no se tocan.
+
+        Lleva registro en la tabla sql_patch (la crea si no existe), asi que un
+        parche ya aplicado se salta. Los parches son idempotentes de todos
+        modos: el registro es comodidad, no la garantia.
+
+        Uso:
+            flask apply-patches --status
+            flask apply-patches
+            flask apply-patches --confirm
+            flask apply-patches --only 2026_08_03_01_programs_register_interest.sql
+            flask apply-patches --confirm --force
+        """
+        from app import db
+
+        patches_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'database', 'DML', 'patches'
+        )
+
+        if not os.path.isdir(patches_dir):
+            click.echo(click.style(f'No se encontro el directorio: {patches_dir}', fg='red'))
+            return
+
+        sql_files = sorted(glob.glob(os.path.join(patches_dir, '*.sql')))
+        if only:
+            sql_files = [f for f in sql_files if os.path.basename(f) == only]
+            if not sql_files:
+                click.echo(click.style(f'No existe el parche "{only}" en {patches_dir}', fg='red'))
+                return
+
+        if not sql_files:
+            click.echo(click.style('No hay parches en el directorio.', fg='yellow'))
+            return
+
+        # Registro de parches aplicados. Se crea aqui para que el comando
+        # funcione en una base que aun no lo tenga, sin depender de una
+        # migracion de esquema.
+        db.session.execute(db.text("""
+            CREATE TABLE IF NOT EXISTS sql_patch (
+                id          SERIAL PRIMARY KEY,
+                filename    VARCHAR(255) NOT NULL UNIQUE,
+                applied_at  TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        db.session.commit()
+
+        applied = {
+            row[0] for row in
+            db.session.execute(db.text('SELECT filename FROM sql_patch')).fetchall()
+        }
+
+        pending = [f for f in sql_files if force or os.path.basename(f) not in applied]
+
+        click.echo(click.style('\n=== APPLY PATCHES ===', fg='cyan', bold=True))
+        click.echo(f'Directorio: {patches_dir}')
+        for f in sql_files:
+            name = os.path.basename(f)
+            if name in applied and not force:
+                click.echo(f'  {click.style("[aplicado]", fg="green")} {name}')
+            else:
+                click.echo(f'  {click.style("[pendiente]", fg="yellow")} {name}')
+
+        if status:
+            click.echo(f'\nPendientes: {click.style(str(len(pending)), fg="yellow")}')
+            click.echo('')
+            return
+
+        if not pending:
+            click.echo(click.style('\nNada que aplicar: todo al dia.', fg='green'))
+            click.echo('')
+            return
+
+        if not confirm:
+            if not click.confirm(f'\nSe aplicaran {len(pending)} parche(s). Continuar?'):
+                click.echo('Cancelado.')
+                return
+
+        errors = []
+        ok = 0
+        for sql_file in pending:
+            filename = os.path.basename(sql_file)
+            click.echo(f'\nAplicando {click.style(filename, fg="blue")}...')
+            try:
+                with open(sql_file, 'r', encoding='utf-8') as f:
+                    sql_content = f.read()
+
+                db.session.execute(db.text(sql_content))
+                db.session.execute(
+                    db.text('INSERT INTO sql_patch (filename) VALUES (:fn) '
+                            'ON CONFLICT (filename) DO NOTHING'),
+                    {'fn': filename}
+                )
+                db.session.commit()
+                ok += 1
+                click.echo(click.style('  OK', fg='green'))
+            except Exception as e:
+                db.session.rollback()
+                errors.append((filename, str(e)))
+                click.echo(click.style(f'  ERROR: {e}', fg='red'))
+
+        click.echo(click.style('\n=== RESUMEN ===', fg='cyan', bold=True))
+        click.echo(f'Aplicados: {click.style(str(ok), fg="green")}')
+        if errors:
+            click.echo(f'Errores:   {click.style(str(len(errors)), fg="red")}')
+            for filename, err in errors:
+                click.echo(f'  - {filename}: {err[:120]}')
+        else:
+            click.echo(click.style('Sin errores.', fg='green'))
+        click.echo('')
+
     @app.cli.command('clean-test-data')
     @click.option('--confirm', is_flag=True, help='Confirmar la ejecucion sin prompt')
     @with_appcontext
