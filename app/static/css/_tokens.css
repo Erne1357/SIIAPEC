@@ -645,11 +645,13 @@
 .text-brand-primary  { color: var(--color-brand-primary) !important; }
 .text-brand-accent   { color: var(--color-brand-accent) !important; }
 
-/* === TOUCH TARGETS MINIMOS EN MOVIL (WCAG 2.5.5 AAA) === */
+/* === TOUCH TARGETS MINIMOS EN MOVIL (WCAG 2.5.5 AAA) ===
+   Eran 2.5rem = 40px, 4px por debajo de --tap-min, con un comentario que ya
+   afirmaba cumplir 2.5.5 AAA. Ahora referencian el token y lo cumplen. */
 @media (max-width: 767.98px) {
   .btn,
   .nav-link {
-    min-height: 2.5rem;
+    min-height: var(--tap-min);
   }
 }
 
