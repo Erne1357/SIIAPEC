@@ -64,7 +64,8 @@
     const sel = document.getElementById('selectCodename');
     if (!sel) return;
     sel.innerHTML = perms.length
-      ? perms.map(p => `<option value="${p.codename}">${p.codename} — ${p.display_name}</option>`).join('')
+      ? perms.map(p => `<option value="${SIIAP.escapeAttr(p.codename)}">${
+          SIIAP.escapeHtml(p.codename)} — ${SIIAP.escapeHtml(p.display_name)}</option>`).join('')
       : '<option disabled>Sin resultados</option>';
   }
 
@@ -107,9 +108,9 @@
     }
     tbody.innerHTML = perms.map(p => `
       <tr>
-        <th scope="row" class="fw-normal"><code class="small">${p.codename}</code></th>
-        <td class="text-muted small">${p.display_name}</td>
-        <td><span class="badge bg-primary-soft">${p.perm_type}</span></td>
+        <th scope="row" class="fw-normal"><code class="small">${SIIAP.escapeHtml(p.codename)}</code></th>
+        <td class="text-muted small">${SIIAP.escapeHtml(p.display_name)}</td>
+        <td><span class="badge bg-primary-soft">${SIIAP.escapeHtml(p.perm_type)}</span></td>
       </tr>
     `).join('');
   }
@@ -128,9 +129,12 @@
       </td></tr>`;
       return;
     }
-    tbody.innerHTML = overrides.map(o => `
+    tbody.innerHTML = overrides.map(o => {
+      const codeText = SIIAP.escapeHtml(o.permission_codename);
+      const codeAttr = SIIAP.escapeAttr(o.permission_codename);
+      return `
       <tr class="${o.is_active ? '' : 'table-secondary text-muted'}">
-        <th scope="row" class="fw-normal"><code class="small">${o.permission_codename}</code>
+        <th scope="row" class="fw-normal"><code class="small">${codeText}</code>
           ${o.is_seed_duplicate ? '<span class="badge bg-info-soft ms-1">Ya está en el catálogo base</span>' : ''}
         </th>
         <td>
@@ -143,15 +147,16 @@
         <td class="text-end">
           ${o.is_active
             ? `<button type="button" class="btn btn-sm btn-outline-danger js-revert-override tap-target"
-                       data-codename="${o.permission_codename}"
-                       aria-label="Revertir el permiso ${o.permission_codename}"
-                       title="Revertir el permiso ${o.permission_codename}">
+                       data-codename="${codeAttr}"
+                       aria-label="Revertir el permiso ${codeAttr}"
+                       title="Revertir el permiso ${codeAttr}">
                  <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
                </button>`
             : ''}
         </td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
   }
 
   // ── Overrides (agregar / revertir) ──────────────────────────────────────
@@ -183,7 +188,9 @@
       confirmLabel: 'Sí, revertir',
     });
     if (!ok) return;
-    const res = await fetch(`/api/v1/permissions/roles/${currentRoleId}/override/${codename}`, {
+    // Contexto URL, no HTML: el codename viaja en la ruta y debe ir codificado.
+    const path = `/api/v1/permissions/roles/${currentRoleId}/override/${encodeURIComponent(codename)}`;
+    const res = await fetch(path, {
       method: 'DELETE',
       headers: { 'X-CSRFToken': getCsrf() },
     });
@@ -214,9 +221,9 @@
       <div class="border-bottom py-1 px-1 small">
         <span class="badge ${e.action === 'grant' ? 'bg-success-soft' : 'bg-warning-soft'}">${
           e.action === 'grant' ? 'Agregado' : 'Revertido'}</span>
-        <code class="ms-1">${e.permission_codename}</code>
-        <div class="text-muted audit-meta">${e.performed_by_name} · ${fmtDateTime(e.performed_at)}</div>
-        ${e.reason ? `<div class="fst-italic audit-meta">«${e.reason}»</div>` : ''}
+        <code class="ms-1">${SIIAP.escapeHtml(e.permission_codename)}</code>
+        <div class="text-muted audit-meta">${SIIAP.escapeHtml(e.performed_by_name)} · ${fmtDateTime(e.performed_at)}</div>
+        ${e.reason ? `<div class="fst-italic audit-meta">«${SIIAP.escapeHtml(e.reason)}»</div>` : ''}
       </div>
     `).join('');
   }

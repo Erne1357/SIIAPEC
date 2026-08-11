@@ -124,9 +124,9 @@
      */
     function timeTag(iso, fallback) {
         const parsed = window.SIIAP?.parseDate ? SIIAP.parseDate(iso) : null;
-        if (!parsed) return escapeHtml(fallback || 'Fecha por definir');
+        if (!parsed) return SIIAP.escapeHtml(fallback || 'Fecha por definir');
         const text = SIIAP.formatDateTime(iso, 'short');
-        return `<time datetime="${escapeHtml(parsed.toISOString())}">${escapeHtml(text)}</time>`;
+        return `<time datetime="${SIIAP.escapeAttr(parsed.toISOString())}">${SIIAP.escapeHtml(text)}</time>`;
     }
 
     // ── Data loading ───────────────────────────────────────────────────
@@ -160,7 +160,7 @@
                         <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
                         <h2 class="empty-state__title">No se pudieron cargar los eventos</h2>
                         <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
-                        <p class="empty-state__error-detail">${escapeHtml(err.message)}</p>
+                        <p class="empty-state__error-detail">${SIIAP.escapeHtml(err.message)}</p>
                         <div class="empty-state__actions">
                             <button type="button" class="btn btn-outline-primary" id="btnRetryEvents">Reintentar</button>
                         </div>
@@ -255,14 +255,15 @@
                 ? `<span class="badge bg-dark"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Privado</span>`
                 : '';
 
+            const invId = SIIAP.escapeAttr(inv.id);
             const actionButtons = isPending
-                ? `<button type="button" class="btn btn-success btn-sm btn-inv-accept" data-inv-id="${inv.id}">
+                ? `<button type="button" class="btn btn-success btn-sm btn-inv-accept" data-inv-id="${invId}">
                         <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Aceptar
                    </button>
-                   <button type="button" class="btn btn-outline-danger btn-sm btn-inv-reject" data-inv-id="${inv.id}">
+                   <button type="button" class="btn btn-outline-danger btn-sm btn-inv-reject" data-inv-id="${invId}">
                         <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Rechazar
                    </button>`
-                : `<button type="button" class="btn btn-outline-success btn-sm btn-inv-reconsider" data-inv-id="${inv.id}">
+                : `<button type="button" class="btn btn-outline-success btn-sm btn-inv-reconsider" data-inv-id="${invId}">
                         <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Reconsiderar
                    </button>`;
 
@@ -272,11 +273,11 @@
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             ${statusBadge}${privateBadge}
                         </div>
-                        <p class="fw-semibold mb-0">${escapeHtml(title)}</p>
+                        <p class="fw-semibold mb-0">${SIIAP.escapeHtml(title)}</p>
                         ${inv.event_date ? `<p class="card-meta mb-0"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>${timeTag(inv.event_date)}</p>` : ''}
                         <div class="d-flex gap-2 flex-wrap mt-auto pt-1">
                             ${actionButtons}
-                            <a href="/events/${inv.event_id}" class="btn btn-outline-secondary btn-sm">
+                            <a href="/events/${SIIAP.escapeAttr(encodeURIComponent(inv.event_id))}" class="btn btn-outline-secondary btn-sm">
                                 <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver detalle
                             </a>
                         </div>
@@ -414,16 +415,16 @@
             : '';
         const coverHtml     = `
             <div class="event-card-cover event-cover ${eventCoverClass(ev.type)}"
-                 data-event-id="${ev.id}" data-cover-url="${escapeHtml(coverUrl)}">
+                 data-event-id="${SIIAP.escapeAttr(ev.id)}" data-cover-url="${SIIAP.escapeAttr(coverUrl)}">
                 <i class="bi ${icon} event-cover__icon" aria-hidden="true"></i>
                 ${ribbonHtml}
             </div>`;
 
         // Chips de categoría (no son estados: nunca .status-badge--*)
         const programBadge = ev.program_name
-            ? `<span class="badge bg-primary-soft">${escapeHtml(ev.program_name)}</span>`
+            ? `<span class="badge bg-primary-soft">${SIIAP.escapeHtml(ev.program_name)}</span>`
             : `<span class="badge bg-secondary">Abierto a todos</span>`;
-        const typeBadge   = `<span class="badge ${typeMeta.soft}">${escapeHtml(typeMeta.label)}</span>`;
+        const typeBadge   = `<span class="badge ${typeMeta.soft}">${SIIAP.escapeHtml(typeMeta.label)}</span>`;
         const privateBadge = ev.visibility === 'private'
             ? `<span class="badge bg-dark"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Privado</span>`
             : '';
@@ -438,10 +439,10 @@
         const dateLine = ev.event_date
             ? `<p class="card-meta mb-0"><i class="bi bi-calendar3" aria-hidden="true"></i> ${timeTag(ev.event_date)}</p>`
             : '';
-        const locationLine = `<p class="card-meta mb-0"><i class="bi bi-geo-alt" aria-hidden="true"></i> ${escapeHtml(ev.location || 'Lugar por definir')}</p>`;
+        const locationLine = `<p class="card-meta mb-0"><i class="bi bi-geo-alt" aria-hidden="true"></i> ${SIIAP.escapeHtml(ev.location || 'Lugar por definir')}</p>`;
 
         // Chips de ponentes (placeholder — se llenará por lazy load)
-        const hostsPlaceholder = `<div class="host-chips" id="host-chips-${ev.id}"></div>`;
+        const hostsPlaceholder = `<div class="host-chips" id="host-chips-${SIIAP.escapeAttr(ev.id)}"></div>`;
 
         // Barra de cupo
         let capacityHtml = '';
@@ -452,10 +453,10 @@
                 <div>
                     <div class="d-flex justify-content-between mb-1 capacity-legend">
                         <span>Inscritos</span>
-                        <span class="fw-semibold">${ev.current_registrations} / ${ev.max_capacity}</span>
+                        <span class="fw-semibold">${SIIAP.escapeHtml(ev.current_registrations)} / ${SIIAP.escapeHtml(ev.max_capacity)}</span>
                     </div>
                     <div class="card-capacity-bar" role="img"
-                         aria-label="${ev.current_registrations} de ${ev.max_capacity} lugares ocupados">
+                         aria-label="${SIIAP.escapeAttr(ev.current_registrations)} de ${SIIAP.escapeAttr(ev.max_capacity)} lugares ocupados">
                         <div class="card-capacity-bar-fill ${fillClass}" style="--progress:${pct}"></div>
                     </div>
                 </div>`;
@@ -471,8 +472,8 @@
         let actionBtn = '';
         if (isRegistered && myReg && myReg.status !== 'attended') {
             actionBtn = `<button type="button" class="btn btn-outline-danger btn-sm tap-target btn-unregister"
-                                 data-event-id="${ev.id}"
-                                 aria-label="Cancelar mi registro en ${escapeHtml(ev.title)}"
+                                 data-event-id="${SIIAP.escapeAttr(ev.id)}"
+                                 aria-label="Cancelar mi registro en ${SIIAP.escapeAttr(ev.title)}"
                                  title="Cancelar registro">
                             <i class="bi bi-person-dash" aria-hidden="true"></i>
                          </button>`;
@@ -481,7 +482,7 @@
                 ? '<i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Aceptar y registrarme'
                 : '<i class="bi bi-person-plus me-1" aria-hidden="true"></i>Registrarme';
             const btnClass = isPendingInvitation ? 'btn btn-success' : 'btn btn-primary';
-            actionBtn = `<button type="button" class="${btnClass} btn-sm btn-register" data-event-id="${ev.id}">
+            actionBtn = `<button type="button" class="${btnClass} btn-sm btn-register" data-event-id="${SIIAP.escapeAttr(ev.id)}">
                             ${label}
                          </button>`;
         }
@@ -489,8 +490,8 @@
         // Botón rechazar visible solo cuando hay invitación pendiente y no está registrado
         const rejectBtn = isPendingInvitation && !isRegistered
             ? `<button type="button" class="btn btn-outline-danger btn-sm tap-target btn-inv-reject-card"
-                       data-event-id="${ev.id}"
-                       aria-label="Rechazar la invitación a ${escapeHtml(ev.title)}"
+                       data-event-id="${SIIAP.escapeAttr(ev.id)}"
+                       aria-label="Rechazar la invitación a ${SIIAP.escapeAttr(ev.title)}"
                        title="Rechazar invitación">
                     <i class="bi bi-x-lg" aria-hidden="true"></i>
                </button>`
@@ -503,25 +504,25 @@
 
         return `
             <div class="col-sm-6 col-lg-4 event-card-col">
-                <div class="${cardClass}" data-event-id="${ev.id}">
+                <div class="${cardClass}" data-event-id="${SIIAP.escapeAttr(ev.id)}">
                     ${coverHtml}
                     <div class="card-body">
                         <div class="d-flex flex-wrap gap-1 mb-1">
                             ${typeBadge}${programBadge}${privateBadge}${previewBadge}${creatorBadge}
                         </div>
-                        <h2 class="card-title">${escapeHtml(ev.title)}</h2>
+                        <h2 class="card-title">${SIIAP.escapeHtml(ev.title)}</h2>
                         ${dateLine}
                         ${locationLine}
                         ${hostsPlaceholder}
-                        <p class="card-description">${escapeHtml(ev.description || 'Sin descripción')}</p>
+                        <p class="card-description">${SIIAP.escapeHtml(ev.description || 'Sin descripción')}</p>
                         ${capacityHtml}
                     </div>
                     <div class="card-footer">
                         <div class="footer-status">${statusBadge}</div>
                         <div class="footer-actions">
-                            <a href="/events/${ev.id}" class="btn btn-outline-primary btn-sm">
+                            <a href="/events/${SIIAP.escapeAttr(encodeURIComponent(ev.id))}" class="btn btn-outline-primary btn-sm">
                                 <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver detalle
-                                <span class="visually-hidden">de ${escapeHtml(ev.title)}</span>
+                                <span class="visually-hidden">de ${SIIAP.escapeHtml(ev.title)}</span>
                             </a>
                             ${rejectBtn}
                             ${actionBtn}
@@ -559,22 +560,31 @@
     /**
      * Construye URL de portada servida por /files/event/<id>/cover/<filename>.
      * Si no hay cover_path retorna empty string para mantener fallback.
+     * The filename comes from the database, so both interpolated path segments
+     * are percent-encoded. The URL shape is unchanged; the server decodes the
+     * segments back before resolving the file.
      */
     function buildCoverUrl(eventId, coverPath) {
         if (!coverPath) return '';
-        const filename = coverPath.split('/').pop();
-        return `/files/event/${eventId}/cover/${filename}`;
+        const filename = String(coverPath).split('/').pop();
+        return `/files/event/${encodeURIComponent(eventId)}/cover/${encodeURIComponent(filename)}`;
     }
 
     /**
      * Applies the real cover photo through the --event-cover-src custom
      * property. El color plano del tipo queda debajo como respaldo y el icono
      * se oculta solo via .event-cover--has-image.
+     * The value lands inside a CSS url('...') literal, which is neither an HTML
+     * text nor an HTML attribute context: escapeHtml/escapeAttr do not apply.
+     * encodeURIComponent alone is not enough either, since it leaves ' ( ) and *
+     * untouched, so the quote and paren that could close the literal early are
+     * percent-encoded here explicitly.
      * @param {HTMLElement} el
      * @param {string} url
      */
     function applyCover(el, url) {
-        el.style.setProperty('--event-cover-src', `url('${url}')`);
+        const safeUrl = String(url).replace(/['"()\\\s]/g, encodeURIComponent);
+        el.style.setProperty('--event-cover-src', `url('${safeUrl}')`);
         el.classList.add('event-cover--has-image');
     }
 
@@ -614,15 +624,15 @@
             const initials = (h.name || '?').charAt(0).toUpperCase();
             const src = buildHostPhotoUrl(eventId, h);
             return src
-                ? `<img class="h-avatar" src="${escapeHtml(src)}" alt="${escapeHtml(h.name || '')}" title="${escapeHtml(h.name || '')}" loading="lazy">`
-                : `<span class="h-avatar h-avatar--initials" aria-hidden="true" title="${escapeHtml(h.name || '')}">${escapeHtml(initials)}</span>`;
+                ? `<img class="h-avatar" src="${SIIAP.escapeAttr(src)}" alt="${SIIAP.escapeAttr(h.name || '')}" title="${SIIAP.escapeAttr(h.name || '')}" loading="lazy">`
+                : `<span class="h-avatar h-avatar--initials" aria-hidden="true" title="${SIIAP.escapeAttr(h.name || '')}">${SIIAP.escapeHtml(initials)}</span>`;
         }).join('');
 
-        const extraHtml = extra > 0 ? `<span class="host-extra" aria-hidden="true">+${extra}</span>` : '';
+        const extraHtml = extra > 0 ? `<span class="host-extra" aria-hidden="true">+${SIIAP.escapeHtml(extra)}</span>` : '';
 
         el.innerHTML = `
             <div class="host-avatars">${avatarsHtml}${extraHtml}</div>
-            <span class="host-names">con ${escapeHtml(names)}${escapeHtml(nameSuffix)}</span>`;
+            <span class="host-names">con ${SIIAP.escapeHtml(names)}${SIIAP.escapeHtml(nameSuffix)}</span>`;
     }
 
     /**
@@ -663,13 +673,13 @@
                     return `
                         <div class="list-group-item reg-item d-flex justify-content-between align-items-center gap-2">
                             <div>
-                                <p class="mb-0 fw-semibold">${escapeHtml(title)}</p>
+                                <p class="mb-0 fw-semibold">${SIIAP.escapeHtml(title)}</p>
                                 ${ev.event_date ? `<p class="card-meta mb-0">${timeTag(ev.event_date)}</p>` : ''}
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 ${SIIAP.statusBadge(s.key, s.label, 'sm')}
-                                <a href="/events/${r.event_id}" class="btn btn-outline-primary btn-sm">
-                                    Ver<span class="visually-hidden"> ${escapeHtml(title)}</span>
+                                <a href="/events/${SIIAP.escapeAttr(encodeURIComponent(r.event_id))}" class="btn btn-outline-primary btn-sm">
+                                    Ver<span class="visually-hidden"> ${SIIAP.escapeHtml(title)}</span>
                                 </a>
                             </div>
                         </div>`;
@@ -774,14 +784,6 @@
         } catch (err) {
             flash('danger', `Error al cancelar: ${err.message}`);
         }
-    }
-
-    // ── Escape helper ──────────────────────────────────────────────────
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = String(text ?? '');
-        return div.innerHTML;
     }
 
     // ── Event delegation ───────────────────────────────────────────────

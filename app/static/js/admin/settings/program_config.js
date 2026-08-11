@@ -54,6 +54,15 @@
     'add-objective': addObjective,
     'add-competency': addCompetency,
     'remove-list-item': removeListItem,
+    'add-semester': () => addSemester(),
+    'remove-semester': (btn) => removeSemester(Number(btn.dataset.semesterIndex)),
+    'add-course': (btn) => addCourse(Number(btn.dataset.semesterIndex)),
+    'remove-course': (btn) => removeCourse(
+      Number(btn.dataset.semesterIndex),
+      Number(btn.dataset.courseIndex)
+    ),
+    'add-research-line': () => addResearchLine(),
+    'remove-research-line': (btn) => removeResearchLine(Number(btn.dataset.lineIndex)),
   };
 
   document.addEventListener('click', (e) => {
@@ -61,6 +70,31 @@
     if (!trigger) return;
     const handler = ACTIONS[trigger.dataset.action];
     if (handler) handler(trigger);
+  });
+
+  // Los editores de plan de estudios y líneas de investigación escriben en el
+  // modelo desde controles generados por JS. El change se delega con su propio
+  // atributo para que no colisione con el mapa de clics de arriba.
+  // dataset devuelve strings: los índices se convierten con Number().
+  const CHANGE_ACTIONS = {
+    'update-course': (el) => updateCourse(
+      Number(el.dataset.semesterIndex),
+      Number(el.dataset.courseIndex),
+      el.dataset.field,
+      el.value
+    ),
+    'update-research-line': (el) => updateResearchLine(
+      Number(el.dataset.lineIndex),
+      el.dataset.field,
+      el.value
+    ),
+  };
+
+  document.addEventListener('change', (e) => {
+    const control = e.target.closest('[data-change-action]');
+    if (!control) return;
+    const handler = CHANGE_ACTIONS[control.dataset.changeAction];
+    if (handler) handler(control);
   });
 
   function updateObjectivesPreview() {
@@ -110,16 +144,16 @@
     semesters: []
   };
 
-  window.addSemester = function() {
+  function addSemester() {
     const semesterNumber = curriculumData.semesters.length + 1;
     curriculumData.semesters.push({
       semester: semesterNumber,
       courses: []
     });
     renderCurriculumEditor();
-  };
+  }
 
-  window.removeSemester = async function(index) {
+  async function removeSemester(index) {
     const ok = await siiapConfirm({
       type: 'danger',
       title: 'Eliminar semestre',
@@ -133,9 +167,9 @@
       sem.semester = idx + 1;
     });
     renderCurriculumEditor();
-  };
+  }
 
-  window.addCourse = function(semesterIndex) {
+  function addCourse(semesterIndex) {
     curriculumData.semesters[semesterIndex].courses.push({
       name: '',
       code: '',
@@ -143,12 +177,12 @@
       type: 'obligatoria'
     });
     renderCurriculumEditor();
-  };
+  }
 
-  window.removeCourse = function(semesterIndex, courseIndex) {
+  function removeCourse(semesterIndex, courseIndex) {
     curriculumData.semesters[semesterIndex].courses.splice(courseIndex, 1);
     renderCurriculumEditor();
-  };
+  }
 
   function renderCurriculumEditor() {
     const container = document.getElementById('curriculumEditorContainer');
@@ -163,7 +197,7 @@
             Agrega el primer semestre para empezar a construir el mapa curricular.
           </p>
           <div class="empty-state__actions">
-            <button type="button" class="btn btn-primary" onclick="addSemester()">
+            <button type="button" class="btn btn-primary" data-action="add-semester">
               <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar el primer semestre
             </button>
           </div>
@@ -203,10 +237,12 @@
               <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                 <h3 class="h6 mb-0">Materias del semestre ${semester.semester}</h3>
                 <div class="btn-group btn-group-sm">
-                  <button type="button" class="btn btn-outline-primary" onclick="addCourse(${semIdx})">
+                  <button type="button" class="btn btn-outline-primary"
+                          data-action="add-course" data-semester-index="${semIdx}">
                     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar materia
                   </button>
-                  <button type="button" class="btn btn-outline-danger" onclick="removeSemester(${semIdx})">
+                  <button type="button" class="btn btn-outline-danger"
+                          data-action="remove-semester" data-semester-index="${semIdx}">
                     <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar semestre
                   </button>
                 </div>
@@ -227,27 +263,36 @@
               <input type="text" class="form-control form-control-sm"
                      placeholder="Nombre de la materia"
                      aria-label="Nombre de la materia ${courseIdx + 1} del semestre ${semester.semester}"
-                     value="${course.name || ''}"
-                     onchange="updateCourse(${semIdx}, ${courseIdx}, 'name', this.value)">
+                     value="${SIIAP.escapeAttr(course.name || '')}"
+                     data-change-action="update-course"
+                     data-semester-index="${semIdx}" data-course-index="${courseIdx}"
+                     data-field="name">
               <input type="text" class="form-control form-control-sm"
                      placeholder="Código"
                      aria-label="Código de la materia ${courseIdx + 1} del semestre ${semester.semester}"
-                     value="${course.code || ''}"
-                     onchange="updateCourse(${semIdx}, ${courseIdx}, 'code', this.value)">
+                     value="${SIIAP.escapeAttr(course.code || '')}"
+                     data-change-action="update-course"
+                     data-semester-index="${semIdx}" data-course-index="${courseIdx}"
+                     data-field="code">
               <input type="number" class="form-control form-control-sm"
                      placeholder="Créditos"
                      aria-label="Créditos de la materia ${courseIdx + 1} del semestre ${semester.semester}"
-                     value="${course.credits || ''}"
-                     onchange="updateCourse(${semIdx}, ${courseIdx}, 'credits', this.value)">
+                     value="${SIIAP.escapeAttr(course.credits || '')}"
+                     data-change-action="update-course"
+                     data-semester-index="${semIdx}" data-course-index="${courseIdx}"
+                     data-field="credits">
               <select class="form-select form-select-sm"
                       aria-label="Tipo de la materia ${courseIdx + 1} del semestre ${semester.semester}"
-                      onchange="updateCourse(${semIdx}, ${courseIdx}, 'type', this.value)">
+                      data-change-action="update-course"
+                      data-semester-index="${semIdx}" data-course-index="${courseIdx}"
+                      data-field="type">
                 <option value="obligatoria" ${course.type === 'obligatoria' ? 'selected' : ''}>Obligatoria</option>
                 <option value="optativa" ${course.type === 'optativa' ? 'selected' : ''}>Optativa</option>
                 <option value="electiva" ${course.type === 'electiva' ? 'selected' : ''}>Electiva</option>
               </select>
               <button type="button" class="btn btn-sm btn-outline-danger tap-target"
-                      onclick="removeCourse(${semIdx}, ${courseIdx})"
+                      data-action="remove-course"
+                      data-semester-index="${semIdx}" data-course-index="${courseIdx}"
                       aria-label="Eliminar la materia ${courseIdx + 1} del semestre ${semester.semester}"
                       title="Eliminar materia">
                 <i class="bi bi-trash" aria-hidden="true"></i>
@@ -269,7 +314,7 @@
     // Botón para agregar más semestres
     html += `
       <div class="text-center mt-3">
-        <button type="button" class="btn btn-outline-primary" onclick="addSemester()">
+        <button type="button" class="btn btn-outline-primary" data-action="add-semester">
           <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar semestre ${curriculumData.semesters.length + 1}
         </button>
       </div>
@@ -278,9 +323,9 @@
     container.innerHTML = html;
   }
 
-  window.updateCourse = function(semesterIndex, courseIndex, field, value) {
+  function updateCourse(semesterIndex, courseIndex, field, value) {
     curriculumData.semesters[semesterIndex].courses[courseIndex][field] = value;
-  };
+  }
 
   // ============================================
   // EDITOR DE LÍNEAS DE INVESTIGACIÓN
@@ -288,15 +333,15 @@
 
   let researchLinesData = [];
 
-  window.addResearchLine = function() {
+  function addResearchLine() {
     researchLinesData.push({
       name: '',
       description: ''
     });
     renderResearchEditor();
-  };
+  }
 
-  window.removeResearchLine = async function(index) {
+  async function removeResearchLine(index) {
     const ok = await siiapConfirm({
       type: 'danger',
       title: 'Eliminar línea de investigación',
@@ -306,11 +351,11 @@
     if (!ok) return;
     researchLinesData.splice(index, 1);
     renderResearchEditor();
-  };
+  }
 
-  window.updateResearchLine = function(index, field, value) {
+  function updateResearchLine(index, field, value) {
     researchLinesData[index][field] = value;
-  };
+  }
 
   function renderResearchEditor() {
     const container = document.getElementById('researchEditorContainer');
@@ -325,7 +370,7 @@
             Agrega la primera línea para que aparezca en la página pública del programa.
           </p>
           <div class="empty-state__actions">
-            <button type="button" class="btn btn-primary" onclick="addResearchLine()">
+            <button type="button" class="btn btn-primary" data-action="add-research-line">
               <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar la primera línea
             </button>
           </div>
@@ -344,19 +389,21 @@
                 <label class="form-label fw-semibold" for="researchLineName-${idx}">Nombre de la línea</label>
                 <input type="text" class="form-control" id="researchLineName-${idx}"
                        placeholder="Ej: Inteligencia artificial y aprendizaje automático"
-                       value="${line.name || ''}"
-                       onchange="updateResearchLine(${idx}, 'name', this.value)">
+                       value="${SIIAP.escapeAttr(line.name || '')}"
+                       data-change-action="update-research-line"
+                       data-line-index="${idx}" data-field="name">
               </div>
               <div>
                 <label class="form-label fw-semibold" for="researchLineDesc-${idx}">Descripción</label>
                 <textarea class="form-control" id="researchLineDesc-${idx}" rows="3"
                           placeholder="Descripción de la línea de investigación…"
-                          onchange="updateResearchLine(${idx}, 'description', this.value)">${line.description || ''}</textarea>
+                          data-change-action="update-research-line"
+                          data-line-index="${idx}" data-field="description">${SIIAP.escapeHtml(line.description || '')}</textarea>
               </div>
             </div>
             <div class="research-line-actions">
               <button type="button" class="btn btn-outline-danger btn-sm tap-target"
-                      onclick="removeResearchLine(${idx})"
+                      data-action="remove-research-line" data-line-index="${idx}"
                       aria-label="Eliminar la línea de investigación ${idx + 1}"
                       title="Eliminar línea de investigación">
                 <i class="bi bi-trash" aria-hidden="true"></i>
@@ -369,7 +416,7 @@
 
     html += `
       <div class="text-center mt-3">
-        <button type="button" class="btn btn-outline-primary" onclick="addResearchLine()">
+        <button type="button" class="btn btn-outline-primary" data-action="add-research-line">
           <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar línea de investigación
         </button>
       </div>

@@ -43,9 +43,10 @@ class PermanenceManager {
    * la fila crecía de 61 a 85px. El nombre completo queda en el title.
    */
   _programCell(name) {
-    const value = this.escapeHtml(name || '');
+    const text = SIIAP.escapeHtml(name || '');
+    const attr = SIIAP.escapeAttr(name || '');
     return this._isAllMode()
-      ? `<td class="program-col text-muted small" title="${value}">${value}</td>`
+      ? `<td class="program-col text-muted small" title="${attr}">${text}</td>`
       : '';
   }
 
@@ -206,6 +207,79 @@ class PermanenceManager {
     // Botón refrescar solicitudes
     document.getElementById('btnRefreshLeave')?.addEventListener('click', () => {
       this.loadLeaveRequestsTab();
+    });
+
+    this.bindDelegatedActions();
+  }
+
+  /**
+   * Single delegated click listener for every action button that the render
+   * functions build from data. Bound ONCE, on #permanenceTabsContent: that
+   * wrapper holds all four panes and is never replaced by innerHTML (only the
+   * tbodies, #leaveList and #deadlinesList inside it are), so handlers cannot
+   * stack and fire an API call twice.
+   *
+   * Row buttons carry data-action + data-* payloads instead of inline onclick
+   * handlers, because the browser HTML-decodes an attribute before the JS
+   * parser reads it — no escaper can make `onclick="fn('${name}')"` safe.
+   * dataset values are always strings, hence the explicit parseInt / '1' tests.
+   */
+  bindDelegatedActions() {
+    const root = document.getElementById('permanenceTabsContent');
+    if (!root) return;
+
+    root.addEventListener('click', (e) => {
+      // closest(), not e.target: clicking the <i class="bi"> inside a button
+      // makes the icon the event target.
+      const el = e.target.closest('[data-action]');
+      if (!el || !root.contains(el)) return;
+      const d = el.dataset;
+
+      switch (d.action) {
+        case 'goto-enrollment':
+          document.getElementById('tab-enrollment')?.click();
+          break;
+        case 'show-history':
+          this.showHistoryByIndex(parseInt(d.studentIndex, 10));
+          break;
+        case 'update-status':
+          this.showUpdateStatusModal(parseInt(d.enrollmentId, 10), d.studentName, d.status);
+          break;
+        case 'toggle-conacyt':
+          this.toggleConacyt(parseInt(d.userProgramId, 10), d.newValue === '1');
+          break;
+        case 'show-expediente':
+          this.showStudentExpediente(parseInt(d.studentId, 10));
+          break;
+        case 'confirm-enrollment':
+          this.showConfirmModal(
+            parseInt(d.userProgramId, 10), d.studentName, d.mode, d.proofUrl || ''
+          );
+          break;
+        case 'mark-completed':
+          this.markCompletedFromOverview(parseInt(d.enrollmentId, 10), d.studentName);
+          break;
+        case 'review-leave':
+          this.showLeaveModal(
+            parseInt(d.submissionId, 10), d.studentName,
+            parseInt(d.semester, 10) || 0, d.fileUrl || ''
+          );
+          break;
+        case 'restore-deadline':
+          this.restoreDeadline(parseInt(d.deadlineId, 10));
+          break;
+        case 'edit-deadline':
+          this.openEditDeadlineModal(parseInt(d.deadlineId, 10));
+          break;
+        case 'toggle-deadline':
+          this.toggleDeadline(parseInt(d.deadlineId, 10), d.isOpen === '1');
+          break;
+        case 'archive-deadline':
+          this.archiveDeadline(parseInt(d.deadlineId, 10), d.deadlineLabel);
+          break;
+        default:
+          break;
+      }
     });
   }
 
@@ -379,27 +453,27 @@ class PermanenceManager {
 
     let periodCell = '<span class="text-secondary small">—</span>';
     if (s.current_period) {
-      periodCell = `<span class="small">${s.current_period.name}</span>`;
+      periodCell = `<span class="small">${SIIAP.escapeHtml(s.current_period.name)}</span>`;
     }
 
     let statusCell = '';
     let actionCell = '';
 
-    const safeFullName = this.escapeHtml(user.full_name);
+    const nameAttr = SIIAP.escapeAttr(user.full_name);
 
     if (!this.activePeriodId) {
       statusCell = PermanenceManager.statusBadge('pending', 'Sin periodo activo');
       actionCell = `
         <button type="button" class="btn btn-sm btn-outline-info tap-target"
-          onclick="permanenceManager.showHistoryByIndex(${index})"
-          title="Ver historial" aria-label="Ver historial de ${safeFullName}">
+          data-action="show-history" data-student-index="${index}"
+          title="Ver historial" aria-label="Ver historial de ${nameAttr}">
           <i class="bi bi-clock-history" aria-hidden="true"></i>
         </button>`;
     } else if (!ce) {
       statusCell = PermanenceManager.statusBadge('pending', 'Pendiente de confirmación');
       actionCell = `
         <a href="#pane-enrollment" class="btn btn-sm btn-outline-warning" data-bs-toggle="tab" data-bs-target="#pane-enrollment"
-          onclick="document.getElementById('tab-enrollment').click()" title="Confirmar en la pestaña Inscripción">
+          data-action="goto-enrollment" title="Confirmar en la pestaña Inscripción">
           <i class="bi bi-arrow-right-short" aria-hidden="true"></i>Inscripción
         </a>`;
     } else {
@@ -407,13 +481,14 @@ class PermanenceManager {
       actionCell = `
         <div class="d-flex gap-1 justify-content-center">
           <button type="button" class="btn btn-sm btn-outline-secondary tap-target"
-            onclick="permanenceManager.showUpdateStatusModal(${ce.id}, '${safeFullName}', '${ce.status}')"
-            title="Cambiar estado" aria-label="Cambiar el estado de ${safeFullName}">
+            data-action="update-status" data-enrollment-id="${ce.id}"
+            data-student-name="${nameAttr}" data-status="${SIIAP.escapeAttr(ce.status)}"
+            title="Cambiar estado" aria-label="Cambiar el estado de ${nameAttr}">
             <i class="bi bi-pencil" aria-hidden="true"></i>
           </button>
           <button type="button" class="btn btn-sm btn-outline-info tap-target"
-            onclick="permanenceManager.showHistoryByIndex(${index})"
-            title="Historial" aria-label="Ver historial de ${safeFullName}">
+            data-action="show-history" data-student-index="${index}"
+            title="Historial" aria-label="Ver historial de ${nameAttr}">
             <i class="bi bi-clock-history" aria-hidden="true"></i>
           </button>
         </div>`;
@@ -426,8 +501,9 @@ class PermanenceManager {
     const conacytToggle = `
       <button type="button" class="btn btn-sm ${up.has_conacyt_scholarship ? 'btn-outline-success' : 'btn-outline-secondary'} ms-1 tap-target"
         title="${up.has_conacyt_scholarship ? 'Quitar beca SECIHTI' : 'Marcar como becario SECIHTI'}"
-        aria-label="${up.has_conacyt_scholarship ? 'Quitar la beca SECIHTI a' : 'Marcar como becario SECIHTI a'} ${safeFullName}"
-        onclick="permanenceManager.toggleConacyt(${up.id}, ${!up.has_conacyt_scholarship})">
+        aria-label="${up.has_conacyt_scholarship ? 'Quitar la beca SECIHTI a' : 'Marcar como becario SECIHTI a'} ${nameAttr}"
+        data-action="toggle-conacyt" data-user-program-id="${up.id}"
+        data-new-value="${up.has_conacyt_scholarship ? '0' : '1'}">
         <i class="bi bi-toggles" aria-hidden="true"></i>
       </button>`;
 
@@ -437,11 +513,11 @@ class PermanenceManager {
       <tr>
         ${programCell}
         <td>
-          <div class="fw-semibold">${this.escapeHtml(user.full_name)}</div>
-          <div class="small text-muted">${this.escapeHtml(user.email)}</div>
+          <div class="fw-semibold">${SIIAP.escapeHtml(user.full_name)}</div>
+          <div class="small text-muted">${SIIAP.escapeHtml(user.email)}</div>
         </td>
         <td class="text-center">
-          <span class="badge bg-secondary font-monospace">${user.control_number || '—'}</span>
+          <span class="badge bg-secondary font-monospace">${SIIAP.escapeHtml(user.control_number || '—')}</span>
         </td>
         <td class="text-center">${semesterBadge}</td>
         <td class="text-center">${periodCell}</td>
@@ -483,14 +559,16 @@ class PermanenceManager {
         <span class="small text-secondary">La revisión se centraliza en el panel de Documentos.</span>
       </div>` : '';
 
+    const labelAttr = SIIAP.escapeAttr(dl.label);
+
     return `
       <div class="card mb-2">
         <div class="card-body py-2 px-3">
           <div class="d-flex align-items-center gap-2 flex-wrap">
             <div class="flex-grow-1">
-              <div class="fw-semibold">${this.escapeHtml(dl.label)}</div>
+              <div class="fw-semibold">${SIIAP.escapeHtml(dl.label)}</div>
               <div class="small text-muted">
-                ${this.escapeHtml(dl.archive_name || '')}
+                ${SIIAP.escapeHtml(dl.archive_name || '')}
                 &nbsp;·&nbsp; Secuencia: ${dl.sequence}
                 ${opensAt ? '&nbsp;·&nbsp; ' + opensAt : ''}
                 &nbsp;·&nbsp; ${closesAt}
@@ -504,24 +582,26 @@ class PermanenceManager {
               ${dl.is_archived ? `
                 ${PermanenceManager.statusBadge('deferred', 'Archivada')}
                 <button type="button" class="btn btn-sm btn-outline-success tap-target" title="Restaurar ventana"
-                  aria-label="Restaurar la ventana ${this.escapeHtml(dl.label)}"
-                  onclick="permanenceManager.restoreDeadline(${dl.id})">
+                  aria-label="Restaurar la ventana ${labelAttr}"
+                  data-action="restore-deadline" data-deadline-id="${dl.id}">
                   <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
                 </button>
               ` : `
                 <button type="button" class="btn btn-sm btn-outline-primary tap-target" title="Editar ventana"
-                  aria-label="Editar la ventana ${this.escapeHtml(dl.label)}"
-                  onclick="permanenceManager.openEditDeadlineModal(${dl.id})">
+                  aria-label="Editar la ventana ${labelAttr}"
+                  data-action="edit-deadline" data-deadline-id="${dl.id}">
                   <i class="bi bi-pencil" aria-hidden="true"></i>
                 </button>
                 <button type="button" class="btn btn-sm ${toggleCls} tap-target" title="${toggleTitle}"
-                  aria-label="${toggleTitle}: ${this.escapeHtml(dl.label)}"
-                  onclick="permanenceManager.toggleDeadline(${dl.id}, ${!dl.is_open})">
+                  aria-label="${toggleTitle}: ${labelAttr}"
+                  data-action="toggle-deadline" data-deadline-id="${dl.id}"
+                  data-is-open="${dl.is_open ? '0' : '1'}">
                   <i class="bi ${toggleIcon}" aria-hidden="true"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-warning tap-target" title="Archivar ventana"
-                  aria-label="Archivar la ventana ${this.escapeHtml(dl.label)}"
-                  onclick="permanenceManager.archiveDeadline(${dl.id}, '${this.escapeHtml(dl.label)}')">
+                  aria-label="Archivar la ventana ${labelAttr}"
+                  data-action="archive-deadline" data-deadline-id="${dl.id}"
+                  data-deadline-label="${labelAttr}">
                   <i class="bi bi-archive" aria-hidden="true"></i>
                 </button>
               `}
@@ -562,13 +642,14 @@ class PermanenceManager {
     const scheduleInput = document.getElementById('confirmEnrollSchedule');
     if (scheduleInput) scheduleInput.value = '';
 
-    // El render de la fila pasa el URL del comprobante (string vacío si no hay).
-    // Sólo aplica al modo 'confirm'. Decodificar el escape '%27' → "'".
+    // El render de la fila pasa el URL del comprobante (string vacío si no hay)
+    // vía data-proof-url, ya sin escapes intermedios que deshacer.
+    // Sólo aplica al modo 'confirm'.
     const wrap = document.getElementById('confirmEnrollExistingProofWrap');
     const link = document.getElementById('confirmEnrollExistingProofLink');
     let proofUrl = '';
     if (mode === 'confirm' && proofUrlArg) {
-      proofUrl = String(proofUrlArg).replace(/%27/g, "'");
+      proofUrl = String(proofUrlArg);
     }
     if (proofUrl) {
       link.href = proofUrl;
@@ -696,17 +777,20 @@ class PermanenceManager {
       const u = r.user;
       const last = r.last_enrollment;
       const programCell = this._programCell(r.__program_name);
-      const safeName = this.escapeHtml(u.full_name).replace(/'/g, "\\'");
+      const nameAttr = SIIAP.escapeAttr(u.full_name);
 
       // Comprobante PDF subido por el estudiante (si existe)
       const ceProofUrl = r.current_enrollment?.payment_proof_url || '';
+      // Ruta construida por el servidor (/files/doc/…): sólo hay que cerrarla
+      // para el contexto de atributo, no re-codificarla como componente de URL.
+      const proofUrlAttr = SIIAP.escapeAttr(ceProofUrl);
 
       // Columnas variables según modo
       let middleCols = '';
       if (mode === 'confirm') {
         const nextSem = (last?.semester_number || 0) + 1;
         const proofCell = ceProofUrl
-          ? `<a href="${ceProofUrl}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0 px-2"
+          ? `<a href="${proofUrlAttr}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0 px-2"
                 title="Ver comprobante. Recuerda revisar el SII para confirmar la inscripción.">
               <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Pago
               <span class="visually-hidden">(se abre en una pestaña nueva)</span>
@@ -719,32 +803,31 @@ class PermanenceManager {
       } else if (mode === 'reinstate' || mode === 'advance') {
         middleCols = `
           <td class="text-center"><span class="badge bg-info">${last?.semester_number || '—'}</span></td>
-          <td class="small text-secondary">${last?.period_name || '—'} <span class="badge bg-secondary">${last?.period_code || ''}</span></td>
+          <td class="small text-secondary">${SIIAP.escapeHtml(last?.period_name || '—')} <span class="badge bg-secondary">${SIIAP.escapeHtml(last?.period_code || '')}</span></td>
         `;
       }
 
-      // Pasamos proofUrl como cuarto argumento al modal para evitar lookups por cache.
-      const safeProofUrl = ceProofUrl.replace(/'/g, "%27");
-
+      // Pasamos proofUrl en el payload del botón para evitar lookups por cache.
       return `
         <tr>
           ${programCell}
           <td>
             <a href="javascript:void(0)" class="text-decoration-none fw-semibold student-name-link"
-               onclick="permanenceManager.showStudentExpediente(${u.id})"
+               data-action="show-expediente" data-student-id="${u.id}"
                title="Ver expediente">
-              ${this.escapeHtml(u.full_name)}
+              ${SIIAP.escapeHtml(u.full_name)}
               <i class="bi bi-box-arrow-up-right small ms-1 text-secondary" aria-hidden="true"></i>
             </a>
-            <div class="small text-secondary">${this.escapeHtml(u.email)}</div>
+            <div class="small text-secondary">${SIIAP.escapeHtml(u.email)}</div>
           </td>
           <td class="text-center">
-            <span class="badge bg-secondary font-monospace">${u.control_number || '—'}</span>
+            <span class="badge bg-secondary font-monospace">${SIIAP.escapeHtml(u.control_number || '—')}</span>
           </td>
           ${middleCols}
           <td class="text-center">
             <button type="button" class="btn btn-sm ${btnCls}"
-              onclick="permanenceManager.showConfirmModal(${r.user_program.id}, '${safeName}', '${mode}', '${safeProofUrl}')">
+              data-action="confirm-enrollment" data-user-program-id="${r.user_program.id}"
+              data-student-name="${nameAttr}" data-mode="${mode}" data-proof-url="${proofUrlAttr}">
               <i class="bi bi-check-lg me-1" aria-hidden="true"></i>${btnLabel}
             </button>
             ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(u.id) : ''}
@@ -772,17 +855,19 @@ class PermanenceManager {
       const u = r.user;
       const ce = r.current_enrollment;
       const programCell = this._programCell(r.__program_name);
+      const nameAttr = SIIAP.escapeAttr(u.full_name);
       const proofCell = ce?.payment_proof_url
-        ? `<a href="${ce.payment_proof_url}" target="_blank" rel="noopener"
+        ? `<a href="${SIIAP.escapeAttr(ce.payment_proof_url)}" target="_blank" rel="noopener"
               class="btn btn-sm btn-outline-secondary py-0 px-2 tap-target"
-              title="Ver comprobante de pago" aria-label="Ver el comprobante de pago de ${this.escapeHtml(u.full_name)} (se abre en una pestaña nueva)">
+              title="Ver comprobante de pago" aria-label="Ver el comprobante de pago de ${nameAttr} (se abre en una pestaña nueva)">
               <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i></a>`
         : '<span class="text-secondary small">—</span>';
       const completeBtn = ce && ce.status === 'active'
         ? `<button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 tap-target"
-             onclick="permanenceManager.markCompletedFromOverview(${ce.id}, '${this.escapeHtml(u.full_name).replace(/'/g, "\\'")}')"
+             data-action="mark-completed" data-enrollment-id="${ce.id}"
+             data-student-name="${nameAttr}"
              title="Marcar semestre como completado"
-             aria-label="Marcar como completado el semestre de ${this.escapeHtml(u.full_name)}">
+             aria-label="Marcar como completado el semestre de ${nameAttr}">
              <i class="bi bi-check2-all" aria-hidden="true"></i>
            </button>`
         : '<span class="text-secondary small">—</span>';
@@ -792,15 +877,15 @@ class PermanenceManager {
           ${programCell}
           <td>
             <a href="javascript:void(0)" class="text-decoration-none fw-semibold student-name-link"
-               onclick="permanenceManager.showStudentExpediente(${u.id})"
+               data-action="show-expediente" data-student-id="${u.id}"
                title="Ver expediente">
-              ${this.escapeHtml(u.full_name)}
+              ${SIIAP.escapeHtml(u.full_name)}
               <i class="bi bi-box-arrow-up-right small ms-1 text-secondary" aria-hidden="true"></i>
             </a>
-            <div class="small text-secondary">${this.escapeHtml(u.email)}</div>
+            <div class="small text-secondary">${SIIAP.escapeHtml(u.email)}</div>
           </td>
           <td class="text-center">
-            <span class="badge bg-secondary font-monospace">${u.control_number || '—'}</span>
+            <span class="badge bg-secondary font-monospace">${SIIAP.escapeHtml(u.control_number || '—')}</span>
           </td>
           <td class="text-center"><span class="badge bg-info">${ce?.semester_number || '—'}</span></td>
           <td class="text-center">${proofCell}</td>
@@ -912,8 +997,8 @@ class PermanenceManager {
       <div class="col-6 col-md-4">
         <div class="stat-card stat-card--brand h-100">
           <i class="bi bi-calendar-event-fill stat-card__icon" aria-hidden="true"></i>
-          <p class="kpi-value kpi-value--sm">${active_period ? this.escapeHtml(active_period.name) : '—'}</p>
-          <p class="stat-card__label">${active_period ? active_period.code : 'Sin periodo activo'}</p>
+          <p class="kpi-value kpi-value--sm">${active_period ? SIIAP.escapeHtml(active_period.name) : '—'}</p>
+          <p class="stat-card__label">${active_period ? SIIAP.escapeHtml(active_period.code) : 'Sin periodo activo'}</p>
         </div>
       </div>
       <div class="col-12 col-md-4">
@@ -947,7 +1032,7 @@ class PermanenceManager {
           <div class="small">${confirmedIcon}</div>
           <div class="small text-secondary">Fecha: ${confirmedAt}</div>
         </div>
-        ${current_enrollment.notes ? `<div class="small text-secondary mt-2"><strong>Notas:</strong> ${this.escapeHtml(current_enrollment.notes)}</div>` : ''}
+        ${current_enrollment.notes ? `<div class="small text-secondary mt-2"><strong>Notas:</strong> ${SIIAP.escapeHtml(current_enrollment.notes)}</div>` : ''}
       `;
     }
 
@@ -987,7 +1072,7 @@ class PermanenceManager {
               return `
                 <tr>
                   <td class="text-center fw-bold">${h.semester_number}</td>
-                  <td>${this.escapeHtml(h.period_name)} <span class="badge bg-secondary">${h.period_code}</span></td>
+                  <td>${SIIAP.escapeHtml(h.period_name)} <span class="badge bg-secondary">${SIIAP.escapeHtml(h.period_code)}</span></td>
                   <td class="text-center">${PermanenceManager.semesterStatusBadge(h.status)}</td>
                   <td class="text-center">${cIcon}</td>
                 </tr>`;
@@ -1072,7 +1157,7 @@ class PermanenceManager {
               return `
                 <tr>
                   <td class="text-center fw-bold">Sem. ${h.semester_number}</td>
-                  <td>${this.escapeHtml(h.period_name)} <span class="badge bg-secondary">${h.period_code}</span></td>
+                  <td>${SIIAP.escapeHtml(h.period_name)} <span class="badge bg-secondary">${SIIAP.escapeHtml(h.period_code)}</span></td>
                   <td class="text-center">${PermanenceManager.semesterStatusBadge(h.status)}</td>
                   <td class="text-center">${confirmed}</td>
                 </tr>`;
@@ -1121,7 +1206,7 @@ class PermanenceManager {
           <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
           <h3 class="empty-state__title">No se pudieron cargar las solicitudes</h3>
           <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
-          <p class="empty-state__error-detail">${this.escapeHtml(e.message)}</p>
+          <p class="empty-state__error-detail">${SIIAP.escapeHtml(e.message)}</p>
         </div>`;
     } finally {
       loading?.classList.add('d-none');
@@ -1134,25 +1219,31 @@ class PermanenceManager {
     list.innerHTML = requests.map(r => {
       const sub = r.submission;
       const uploadDate = SIIAP.formatDate(sub.upload_date, 'short', '—');
+      const nameText = SIIAP.escapeHtml(r.user.full_name);
+      const nameAttr = SIIAP.escapeAttr(r.user.full_name);
+      // Ruta servida por el backend (/files/doc/…): sólo se cierra el atributo.
+      const fileUrlAttr = SIIAP.escapeAttr(r.file_url || '');
       return `
         <div class="border rounded p-3 mb-2 d-flex flex-wrap align-items-center gap-3">
           <div class="flex-grow-1">
-            <div class="fw-semibold">${this.escapeHtml(r.user.full_name)}</div>
+            <div class="fw-semibold">${nameText}</div>
             <div class="small text-secondary">
-              N.º de control: ${this.escapeHtml(r.user.control_number || '—')}
+              N.º de control: ${SIIAP.escapeHtml(r.user.control_number || '—')}
               &nbsp;·&nbsp; Semestre ${r.current_semester || '—'}
               &nbsp;·&nbsp; Subida: ${uploadDate}
             </div>
           </div>
           <div class="d-flex gap-2 flex-shrink-0">
-            ${r.file_url ? `<a href="${r.file_url}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+            ${r.file_url ? `<a href="${fileUrlAttr}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
               <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Ver
-              <span class="visually-hidden">la solicitud de ${this.escapeHtml(r.user.full_name)} (se abre en una pestaña nueva)</span>
+              <span class="visually-hidden">la solicitud de ${nameText} (se abre en una pestaña nueva)</span>
             </a>` : ''}
             <button type="button" class="btn btn-sm btn-success"
-              onclick="permanenceManager.showLeaveModal(${sub.id}, '${this.escapeHtml(r.user.full_name)}', ${r.current_semester || 0}, '${r.file_url || ''}')">
+              data-action="review-leave" data-submission-id="${sub.id}"
+              data-student-name="${nameAttr}" data-semester="${r.current_semester || 0}"
+              data-file-url="${fileUrlAttr}">
               <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Revisar
-              <span class="visually-hidden">la solicitud de ${this.escapeHtml(r.user.full_name)}</span>
+              <span class="visually-hidden">la solicitud de ${nameText}</span>
             </button>
           </div>
         </div>`;
@@ -1482,15 +1573,6 @@ class PermanenceManager {
   showLoading(show) {
     document.getElementById('loadingSpinner')?.classList.toggle('d-none', !show);
     if (show) document.getElementById('tableContainer')?.classList.add('d-none');
-  }
-
-  escapeHtml(str) {
-    return String(str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
   }
 }
 

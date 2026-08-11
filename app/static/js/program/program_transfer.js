@@ -78,14 +78,15 @@
 
         const card = document.createElement('div');
         card.className = 'program-option card mb-2';
+        const progId = SIIAP.escapeAttr(prog.id);
         card.innerHTML = `
           <div class="card-body">
             <div class="form-check">
               <input class="form-check-input" type="radio" name="targetProgram"
-                     id="prog-${prog.id}" value="${prog.id}" data-slug="${prog.slug}">
-              <label class="form-check-label" for="prog-${prog.id}">
-                <strong>${prog.name}</strong>
-                <p class="small text-muted mb-0">${prog.description || ''}</p>
+                     id="prog-${progId}" value="${progId}" data-slug="${SIIAP.escapeAttr(prog.slug)}">
+              <label class="form-check-label" for="prog-${progId}">
+                <strong>${SIIAP.escapeHtml(prog.name)}</strong>
+                <p class="small text-muted mb-0">${SIIAP.escapeHtml(prog.description || '')}</p>
               </label>
             </div>
           </div>
@@ -278,12 +279,12 @@
         html += `
           <tr>
             <td>
-              ${doc.name} ${matchType}
-              <div class="small text-muted">ID: ${doc.archive_id} → ${doc.target_archive_id}</div>
+              ${SIIAP.escapeHtml(doc.name)} ${matchType}
+              <div class="small text-muted">ID: ${SIIAP.escapeHtml(doc.archive_id)} → ${SIIAP.escapeHtml(doc.target_archive_id)}</div>
             </td>
             <td>${statusBadge}</td>
-            <td class="small text-muted">${doc.from_step}</td>
-            <td class="small text-muted">${doc.to_step}</td>
+            <td class="small text-muted">${SIIAP.escapeHtml(doc.from_step)}</td>
+            <td class="small text-muted">${SIIAP.escapeHtml(doc.to_step)}</td>
           </tr>
         `;
       });
@@ -321,9 +322,9 @@
         html += `
           <li class="list-group-item d-flex justify-content-between align-items-start">
             <div>
-              <strong>${doc.name}</strong>
-              <div class="small text-muted">Paso: ${doc.step_name}</div>
-              <div class="small text-muted">ID: ${doc.archive_id}</div>
+              <strong>${SIIAP.escapeHtml(doc.name)}</strong>
+              <div class="small text-muted">Paso: ${SIIAP.escapeHtml(doc.step_name)}</div>
+              <div class="small text-muted">ID: ${SIIAP.escapeHtml(doc.archive_id)}</div>
             </div>
             <i class="bi bi-trash text-danger" aria-hidden="true"></i>
           </li>
@@ -354,9 +355,9 @@
       analysis.missing_docs.forEach(doc => {
         html += `
           <li class="list-group-item">
-            <strong>${doc.name}</strong>
-            <div class="small text-muted">${doc.step_name}</div>
-            <div class="small text-muted">ID requerido: ${doc.archive_id}</div>
+            <strong>${SIIAP.escapeHtml(doc.name)}</strong>
+            <div class="small text-muted">${SIIAP.escapeHtml(doc.step_name)}</div>
+            <div class="small text-muted">ID requerido: ${SIIAP.escapeHtml(doc.archive_id)}</div>
           </li>
         `;
       });
@@ -380,7 +381,7 @@
             ? `<p class="mb-0">
                 <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
                 <strong>Tu entrevista será cancelada.</strong><br>
-                Motivo: ${analysis.interview_status.reason}
+                Motivo: ${SIIAP.escapeHtml(analysis.interview_status.reason)}
               </p>`
             : `<p class="mb-0">
                 <i class="bi bi-check-circle-fill me-2" aria-hidden="true"></i>
@@ -447,7 +448,9 @@
       
       // Redirigir al nuevo programa después de 2 segundos
       setTimeout(() => {
-        window.location.href = `/programs/admission/${currentToProgram.slug}`;
+        // URL context: the slug is server data, so it is percent-encoded, not HTML-escaped.
+        const slug = encodeURIComponent(currentToProgram.slug || '');
+        window.location.href = `/programs/admission/${slug}`;
       }, 2000);
       
     } catch (err) {

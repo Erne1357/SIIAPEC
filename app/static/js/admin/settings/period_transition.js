@@ -33,12 +33,6 @@
     if (typeof showFlash === 'function') showFlash(level, message);
   }
 
-  function escHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = String(str == null ? '' : str);
-    return div.innerHTML;
-  }
-
   function fmtDate(isoStr) {
     if (!isoStr) return '—';
     if (window.SIIAP && window.SIIAP.formatDate) return window.SIIAP.formatDate(isoStr, 'short');
@@ -58,7 +52,7 @@
   };
 
   function blockerLabel(code) {
-    return BLOCKER_LABELS[code] || escHtml(code);
+    return BLOCKER_LABELS[code] || SIIAP.escapeHtml(code);
   }
 
   // ── Conteo de items de preview ─────────────────────────────────────────────
@@ -164,7 +158,7 @@
   }
 
   function showPreviewError(msg) {
-    const html = `<div class="alert alert-danger m-3"><i class="bi bi-exclamation-triangle me-2"></i>${escHtml(msg)}</div>`;
+    const html = `<div class="alert alert-danger m-3"><i class="bi bi-exclamation-triangle me-2"></i>${SIIAP.escapeHtml(msg)}</div>`;
     ['tabAdvance','tabBlocked','tabAdmitMigrate','tabAdmitExpire','tabAdmitAligned','tabDeferred','tabOnLeave'].forEach(id => setTabContent(id, html));
     disableConfirm(true);
   }
@@ -221,33 +215,34 @@
   function emptyState(msg) {
     return `<div class="empty-state empty-state--compact">
       <div class="empty-state__icon"><i class="bi bi-check2-circle" aria-hidden="true"></i></div>
-      <p class="empty-state__title">${escHtml(msg)}</p>
+      <p class="empty-state__title">${SIIAP.escapeHtml(msg)}</p>
     </div>`;
   }
 
+  // Estos helpers devuelven HTML ya escapado para contenido de celda.
   function userFullName(item) {
     const u = item.user || {};
-    return escHtml([u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || '—');
+    return SIIAP.escapeHtml([u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || '—');
   }
 
   function userEmail(item) {
     const u = item.user || {};
-    return escHtml(u.email || '—');
+    return SIIAP.escapeHtml(u.email || '—');
   }
 
   function programName(item) {
     // Prioridad: item.program (objeto poblado por el backend con id/name/slug)
     // → up.program_name → up.program → '—'
     const p = item.program || {};
-    if (p.name) return escHtml(p.name);
-    if (p.slug) return escHtml(p.slug);
+    if (p.name) return SIIAP.escapeHtml(p.name);
+    if (p.slug) return SIIAP.escapeHtml(p.slug);
     const up = item.user_program || {};
-    return escHtml(up.program_name || up.program_slug || up.program || '—');
+    return SIIAP.escapeHtml(up.program_name || up.program_slug || up.program || '—');
   }
 
   function semesterNum(item) {
     const up = item.user_program || {};
-    return escHtml(String(up.current_semester || '—'));
+    return SIIAP.escapeHtml(String(up.current_semester || '—'));
   }
 
   function renderAdvanceTable(items) {
@@ -271,10 +266,10 @@
       const blockersHtml = blockers.map(b => {
         let detail = '';
         if (b.deadlines && b.deadlines.length) {
-          const dls = b.deadlines.map(d => `<li class="small">${escHtml(d.label || d.id)}</li>`).join('');
+          const dls = b.deadlines.map(d => `<li class="small">${SIIAP.escapeHtml(d.label || d.id)}</li>`).join('');
           detail = `<ul class="mb-0 mt-1 ps-3">${dls}</ul>`;
         } else if (b.months && b.months.length) {
-          detail = `<div class="small mt-1">Meses pendientes: ${b.months.map(m => escHtml(String(m))).join(', ')}</div>`;
+          detail = `<div class="small mt-1">Meses pendientes: ${b.months.map(m => SIIAP.escapeHtml(String(m))).join(', ')}</div>`;
         }
         return `<li>${blockerLabel(b.code)}${detail}</li>`;
       }).join('');
@@ -309,17 +304,17 @@
         <td>${userFullName(it)}</td>
         <td class="text-muted small">${userEmail(it)}</td>
         <td>${programName(it)}</td>
-        <td class="text-center text-muted small">${escHtml(String((it.user_program || {}).admission_status || '—'))}</td>
+        <td class="text-center text-muted small">${SIIAP.escapeHtml(String((it.user_program || {}).admission_status || '—'))}</td>
       </tr>`).join('');
     return tableWrap(['Nombre', 'Correo', 'Programa', 'Estado'], rows);
   }
 
   function tableWrap(headers, rows, caption) {
-    const ths = headers.map(h => `<th scope="col">${escHtml(h)}</th>`).join('');
+    const ths = headers.map(h => `<th scope="col">${SIIAP.escapeHtml(h)}</th>`).join('');
     const html = `
       <div class="siiap-table-wrapper">
         <table class="table siiap-table table-sm table-hover align-middle mb-0">
-          <caption class="visually-hidden">${escHtml(caption || 'Vista previa de la transición de periodo')}</caption>
+          <caption class="visually-hidden">${SIIAP.escapeHtml(caption || 'Vista previa de la transición de periodo')}</caption>
           <thead class="table-light"><tr>${ths}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -499,11 +494,11 @@
       return `
         <button type="button"
                 class="btn btn-warning btn-sm btn-period-transition"
-                data-source-period-id="${activePeriod.id}"
-                data-source-period-code="${escHtml(activePeriod.code)}"
-                data-target-period-id="${nextPeriod.id}"
-                data-target-period-code="${escHtml(nextPeriod.code)}"
-                title="Cerrar periodo ${escHtml(activePeriod.code)} y avanzar a ${escHtml(nextPeriod.code)}">
+                data-source-period-id="${SIIAP.escapeAttr(activePeriod.id)}"
+                data-source-period-code="${SIIAP.escapeAttr(activePeriod.code)}"
+                data-target-period-id="${SIIAP.escapeAttr(nextPeriod.id)}"
+                data-target-period-code="${SIIAP.escapeAttr(nextPeriod.code)}"
+                title="Cerrar periodo ${SIIAP.escapeAttr(activePeriod.code)} y avanzar a ${SIIAP.escapeAttr(nextPeriod.code)}">
           <i class="bi bi-arrow-right-circle me-1" aria-hidden="true"></i>Cerrar periodo y avanzar
         </button>`;
     }

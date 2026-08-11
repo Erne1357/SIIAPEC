@@ -36,7 +36,7 @@ function showFlash(level, message) {
   alertEl.className = `alert alert-${alertType} alert-dismissible fade show`;
   alertEl.innerHTML = `
     <i class="bi ${iconClass} me-2" aria-hidden="true"></i>
-    ${escapeHtml(message)}
+    ${SIIAP.escapeHtml(message)}
     <button type="button" class="btn-close tap-target" data-bs-dismiss="alert" aria-label="Cerrar"></button>
   `;
 
@@ -51,17 +51,6 @@ function showFlash(level, message) {
       }
     }, 500);
   }, 5000);
-}
-
-/**
- * Escapa HTML para prevenir XSS
- * @param {string} text - Texto a escapar
- * @returns {string} - Texto escapado
- */
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }
 
 /**

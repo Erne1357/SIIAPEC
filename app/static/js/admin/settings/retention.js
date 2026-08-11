@@ -41,16 +41,8 @@
 
     function renderArchivesOptions() {
         polArchive.innerHTML = archives
-            .map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`)
+            .map(a => `<option value="${SIIAP.escapeAttr(a.id)}">${SIIAP.escapeHtml(a.name)}</option>`)
             .join("");
-    }
-
-    function esc(value) {
-        return String(value ?? "")
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;");
     }
 
     function renderPolicies() {
@@ -74,14 +66,14 @@
             const archiveName = a ? a.name : `Archivo ${p.archive_id}`;
             const applyAfter = APPLY_AFTER_LABEL[p.apply_after] || p.apply_after || "—";
             return `
-        <tr data-id="${p.id}">
-          <th scope="row" class="fw-normal">${esc(archiveName)}</th>
+        <tr data-id="${SIIAP.escapeAttr(p.id)}">
+          <th scope="row" class="fw-normal">${SIIAP.escapeHtml(archiveName)}</th>
           <td class="text-center">${p.keep_forever ? "Sí" : "No"}</td>
-          <td class="text-center">${p.keep_forever ? "—" : (p.keep_years ?? "—")}</td>
-          <td>${esc(applyAfter)}</td>
+          <td class="text-center">${p.keep_forever ? "—" : SIIAP.escapeHtml(p.keep_years ?? "—")}</td>
+          <td>${SIIAP.escapeHtml(applyAfter)}</td>
           <td class="text-end">
             <button type="button" class="btn btn-sm btn-outline-primary btn-edit"
-                    aria-label="Editar la política de ${esc(archiveName)}">Editar</button>
+                    aria-label="Editar la política de ${SIIAP.escapeAttr(archiveName)}">Editar</button>
           </td>
         </tr>
       `;
@@ -102,21 +94,24 @@
         renderPolicies();
     }
 
+    // Delegación sobre el <tbody>, que renderPolicies() nunca reemplaza (solo
+    // reescribe su innerHTML), así que basta con enlazarlo una vez.
     tbody.addEventListener("click", (ev) => {
-        const tr = ev.target.closest("tr[data-id]");
+        // closest(): el click puede caer en un hijo del botón, no en el botón.
+        const btn = ev.target.closest(".btn-edit");
+        if (!btn) return;
+        const tr = btn.closest("tr[data-id]");
         if (!tr) return;
         const id = Number(tr.getAttribute("data-id"));
-        if (ev.target.classList.contains("btn-edit")) {
-            const p = policies.find(x => x.id === id);
-            if (!p) return;
-            polId.value = p.id;
-            polArchive.value = String(p.archive_id);
-            polForever.checked = !!p.keep_forever;
-            polYears.value = p.keep_years || "";
-            polAfter.value = p.apply_after || "graduated";
-            btnDelete.classList.remove("d-none");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        }
+        const p = policies.find(x => x.id === id);
+        if (!p) return;
+        polId.value = p.id;
+        polArchive.value = String(p.archive_id);
+        polForever.checked = !!p.keep_forever;
+        polYears.value = p.keep_years || "";
+        polAfter.value = p.apply_after || "graduated";
+        btnDelete.classList.remove("d-none");
+        window.scrollTo({ top: 0, behavior: "smooth" });
     });
 
     form.addEventListener("submit", async (ev) => {
@@ -130,7 +125,7 @@
         try {
             let res, data;
             if (polId.value) {
-                res = await fetch(`${API}/retention/policies/${polId.value}`, {
+                res = await fetch(`${API}/retention/policies/${encodeURIComponent(polId.value)}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     credentials: "same-origin",
@@ -173,7 +168,7 @@
         });
         if (!ok) return;
         try {
-            const res = await fetch(`${API}/retention/policies/${polId.value}`, {
+            const res = await fetch(`${API}/retention/policies/${encodeURIComponent(polId.value)}`, {
                 method: "DELETE",
                 credentials: "same-origin"
             });

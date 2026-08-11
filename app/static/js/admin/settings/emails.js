@@ -243,7 +243,7 @@ class EmailConfigManager {
         const meta = STATUS_MAP[email.status] || { key: 'pending', label: email.status };
         const statusChip = (window.SIIAP && window.SIIAP.statusBadge)
             ? window.SIIAP.statusBadge(meta.key, meta.label)
-            : `<span class="status-badge status-badge--${meta.key}"><span>${this.escapeHtml(meta.label)}</span></span>`;
+            : `<span class="status-badge status-badge--${meta.key}"><span>${SIIAP.escapeHtml(meta.label)}</span></span>`;
 
         const createdAt = (window.SIIAP && window.SIIAP.formatDateTime)
             ? window.SIIAP.formatDateTime(email.created_at, 'short')
@@ -256,7 +256,7 @@ class EmailConfigManager {
             <div class="mt-2">
                 <small class="text-danger">
                     <i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>
-                    <strong>Error:</strong> ${this.escapeHtml(email.error_message)}
+                    <strong>Error:</strong> ${SIIAP.escapeHtml(email.error_message)}
                 </small>
             </div>
         ` : '';
@@ -269,13 +269,13 @@ class EmailConfigManager {
                             ${statusChip}
                             ${email.attempts > 0 ? `
                                 <span class="badge bg-warning">
-                                    ${email.attempts} ${email.attempts === 1 ? 'intento' : 'intentos'}
+                                    ${SIIAP.escapeHtml(email.attempts)} ${email.attempts === 1 ? 'intento' : 'intentos'}
                                 </span>
                             ` : ''}
                         </div>
-                        <strong>${this.escapeHtml(email.subject)}</strong>
+                        <strong>${SIIAP.escapeHtml(email.subject)}</strong>
                         <div class="email-meta">
-                            <span><i class="bi bi-envelope me-1" aria-hidden="true"></i>${this.escapeHtml(email.recipient_email)}</span>
+                            <span><i class="bi bi-envelope me-1" aria-hidden="true"></i>${SIIAP.escapeHtml(email.recipient_email)}</span>
                             <span><i class="bi bi-clock me-1" aria-hidden="true"></i>${createdAt}</span>
                         </div>
                         ${errorHtml}
@@ -294,12 +294,6 @@ class EmailConfigManager {
     getCsrf() {
         const el = document.querySelector('meta[name="csrf-token"]');
         return el ? el.getAttribute('content') : '';
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     }
 }
 

@@ -91,7 +91,22 @@
     function timeTag(iso, style) {
         const parsed = SIIAP.parseDate(iso);
         if (!parsed) return '—';
-        return `<time datetime="${escapeHtml(parsed.toISOString())}">${escapeHtml(formatDate(iso, style))}</time>`;
+        return `<time datetime="${SIIAP.escapeAttr(parsed.toISOString())}">${SIIAP.escapeHtml(formatDate(iso, style))}</time>`;
+    }
+
+    /**
+     * Encodes one path segment (a stored file name) for use inside a URL.
+     * encodeURIComponent leaves ' ( ) * ! ~ untouched; the quote and the
+     * parenthesis would break out of the CSS `url('…')` wrapper used for the
+     * cover, so they are percent-encoded too. Plain file names are unchanged.
+     * NOTE: this is URL encoding, NOT HTML escaping — the result still has to
+     * go through SIIAP.escapeAttr before landing in an attribute.
+     * @param {string} segment
+     * @returns {string}
+     */
+    function encodeUrlSegment(segment) {
+        return encodeURIComponent(segment == null ? '' : String(segment))
+            .replace(/['()!*~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
     }
 
     /* Tipos con portada propia en components/_event-cover.css. */
@@ -235,14 +250,14 @@
         // Chips: categoría (tipo, programa) + estado real de publicación
         const heroBadges = document.getElementById('heroBadges');
         const programBadge = eventData.program_name
-            ? `<span class="badge bg-primary-soft">${escapeHtml(eventData.program_name)}</span>`
+            ? `<span class="badge bg-primary-soft">${SIIAP.escapeHtml(eventData.program_name)}</span>`
             : `<span class="badge bg-secondary">Abierto a todos</span>`;
         const privateBadge = eventData.visibility === 'private'
             ? `<span class="badge bg-dark"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Privado</span>`
             : '';
         heroBadges.innerHTML = `
             ${programBadge}
-            <span class="badge ${typeMeta.soft}">${escapeHtml(typeMeta.label)}</span>
+            <span class="badge ${typeMeta.soft}">${SIIAP.escapeHtml(typeMeta.label)}</span>
             ${SIIAP.statusBadge(statMeta.key, statMeta.label, 'sm')}
             ${privateBadge}
         `;
@@ -260,7 +275,7 @@
         const endPart = eventData.event_end_date
             ? `<span><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>${timeTag(eventData.event_end_date)}</span>`
             : '';
-        const locationPart = `<span><i class="bi bi-geo-alt me-1" aria-hidden="true"></i>${escapeHtml(eventData.location || 'Por definir')}</span>`;
+        const locationPart = `<span><i class="bi bi-geo-alt me-1" aria-hidden="true"></i>${SIIAP.escapeHtml(eventData.location || 'Por definir')}</span>`;
         heroMeta.innerHTML = [datePart, endPart, locationPart].filter(Boolean).join('');
 
         // Invitation banner
@@ -281,7 +296,7 @@
 
         const { cover } = await fetchEventImages(ev.id);
         if (cover?.path) {
-            const filename = cover.path.split('/').pop();
+            const filename = encodeUrlSegment(cover.path.split('/').pop());
             const url = `/files/event/${ev.id}/cover/${filename}`;
             heroEl.style.setProperty('--event-cover-src', `url('${url}')`);
             heroEl.classList.add('event-cover--has-image');
@@ -342,31 +357,23 @@
                 const initials = (h.name || '?').charAt(0).toUpperCase();
                 const photoUrl = resolveHostPhotoUrl(evId, h);
                 const photoHtml = photoUrl
-                    ? `<img class="host-photo" src="${escapeHtml(photoUrl)}" alt="" loading="lazy">`
-                    : `<div class="host-photo-placeholder" aria-hidden="true">${escapeHtml(initials)}</div>`;
+                    ? `<img class="host-photo" src="${SIIAP.escapeAttr(photoUrl)}" alt="" loading="lazy">`
+                    : `<div class="host-photo-placeholder" aria-hidden="true">${SIIAP.escapeHtml(initials)}</div>`;
                 const hostPayload = { ...h, photo_url: photoUrl };
                 const name = h.name || 'Ponente';
+                // escapeAttr escapes the quotes of the JSON so it cannot close the
+                // attribute; the HTML parser decodes them back, so JSON.parse works.
                 return `
                     <button type="button" class="host-card"
-                            aria-label="Ver la semblanza de ${escapeHtml(name)}"
-                            data-host-json="${escapeHtml(JSON.stringify(hostPayload))}">
+                            aria-label="Ver la semblanza de ${SIIAP.escapeAttr(name)}"
+                            data-host-json="${SIIAP.escapeAttr(JSON.stringify(hostPayload))}">
                         ${photoHtml}
-                        <span class="host-name d-block">${escapeHtml(name)}</span>
-                        <span class="host-role d-block">${escapeHtml(h.role_label || '')}</span>
+                        <span class="host-name d-block">${SIIAP.escapeHtml(name)}</span>
+                        <span class="host-role d-block">${SIIAP.escapeHtml(h.role_label || '')}</span>
                     </button>`;
             }).join('');
 
             card.classList.remove('d-none');
-
-            // Click → open bio modal
-            strip.addEventListener('click', e => {
-                const card = e.target.closest('.host-card');
-                if (!card) return;
-                try {
-                    const host = JSON.parse(card.dataset.hostJson || '{}');
-                    openHostModal(host);
-                } catch { /* ignore */ }
-            });
         } catch (err) {
             console.warn('[view.js] Could not load hosts:', err.message);
         }
@@ -389,8 +396,8 @@
         if (photoWrap) {
             const src = host.photo_url || host.avatar_url || '';
             photoWrap.innerHTML = src
-                ? `<img class="host-bio-photo" src="${escapeHtml(src)}" alt="${escapeHtml(host.name || '')}">`
-                : `<div class="host-bio-photo-placeholder">${escapeHtml((host.name || '?').charAt(0).toUpperCase())}</div>`;
+                ? `<img class="host-bio-photo" src="${SIIAP.escapeAttr(src)}" alt="${SIIAP.escapeAttr(host.name || '')}">`
+                : `<div class="host-bio-photo-placeholder">${SIIAP.escapeHtml((host.name || '?').charAt(0).toUpperCase())}</div>`;
         }
 
         const modal = new bootstrap.Modal(document.getElementById('hostBioModal'));
@@ -413,25 +420,19 @@
             if (!card || !grid) return;
 
             grid.innerHTML = gallery.map((img, index) => {
-                const filename = (img.path || '').split('/').pop();
+                const filename = encodeUrlSegment((img.path || '').split('/').pop());
                 const url = `/files/event/${evId}/gallery/${filename}`;
                 const caption = img.caption || `Imagen ${index + 1} del evento`;
                 return `
                 <button type="button" class="event-public-gallery-item"
-                        data-img-url="${escapeHtml(url)}"
-                        data-caption="${escapeHtml(caption)}"
-                        aria-label="Ampliar: ${escapeHtml(caption)}">
-                    <img src="${escapeHtml(url)}" alt="${escapeHtml(caption)}" loading="lazy">
+                        data-img-url="${SIIAP.escapeAttr(url)}"
+                        data-caption="${SIIAP.escapeAttr(caption)}"
+                        aria-label="Ampliar: ${SIIAP.escapeAttr(caption)}">
+                    <img src="${SIIAP.escapeAttr(url)}" alt="${SIIAP.escapeAttr(caption)}" loading="lazy">
                 </button>`;
             }).join('');
 
             card.classList.remove('d-none');
-
-            grid.addEventListener('click', e => {
-                const item = e.target.closest('.event-public-gallery-item');
-                if (!item) return;
-                openImageLightbox(item.dataset.imgUrl, item.dataset.caption);
-            });
         } catch (err) {
             console.warn('[view.js] Could not load gallery:', err.message);
         }
@@ -467,14 +468,6 @@
     function renderShareUrl() {
         const input = document.getElementById('shareUrlInput');
         if (input) input.value = window.location.href;
-    }
-
-    // ── Escape helper ────────────────────────────────────────
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = String(text ?? '');
-        return div.innerHTML;
     }
 
     // ── Invitación: reconsiderar ─────────────────────────────
@@ -526,13 +519,13 @@
         })();
 
         const items = [
-            { label: 'Tipo',      value: escapeHtml(eventTypeMeta(eventData.type).label) },
-            { label: 'Estado',    value: escapeHtml(statusMeta(eventData.status).label) },
-            { label: 'Capacidad', value: escapeHtml(capacityLabel) },
+            { label: 'Tipo',      value: SIIAP.escapeHtml(eventTypeMeta(eventData.type).label) },
+            { label: 'Estado',    value: SIIAP.escapeHtml(statusMeta(eventData.status).label) },
+            { label: 'Capacidad', value: SIIAP.escapeHtml(capacityLabel) },
             { label: 'Inicio',    value: timeTag(eventData.event_date) },
             { label: 'Fin',       value: eventData.event_end_date ? timeTag(eventData.event_end_date) : '—' },
-            { label: 'Ubicación', value: escapeHtml(eventData.location || 'Por definir') },
-            { label: 'Programa',  value: escapeHtml(eventData.program_name || 'Todos') },
+            { label: 'Ubicación', value: SIIAP.escapeHtml(eventData.location || 'Por definir') },
+            { label: 'Programa',  value: SIIAP.escapeHtml(eventData.program_name || 'Todos') },
         ];
 
         list.innerHTML = items.map(i => `
@@ -579,11 +572,11 @@
                             <p class="text-muted small mb-1">
                                 <i class="bi bi-calendar-heart-fill me-1" aria-hidden="true"></i>Tu Cita
                             </p>
-                            <p class="appointment-time mb-0">${escapeHtml(formatTime(myAppt.starts_at))}</p>
+                            <p class="appointment-time mb-0">${SIIAP.escapeHtml(formatTime(myAppt.starts_at))}</p>
                             <p class="appointment-date mb-0">${timeTag(myAppt.starts_at)}</p>
                             <p class="appointment-date mt-1 mb-0">
                                 <i class="bi bi-clock me-1" aria-hidden="true"></i>
-                                Hasta las ${escapeHtml(formatTime(myAppt.ends_at))}
+                                Hasta las ${SIIAP.escapeHtml(formatTime(myAppt.ends_at))}
                             </p>
                         </div>
                         <div class="d-flex flex-column gap-2">
@@ -748,23 +741,23 @@
                     const icon   = isMine ? 'bi-star-fill' : slot.status === 'free' ? 'bi-circle-fill' : 'bi-record-circle';
                     const label  = isMine ? 'Mi cita' : slot.status === 'free' ? 'Libre' : 'Ocupado';
                     return `
-                        <span class="slot-pill ${cls}" title="${escapeHtml(label)}: ${formatTime(slot.starts_at)} – ${formatTime(slot.ends_at)}">
+                        <span class="slot-pill ${cls}" title="${SIIAP.escapeAttr(label)}: ${SIIAP.escapeAttr(formatTime(slot.starts_at))} – ${SIIAP.escapeAttr(formatTime(slot.ends_at))}">
                             <i class="bi ${icon}" aria-hidden="true"></i>
-                            ${escapeHtml(formatTime(slot.starts_at))}
-                            <span class="slot-label-sm">${escapeHtml(label)}</span>
+                            ${SIIAP.escapeHtml(formatTime(slot.starts_at))}
+                            <span class="slot-label-sm">${SIIAP.escapeHtml(label)}</span>
                         </span>`;
                 }).join('')
                 : `<span class="text-muted small">Sin horarios en esta ventana</span>`;
 
             const windowDate = win.date
-                ? `<time datetime="${escapeHtml(win.date)}">${escapeHtml(SIIAP.formatDate(win.date, 'long'))}</time>`
+                ? `<time datetime="${SIIAP.escapeAttr(win.date)}">${SIIAP.escapeHtml(SIIAP.formatDate(win.date, 'long'))}</time>`
                 : '—';
 
             return `
                 <div class="timeline-window">
                     <p class="timeline-window-header">
                         <i class="bi bi-calendar-day me-2 text-primary" aria-hidden="true"></i>${windowDate}
-                        <span class="text-muted fw-normal ms-2 small">${escapeHtml(win.start_time || '')} – ${escapeHtml(win.end_time || '')}</span>
+                        <span class="text-muted fw-normal ms-2 small">${SIIAP.escapeHtml(win.start_time || '')} – ${SIIAP.escapeHtml(win.end_time || '')}</span>
                     </p>
                     <div class="slots-grid">${slotsHtml}</div>
                 </div>`;
@@ -935,6 +928,25 @@
     });
 
     document.getElementById('btnConfirmChangeRequest')?.addEventListener('click', submitChangeRequest);
+
+    /* Delegación en contenedores estables: #hostsStrip y #publicGallery vienen de
+       la plantilla y solo se les reemplaza el contenido, nunca el nodo. Se enlazan
+       UNA vez aquí — no dentro de loadHosts/loadGallery, que se re-ejecutan en
+       cada recarga y apilarían un handler por recarga. */
+    document.getElementById('hostsStrip')?.addEventListener('click', e => {
+        const hostCard = e.target.closest('.host-card');
+        if (!hostCard) return;
+        try {
+            const host = JSON.parse(hostCard.dataset.hostJson || '{}');
+            openHostModal(host);
+        } catch { /* ignore */ }
+    });
+
+    document.getElementById('publicGallery')?.addEventListener('click', e => {
+        const item = e.target.closest('.event-public-gallery-item');
+        if (!item) return;
+        openImageLightbox(item.dataset.imgUrl, item.dataset.caption);
+    });
 
     // Lightbox close
     document.getElementById('lightboxClose')?.addEventListener('click', () => {

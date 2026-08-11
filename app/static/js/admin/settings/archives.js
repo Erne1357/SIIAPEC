@@ -126,20 +126,23 @@
   }
 
   function rowTemplate(a) {
-    const tplUrl = a.template_url ? 
-      `<a class="template-link" href="${a.template_url}" target="_blank" rel="noopener" title="${a.template_name || 'Descargar'}">${a.template_name || 'Ver plantilla'}</a>` : 
+    // template_url is server-built (`/api/v1/archives/<id>/template`), template_name
+    // is the basename of an uploaded file and therefore user controlled.
+    const tplUrl = a.template_url ?
+      `<a class="template-link" href="${SIIAP.escapeAttr(a.template_url)}" target="_blank" rel="noopener" title="${SIIAP.escapeAttr(a.template_name || 'Descargar')}">${SIIAP.escapeHtml(a.template_name || 'Ver plantilla')}</a>` :
       `<span class="text-muted">—</span>`;
     const stepLabel = a.step_name || stepName(a.step_id) || "";
-    
-    const label = a.name || 'este archivo';
+
+    // `label` goes into attributes only; `label` in text content is escaped apart.
+    const label = SIIAP.escapeAttr(a.name || 'este archivo');
 
     return `
-      <tr data-id="${a.id}" data-name="${(a.name||'').toLowerCase()}" data-step="${(stepLabel||'').toLowerCase()}">
+      <tr data-id="${SIIAP.escapeAttr(a.id)}" data-name="${SIIAP.escapeAttr((a.name||'').toLowerCase())}" data-step="${SIIAP.escapeAttr((stepLabel||'').toLowerCase())}">
         <th scope="row" class="fw-normal">
-          <span class="fw-semibold d-block">${a.name}</span>
-          <span class="text-muted small">${a.description||''}</span>
+          <span class="fw-semibold d-block">${SIIAP.escapeHtml(a.name)}</span>
+          <span class="text-muted small">${SIIAP.escapeHtml(a.description||'')}</span>
         </th>
-        <td>${stepLabel}</td>
+        <td>${SIIAP.escapeHtml(stepLabel)}</td>
         <td class="toggle-cell">
           <input class="form-check-input chk-uploadable" type="checkbox"
                  aria-label="El alumno sube ${label}" ${a.is_uploadable ? 'checked':''}>
@@ -188,7 +191,7 @@
       
       // Llenar select de steps para crear/editar
       editStep.innerHTML = steps.map(s => 
-        `<option value="${s.id}">${s.name} (${s.phase_name})</option>`
+        `<option value="${SIIAP.escapeAttr(s.id)}">${SIIAP.escapeHtml(`${s.name} (${s.phase_name})`)}</option>`
       ).join('');
     } catch (err) {
       console.error('Error loading steps:', err);
@@ -211,7 +214,7 @@
               <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
               <p class="empty-state__title">No se pudieron cargar los archivos</p>
               <p class="empty-state__description">Vuelve a intentarlo; si el problema persiste, avisa a soporte.</p>
-              <p class="empty-state__error-detail">${err.message}</p>
+              <p class="empty-state__error-detail">${SIIAP.escapeHtml(err.message)}</p>
             </div>
           </td>
         </tr>`;
@@ -379,7 +382,7 @@
     
     if (!validation.valid) {
       feedback.className = 'file-feedback small mt-1 text-danger';
-      feedback.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${validation.error}`;
+      feedback.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${SIIAP.escapeHtml(validation.error)}`;
     } else {
       feedback.className = 'file-feedback small mt-1 text-success';
       feedback.innerHTML = `<i class="bi bi-check-lg"></i> Archivo válido (${(file.size / (1024 * 1024)).toFixed(2)}MB)`;

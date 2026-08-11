@@ -33,12 +33,6 @@
     else console.log(`[${level}]`, message);
   }
 
-  function escHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = String(str == null ? '' : str);
-    return div.innerHTML;
-  }
-
   function formatBytes(bytes) {
     if (!bytes) return '—';
     const u = ['B', 'KB', 'MB', 'GB'];
@@ -90,7 +84,7 @@
     if (window.SIIAP && window.SIIAP.statusBadge) {
       return window.SIIAP.statusBadge(key, label);
     }
-    return `<span class="status-badge status-badge--${key}"><span>${escHtml(label)}</span></span>`;
+    return `<span class="status-badge status-badge--${SIIAP.escapeAttr(key)}"><span>${SIIAP.escapeHtml(label)}</span></span>`;
   }
 
   function admissionChip(status) {
@@ -129,20 +123,21 @@
     selectionByCategory[category] = new Set();
 
     const rows = items.map(it => {
-      const who = escHtml(it.name || it.email || 'este expediente');
+      // `who` lands inside a double-quoted attribute -> escapeAttr, never escapeHtml.
+      const who = it.name || it.email || 'este expediente';
       return `
       <tr>
         <td>
           <input type="checkbox" class="form-check-input cleanup-row-check"
-                 data-up-id="${it.user_program_id}"
-                 aria-label="Seleccionar a ${who}">
+                 data-up-id="${SIIAP.escapeAttr(it.user_program_id)}"
+                 aria-label="Seleccionar a ${SIIAP.escapeAttr(who)}">
         </td>
-        <th scope="row" class="fw-normal">${escHtml(it.name || '')}</th>
-        <td>${escHtml(it.email || '')}</td>
-        <td>${escHtml(it.program_name || '')}</td>
+        <th scope="row" class="fw-normal">${SIIAP.escapeHtml(it.name || '')}</th>
+        <td>${SIIAP.escapeHtml(it.email || '')}</td>
+        <td>${SIIAP.escapeHtml(it.program_name || '')}</td>
         <td>${admissionChip(it.admission_status)}</td>
-        <td>${escHtml(it.admission_period || '—')}</td>
-        <td class="files-badge">${it.files_count || 0}</td>
+        <td>${SIIAP.escapeHtml(it.admission_period || '—')}</td>
+        <td class="files-badge">${SIIAP.escapeHtml(it.files_count || 0)}</td>
         <td class="files-badge">${formatBytes(it.total_size_bytes)}</td>
       </tr>
     `;
@@ -227,7 +222,7 @@
   // ── Cargar candidatos ──────────────────────────────────────────────────
   async function loadCandidates(category) {
     try {
-      const res = await fetch(`${window.PURGE_API.candidates}?category=${category}`, {
+      const res = await fetch(`${window.PURGE_API.candidates}?category=${encodeURIComponent(category)}`, {
         headers: { 'Accept': 'application/json' },
       });
       const json = await res.json();
@@ -322,7 +317,7 @@
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Borrando…`;
     try {
-      const res = await fetch(window.PURGE_API.confirm(currentRunId), {
+      const res = await fetch(window.PURGE_API.confirm(encodeURIComponent(currentRunId)), {
         method: 'POST',
         headers: { 'X-CSRFToken': getCsrf() },
       });
@@ -357,7 +352,7 @@
     });
     if (!ok) return;
     try {
-      const res = await fetch(window.PURGE_API.cancel(run_id), {
+      const res = await fetch(window.PURGE_API.cancel(encodeURIComponent(run_id)), {
         method: 'POST',
         headers: { 'X-CSRFToken': getCsrf() },
       });
@@ -391,35 +386,43 @@
       }
 
       const rows = runs.map(r => {
-        const shortId = escHtml(r.run_id.slice(0, 8));
+        // Same value, two contexts: text content vs. double-quoted attribute.
+        const shortId = String(r.run_id == null ? '' : r.run_id).slice(0, 8);
+        const shortIdText = SIIAP.escapeHtml(shortId);
+        const shortIdAttr = SIIAP.escapeAttr(shortId);
+        const runIdAttr = SIIAP.escapeAttr(r.run_id);
+        // URL first (encodeURIComponent), then attribute encoding.
+        const archiveHref = SIIAP.escapeAttr(
+          window.PURGE_API.archive(encodeURIComponent(r.run_id))
+        );
         const actions = [];
         if (r.status === 'pending_download' || r.status === 'downloaded') {
           actions.push(`<a class="btn btn-sm btn-outline-primary tap-target"
-                           href="${window.PURGE_API.archive(r.run_id)}"
-                           download="purge_${r.run_id}.zip"
-                           aria-label="Descargar el ZIP del respaldo ${shortId}"
-                           title="Descargar el ZIP del respaldo ${shortId}">
+                           href="${archiveHref}"
+                           download="purge_${runIdAttr}.zip"
+                           aria-label="Descargar el ZIP del respaldo ${shortIdAttr}"
+                           title="Descargar el ZIP del respaldo ${shortIdAttr}">
                           <i class="bi bi-download" aria-hidden="true"></i></a>`);
         }
         if (r.status === 'downloaded' && r.purge_type !== 'transition_snapshot') {
           actions.push(`<button type="button" class="btn btn-sm btn-danger tap-target"
-                                data-action="open-confirm" data-run-id="${r.run_id}"
-                                aria-label="Borrar del servidor los archivos del respaldo ${shortId}"
-                                title="Borrar del servidor los archivos del respaldo ${shortId}">
+                                data-action="open-confirm" data-run-id="${runIdAttr}"
+                                aria-label="Borrar del servidor los archivos del respaldo ${shortIdAttr}"
+                                title="Borrar del servidor los archivos del respaldo ${shortIdAttr}">
                           <i class="bi bi-trash" aria-hidden="true"></i></button>`);
         }
         if (r.status === 'pending_download' || r.status === 'downloaded') {
           actions.push(`<button type="button" class="btn btn-sm btn-outline-secondary tap-target"
-                                data-action="cancel-run" data-run-id="${r.run_id}"
-                                aria-label="Cancelar el respaldo ${shortId}"
-                                title="Cancelar el respaldo ${shortId}">
+                                data-action="cancel-run" data-run-id="${runIdAttr}"
+                                aria-label="Cancelar el respaldo ${shortIdAttr}"
+                                title="Cancelar el respaldo ${shortIdAttr}">
                           <i class="bi bi-x-lg" aria-hidden="true"></i></button>`);
         }
         return `
           <tr>
-            <th scope="row" class="fw-normal"><code>${shortId}</code></th>
-            <td>${escHtml(PURGE_TYPE_LABEL[r.purge_type] || r.purge_type)}</td>
-            <td>${r.item_count}</td>
+            <th scope="row" class="fw-normal"><code>${shortIdText}</code></th>
+            <td>${SIIAP.escapeHtml(PURGE_TYPE_LABEL[r.purge_type] || r.purge_type)}</td>
+            <td>${SIIAP.escapeHtml(r.item_count)}</td>
             <td>${formatBytes(r.archive_size_bytes)}</td>
             <td>${fmtDate(r.initiated_at)}</td>
             <td>${fmtDate(r.expires_at)}</td>

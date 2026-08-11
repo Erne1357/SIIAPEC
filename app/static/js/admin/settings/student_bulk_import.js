@@ -143,7 +143,7 @@
           Todos los datos son válidos. Puedes proceder a crear el estudiante.
         </div>`;
     } else {
-      const items = errors.map(e => `<li>${escapeHtml(e)}</li>`).join('');
+      const items = errors.map(e => `<li>${SIIAP.escapeHtml(e)}</li>`).join('');
       msgs.innerHTML = `
         <div class="alert alert-danger mb-0">
           <strong><i class="bi bi-exclamation-triangle-fill me-2"></i>
@@ -279,22 +279,22 @@
       const errorsHtml = row.valid
         ? '<span class="text-muted">—</span>'
         : `<ul class="mb-0 ps-3 text-danger small">${
-            (row.errors || []).map(e => `<li>${escapeHtml(e)}</li>`).join('')
+            (row.errors || []).map(e => `<li>${SIIAP.escapeHtml(e)}</li>`).join('')
           }</ul>`;
 
       const conacytText = d.has_conacyt ? 'Sí' : 'No';
 
       return `<tr class="${rowClass}">
-        <th scope="row" class="text-center fw-normal">${row.index}</th>
+        <th scope="row" class="text-center fw-normal">${SIIAP.escapeHtml(row.index)}</th>
         <td>${statusBadge}</td>
-        <td>${escapeHtml(d.first_name || '')}</td>
-        <td>${escapeHtml(d.last_name || '')}</td>
-        <td>${escapeHtml(d.mother_last_name || '')}</td>
-        <td>${escapeHtml(d.email || '')}</td>
-        <td>${escapeHtml(d.control_number || '')}</td>
-        <td>${escapeHtml(d.program_slug || '')}</td>
-        <td class="text-center">${d.current_semester != null ? d.current_semester : '—'}</td>
-        <td>${escapeHtml(d.admission_period_code || '')}</td>
+        <td>${SIIAP.escapeHtml(d.first_name || '')}</td>
+        <td>${SIIAP.escapeHtml(d.last_name || '')}</td>
+        <td>${SIIAP.escapeHtml(d.mother_last_name || '')}</td>
+        <td>${SIIAP.escapeHtml(d.email || '')}</td>
+        <td>${SIIAP.escapeHtml(d.control_number || '')}</td>
+        <td>${SIIAP.escapeHtml(d.program_slug || '')}</td>
+        <td class="text-center">${d.current_semester != null ? SIIAP.escapeHtml(d.current_semester) : '—'}</td>
+        <td>${SIIAP.escapeHtml(d.admission_period_code || '')}</td>
         <td class="text-center">${conacytText}</td>
         <td>${errorsHtml}</td>
       </tr>`;
@@ -355,9 +355,9 @@
     if (created_users && created_users.length > 0) {
       createdList.innerHTML = created_users.map(u => `
         <tr>
-          <td>${u.user_id}</td>
-          <td>${escapeHtml(u.email)}</td>
-          <td>${escapeHtml(u.control_number)}</td>
+          <td>${SIIAP.escapeHtml(u.user_id)}</td>
+          <td>${SIIAP.escapeHtml(u.email)}</td>
+          <td>${SIIAP.escapeHtml(u.control_number)}</td>
         </tr>`).join('');
       createdSection.classList.remove('d-none');
     } else {
@@ -370,9 +370,9 @@
     if (failed && failed.length > 0) {
       failedList.innerHTML = failed.map(f => `
         <tr>
-          <td>${f.index}</td>
-          <td>${escapeHtml(f.email || '—')}</td>
-          <td class="text-danger">${escapeHtml(f.error || '—')}</td>
+          <td>${SIIAP.escapeHtml(f.index)}</td>
+          <td>${SIIAP.escapeHtml(f.email || '—')}</td>
+          <td class="text-danger">${SIIAP.escapeHtml(f.error || '—')}</td>
         </tr>`).join('');
       failedSection.classList.remove('d-none');
     } else {

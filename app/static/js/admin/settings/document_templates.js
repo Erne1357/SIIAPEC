@@ -29,7 +29,7 @@
   function flash(msg, type = 'success') {
     const div = document.createElement('div');
     div.className = `alert alert-${type} alert-dismissible fade show`;
-    div.innerHTML = `${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+    div.innerHTML = `${SIIAP.escapeHtml(msg)}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
     alertsEl.prepend(div);
     setTimeout(() => bootstrap.Alert.getOrCreateInstance(div)?.close(), 6000);
   }
@@ -60,7 +60,7 @@
           <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
           <p class="empty-state__title">No se pudieron cargar las plantillas</p>
           <p class="empty-state__description">Vuelve a intentarlo en unos segundos.</p>
-          <p class="empty-state__error-detail">${e.message}</p>
+          <p class="empty-state__error-detail">${SIIAP.escapeHtml(e.message)}</p>
         </div>
       </td></tr>`;
     }
@@ -81,8 +81,10 @@
     }
 
     tbodyTpl.innerHTML = list.map(t => {
-      const label   = DOC_TYPE_LABELS[t.document_type] || t.document_type;
-      const program = t.program_id ? (t.program_name || `Programa #${t.program_id}`) : '<span class="text-muted">Global</span>';
+      const label   = SIIAP.escapeHtml(DOC_TYPE_LABELS[t.document_type] || t.document_type);
+      const program = t.program_id
+        ? SIIAP.escapeHtml(t.program_name || `Programa #${t.program_id}`)
+        : '<span class="text-muted">Global</span>';
       const badge   = t.file_type === 'html'
         ? '<span class="badge bg-info-soft">HTML a PDF</span>'
         : '<span class="badge bg-primary-soft">DOCX</span>';
@@ -92,19 +94,21 @@
         : '<span class="status-badge status-badge--deferred status-badge--sm">' +
           '<i class="bi bi-pause-circle-fill" aria-hidden="true"></i><span>Inactiva</span></span>';
 
+      const nameAttr = SIIAP.escapeAttr(t.name);
+
       const adminBtns = IS_ADMIN ? `
         <button type="button" class="btn btn-sm btn-outline-secondary btn-edit ms-1 tap-target"
-          data-id="${t.id}" data-name="${t.name}" data-desc="${t.description || ''}"
-          data-active="${t.is_active}"
-          aria-label="Editar la plantilla ${t.name}" title="Editar la plantilla ${t.name}">
+          data-id="${SIIAP.escapeAttr(t.id)}" data-name="${nameAttr}" data-desc="${SIIAP.escapeAttr(t.description || '')}"
+          data-active="${SIIAP.escapeAttr(t.is_active)}"
+          aria-label="Editar la plantilla ${nameAttr}" title="Editar la plantilla ${nameAttr}">
           <i class="bi bi-pencil" aria-hidden="true"></i>
         </button>` : '';
 
       return `<tr>
         <th scope="row" class="fw-normal">
-          <span class="fw-semibold d-block">${t.name}</span>
-          ${t.description ? `<span class="text-muted small d-block">${t.description}</span>` : ''}
-          <span class="text-muted small d-block">Subida: ${fmtDate(t.created_at)}</span>
+          <span class="fw-semibold d-block">${SIIAP.escapeHtml(t.name)}</span>
+          ${t.description ? `<span class="text-muted small d-block">${SIIAP.escapeHtml(t.description)}</span>` : ''}
+          <span class="text-muted small d-block">Subida: ${SIIAP.escapeHtml(fmtDate(t.created_at))}</span>
         </th>
         <td>${label}</td>
         <td>${program}</td>
@@ -112,8 +116,8 @@
         <td class="text-center">${active}</td>
         <td class="text-end text-nowrap">
           <button type="button" class="btn btn-sm btn-outline-primary btn-generate"
-            data-id="${t.id}" data-type="${t.document_type}" data-name="${t.name}"
-            title="Generar un documento con la plantilla ${t.name}">
+            data-id="${SIIAP.escapeAttr(t.id)}" data-type="${SIIAP.escapeAttr(t.document_type)}" data-name="${nameAttr}"
+            title="Generar un documento con la plantilla ${nameAttr}">
             <i class="bi bi-download me-1" aria-hidden="true"></i>Generar
           </button>
           ${adminBtns}
@@ -141,7 +145,7 @@
       const data = await res.json();
       if (!data.ok) return;
       tbodyVars.innerHTML = (data.data || []).map(v =>
-        `<tr><td><code>${v.key}</code></td><td class="text-muted">${v.description}</td></tr>`
+        `<tr><td><code>${SIIAP.escapeHtml(v.key)}</code></td><td class="text-muted">${SIIAP.escapeHtml(v.description)}</td></tr>`
       ).join('');
     } catch (_) { /* silencioso */ }
   }
@@ -327,12 +331,13 @@
       resultsBox.innerHTML = users.map(u => {
         const prog = u.program;
         const progText = prog ? ` — ${prog.name}` : '';
+        const fullName = `${u.first_name} ${u.last_name}`;
         return `<a class="list-group-item list-group-item-action small" href="#"
-          data-user-id="${u.id}"
-          data-program-id="${prog?.id || ''}"
-          data-label="${u.first_name} ${u.last_name} (${u.email})">
-          <strong>${u.first_name} ${u.last_name}</strong>
-          <span class="text-muted">${u.email}${progText}</span>
+          data-user-id="${SIIAP.escapeAttr(u.id)}"
+          data-program-id="${SIIAP.escapeAttr(prog?.id || '')}"
+          data-label="${SIIAP.escapeAttr(`${fullName} (${u.email})`)}">
+          <strong>${SIIAP.escapeHtml(fullName)}</strong>
+          <span class="text-muted">${SIIAP.escapeHtml(`${u.email}${progText}`)}</span>
         </a>`;
       }).join('');
     } catch (_) {

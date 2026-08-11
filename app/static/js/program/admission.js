@@ -356,15 +356,17 @@ document.addEventListener('DOMContentLoaded', () => {
         e.target.parentNode.appendChild(feedbackEl);
       }
 
+      const fileName = SIIAP.escapeHtml(file.name);
+
       if (file.size > 3 * 1024 * 1024) {
         feedbackEl.className = 'file-feedback small mt-1 text-danger';
-        feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Archivo: ${file.name} (${sizeMB} MB) - EXCEDE EL LÍMITE`;
+        feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Archivo: ${fileName} (${sizeMB} MB) - EXCEDE EL LÍMITE`;
       } else if (!file.name.toLowerCase().endsWith('.pdf')) {
         feedbackEl.className = 'file-feedback small mt-1 text-danger';
         feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Solo se permiten archivos PDF`;
       } else {
         feedbackEl.className = 'file-feedback small mt-1 text-success';
-        feedbackEl.innerHTML = `<i class="bi bi-check-lg" aria-hidden="true"></i> Archivo: ${file.name} (${sizeMB} MB)`;
+        feedbackEl.innerHTML = `<i class="bi bi-check-lg" aria-hidden="true"></i> Archivo: ${fileName} (${sizeMB} MB)`;
       }
     });
   });
@@ -460,16 +462,16 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="col-12 col-md-8">
           <h3 class="h5 mb-2">
             <i class="bi bi-calendar-check me-2" aria-hidden="true"></i>
-            ${appointment.event_title}
+            ${SIIAP.escapeHtml(appointment.event_title)}
           </h3>
           <p class="mb-2">
-            <strong><i class="bi bi-clock me-1" aria-hidden="true"></i> Fecha y hora:</strong> ${dateStr}<br>
-            <strong><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i> Horario:</strong> ${timeStr}<br>
-            <strong><i class="bi bi-geo-alt-fill me-1" aria-hidden="true"></i> Lugar:</strong> ${appointment.location || 'Por confirmar'}
+            <strong><i class="bi bi-clock me-1" aria-hidden="true"></i> Fecha y hora:</strong> ${SIIAP.escapeHtml(dateStr)}<br>
+            <strong><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i> Horario:</strong> ${SIIAP.escapeHtml(timeStr)}<br>
+            <strong><i class="bi bi-geo-alt-fill me-1" aria-hidden="true"></i> Lugar:</strong> ${SIIAP.escapeHtml(appointment.location || 'Por confirmar')}
           </p>
           ${appointment.notes ? `
             <div class="alert alert-info py-2 mb-0">
-              <small><strong>Notas:</strong> ${appointment.notes}</small>
+              <small><strong>Notas:</strong> ${SIIAP.escapeHtml(appointment.notes)}</small>
             </div>
           ` : ''}
         </div>
@@ -480,15 +482,15 @@ document.addEventListener('DOMContentLoaded', () => {
               Tu solicitud de cambio está pendiente de respuesta.</small>
             </div>
             <button class="btn btn-outline-secondary btn-sm w-100 w-md-auto btn-request-change"
-                    data-appointment-id="${appointment.id}"
-                    data-pending-reason="${(appointment.pending_change_request.reason || '').replace(/"/g, '&quot;')}"
-                    data-pending-suggestions="${(appointment.pending_change_request.suggestions || '').replace(/"/g, '&quot;')}">
+                    data-appointment-id="${SIIAP.escapeAttr(appointment.id)}"
+                    data-pending-reason="${SIIAP.escapeAttr(appointment.pending_change_request.reason || '')}"
+                    data-pending-suggestions="${SIIAP.escapeAttr(appointment.pending_change_request.suggestions || '')}">
               <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>
               Editar Solicitud
             </button>
           ` : `
             <button class="btn btn-outline-warning btn-sm w-100 w-md-auto btn-request-change"
-                    data-appointment-id="${appointment.id}">
+                    data-appointment-id="${SIIAP.escapeAttr(appointment.id)}">
               <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>
               Solicitar Cambio
             </button>
@@ -680,7 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .then(r => r.json())
       .then(res => {
         if (res.error) {
-          statusDiv.innerHTML = '<div class="alert alert-danger py-1 small mb-0">' + (res.error.message || 'No se pudo subir el archivo.') + '</div>';
+          statusDiv.innerHTML = '<div class="alert alert-danger py-1 small mb-0">' + SIIAP.escapeHtml(res.error.message || 'No se pudo subir el archivo.') + '</div>';
           restoreButton();
         } else {
           statusDiv.innerHTML = '<div class="alert alert-success py-1 small mb-0">Documento subido. El coordinador lo revisará pronto.</div>';

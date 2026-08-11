@@ -63,12 +63,6 @@
     return document.getElementById('siiapDialogModal');
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = String(str == null ? '' : str);
-    return div.innerHTML;
-  }
-
   function show(opts) {
     return new Promise(resolve => {
       const modal = ensureModal();
@@ -89,7 +83,7 @@
       title.textContent = opts.title || '';
       body.innerHTML = opts.html
         ? opts.html
-        : (opts.message ? escapeHtml(opts.message).replace(/\n/g, '<br>') : '');
+        : (opts.message ? SIIAP.escapeHtml(opts.message).replace(/\n/g, '<br>') : '');
 
       const iconClass = opts.icon || ICONS[type] || ICONS.primary;
       icon.className = `bi ${iconClass} icon-2xl text-${type}`;

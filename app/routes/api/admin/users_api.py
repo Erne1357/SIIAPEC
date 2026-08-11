@@ -8,6 +8,12 @@ from app.models.program import Program
 from app.models.user_program import UserProgram
 from app.services.user_history_service import UserHistoryService
 from app.utils.permissions import permission_required
+from app.utils.validators import (
+    EMAIL_MAX_LENGTH,
+    InputValidationError,
+    validate_person_name,
+    validate_short_text,
+)
 from werkzeug.security import generate_password_hash
 from app.utils.datetime_utils import now_local
 import json
@@ -17,10 +23,33 @@ api_admin_users = Blueprint("api_admin_users", __name__, url_prefix="/api/v1/adm
 
 def _sanitize(s: str | None) -> str | None:
     """Sanitiza strings eliminando espacios y retornando None si está vacío"""
-    if s is None: 
+    if s is None:
         return None
     s = s.strip()
     return s or None
+
+
+def _validate_if_changed(raw, current, validator, **kwargs):
+    """
+    Run `validator` only when the submitted value differs from the stored one.
+
+    Resubmitting the value already in the column is a no-op, so it is returned
+    untouched. This keeps rows that predate app/utils/validators.py editable
+    while still refusing to accept a new value that breaks the rules.
+    """
+    if isinstance(raw, str) and raw.strip() == (current or '').strip():
+        return current
+    return validator(raw, **kwargs)
+
+
+def _validation_error_response(message: str):
+    """Envelope estándar para un valor rechazado por app/utils/validators.py."""
+    return jsonify({
+        "data": None,
+        "flash": [{"level": "danger", "message": message}],
+        "error": {"code": "VALIDATION", "message": message},
+        "meta": {}
+    }), 400
 
 
 @api_admin_users.get("")
@@ -147,28 +176,66 @@ def update_user(user_id):
     
     payload = request.get_json(silent=True) or {}
     changed_fields = {}
-    
+
+    # Same rules as self-registration and PATCH /users/me (app/utils/validators.py):
+    # an admin edit is another write path into columns the staff consoles render,
+    # so the value is either clean or the request is rejected.
+    #
+    # Validation gates NEW values only. The edit modal always PATCHes all four
+    # fields, prefilled from the stored record, so validating unconditionally
+    # would make any legacy row whose name predates these rules ("Ramirez, Juan",
+    # "Jose Luis (Pepe)") permanently unsavable: even an edit that only touches
+    # the e-mail would be rejected on a field the admin never typed in. Rows
+    # already in the database are cleaned by a data migration, not by locking
+    # their owner out of the console.
+    try:
+        if 'first_name' in payload:
+            first_name = _validate_if_changed(
+                payload['first_name'], user.first_name,
+                validate_person_name, label="Nombre",
+            )
+        if 'last_name' in payload:
+            last_name = _validate_if_changed(
+                payload['last_name'], user.last_name,
+                validate_person_name, label="Apellido paterno",
+            )
+        if 'mother_last_name' in payload:
+            mother_last_name = _validate_if_changed(
+                payload['mother_last_name'], user.mother_last_name,
+                validate_person_name, label="Apellido materno", required=False,
+            )
+        if 'email' in payload:
+            email = _validate_if_changed(
+                payload['email'], user.email,
+                validate_short_text,
+                label="Correo electrónico",
+                required=True,
+                max_length=EMAIL_MAX_LENGTH,
+            )
+    except InputValidationError as e:
+        return _validation_error_response(e.message)
+
     # Actualizar campos
     if 'first_name' in payload:
-        new_value = _sanitize(payload['first_name'])
+        new_value = first_name
         if new_value and new_value != user.first_name:
             changed_fields['first_name'] = {'old': user.first_name, 'new': new_value}
             user.first_name = new_value
-    
+
     if 'last_name' in payload:
-        new_value = _sanitize(payload['last_name'])
+        new_value = last_name
         if new_value and new_value != user.last_name:
             changed_fields['last_name'] = {'old': user.last_name, 'new': new_value}
             user.last_name = new_value
-    
+
     if 'mother_last_name' in payload:
-        new_value = _sanitize(payload['mother_last_name'])
+        new_value = mother_last_name
         if new_value != user.mother_last_name:
             changed_fields['mother_last_name'] = {'old': user.mother_last_name, 'new': new_value}
             user.mother_last_name = new_value
-    
+
     if 'email' in payload:
-        new_value = _sanitize(payload['email'])
+        new_value = email
         if new_value and new_value != user.email:
             existing = User.query.filter(User.email == new_value, User.id != user_id).first()
             if existing:
@@ -585,6 +652,11 @@ def create_social_service():
             "meta": {}
         }), 201
 
+    except InputValidationError as e:
+        # The service validates the person-name fields; the route is what turns
+        # that into the envelope.
+        db.session.rollback()
+        return _validation_error_response(e.message)
     except PermErr as e:
         return jsonify({
             "data": None,

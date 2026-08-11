@@ -14,6 +14,11 @@ from app.models.role_permission_audit import RolePermissionAudit
 from app.models.user_permission import UserPermission
 from app.models.user import User
 from app.models.role import Role
+from app.utils.validators import (
+    EMAIL_MAX_LENGTH,
+    validate_person_name,
+    validate_short_text,
+)
 
 
 class PermissionError(Exception):
@@ -229,11 +234,20 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
     if not creator.has_permission('permissions.api.delegate'):
         raise PermissionError("No tienes permiso para delegar.")
 
-    email = (user_data.get('email') or '').strip().lower()
-    first_name = (user_data.get('first_name') or '').strip()
-    last_name = (user_data.get('last_name') or '').strip()
-    if not email or not first_name or not last_name:
-        raise PermissionError("Nombre, apellido y email son obligatorios.")
+    # Same rules as self-registration (app/utils/validators.py). These columns
+    # are rendered by the staff consoles, so storage stays clean here too.
+    # InputValidationError propagates: the route translates it to the envelope.
+    first_name = validate_person_name(user_data.get('first_name'), label="Nombre")
+    last_name = validate_person_name(user_data.get('last_name'), label="Apellido paterno")
+    mother_last_name = validate_person_name(
+        user_data.get('mother_last_name'), label="Apellido materno", required=False
+    )
+    email = validate_short_text(
+        user_data.get('email'),
+        label="Correo electrónico",
+        required=True,
+        max_length=EMAIL_MAX_LENGTH,
+    ).lower()
 
     if User.query.filter_by(email=email).first():
         raise PermissionError(f"El email '{email}' ya está registrado.")
@@ -272,7 +286,7 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
     new_user = User(
         first_name=first_name,
         last_name=last_name,
-        mother_last_name=(user_data.get('mother_last_name') or '').strip() or None,
+        mother_last_name=mother_last_name,
         username=email,
         password='tecno#2K',
         email=email,
