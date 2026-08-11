@@ -408,3 +408,17 @@ class EmailTemplates:
             'dashboard_url': dashboard_url,
         })
         return subject, html
+
+    @staticmethod
+    def admission_period_open(user_name: str, program_name: str, period_name: str,
+                              closes_at: str, program_url: str) -> tuple[str, str]:
+        """Aviso a quien pidió que le notificaran al abrir la convocatoria."""
+        subject = f"Ya abrió la convocatoria — {program_name}"
+        html = EmailTemplates.render_email('admission_period_open', {
+            'user_name': user_name,
+            'program_name': program_name,
+            'period_name': period_name,
+            'closes_at': closes_at,
+            'program_url': program_url,
+        })
+        return subject, html

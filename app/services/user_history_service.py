@@ -1017,6 +1017,9 @@ class UserHistoryService:
         'deferral_requested':             'Solicitó diferimiento',
         'deferral_rejected':              'Rechazó solicitud de diferimiento',
         'deferral_reactivated':           'Reactivó aspirante diferido',
+
+        # CONVOCATORIAS
+        'admission_interest_registered':  'Pidió aviso de convocatoria',
     }
 
     @staticmethod

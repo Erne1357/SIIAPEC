@@ -50,6 +50,13 @@ def init_celery(app):
                 'task': 'app.tasks.maintenance.notify_pending_permanence_docs',
                 'schedule': crontab(hour=9, minute=0, day_of_week=1),
             },
+            # Avisa a quien pidió "Avísame cuando abra" — diario a las 07:00.
+            # Antes de las 08:00 para que el aviso de convocatoria llegue
+            # primero en la bandeja del día.
+            'notify-admission-period-open': {
+                'task': 'app.tasks.maintenance.notify_admission_period_open',
+                'schedule': crontab(hour=7, minute=0),
+            },
             # Recordatorio 24h antes de cada evento — diario a las 09:00
             'event-reminders-24h': {
                 'task': 'app.tasks.events.dispatch_reminders_24h',

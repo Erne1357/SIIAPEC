@@ -76,6 +76,64 @@ def api_enroll(program_id):
         }), 404
 
 
+@api_programs.post('/<int:program_id>/admission-interest')
+@login_required
+@permission_required('programs.api.register_interest')
+def api_register_admission_interest(program_id):
+    """
+    Registra que el usuario quiere aviso cuando reabra la admisión.
+
+    Es la acción disponible cuando NO hay convocatoria abierta: sustituye a un
+    botón que sólo podía decir que no.
+    """
+    try:
+        interest = svc.register_admission_interest(program_id, current_user.id)
+    except svc.ProgramNotFound:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NOT_FOUND", "message": "Programa no encontrado"},
+            "meta": {}
+        }), 404
+    except svc.AdmissionAlreadyOpenError:
+        msg = "Las inscripciones ya están abiertas: puedes postularte ahora."
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "info", "message": msg}],
+            "error": {"code": "BUSINESS_ERROR", "message": msg},
+            "meta": {}
+        }), 400
+    except svc.AlreadyInterestedError:
+        msg = "Ya tienes activado el aviso para este programa."
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "info", "message": msg}],
+            "error": {"code": "BUSINESS_ERROR", "message": msg},
+            "meta": {}
+        }), 409
+    except Exception:
+        # str(e) se pinta tal cual en el diálogo del aspirante: un ValueError
+        # interno llegó a mostrarle la lista completa de acciones válidas del
+        # historial. El detalle va al log; al usuario, algo que pueda accionar.
+        from flask import current_app
+        current_app.logger.exception('Error al registrar interés de convocatoria')
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger",
+                       "message": "No pudimos activar el aviso. Inténtalo de nuevo."}],
+            "error": {"code": "SERVER_ERROR",
+                      "message": "No pudimos activar el aviso. Inténtalo de nuevo."},
+            "meta": {}
+        }), 500
+
+    return jsonify({
+        "data": interest.to_dict(),
+        "flash": [{"level": "success",
+                   "message": "Listo. Te avisaremos en cuanto abra la convocatoria."}],
+        "error": None,
+        "meta": {}
+    }), 201
+
+
 @api_programs.patch('/<string:slug>')
 @login_required
 @permission_required('programs.api.update')

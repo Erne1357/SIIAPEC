@@ -1,0 +1,21 @@
+{% extends 'emails/base_email.html' %}
+{% set header_title = 'Ya abrió la convocatoria' %}
+
+{% block preheader %}Ya puedes postularte a {{ program_name }}. El proceso cierra el {{ closes_at }}.{% endblock %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Pediste que te avisáramos cuando abriera la convocatoria de <strong>{{ program_name }}</strong>. Ya está abierta.</p>
+
+{% call email_card(accent='#0b1e8a', title=program_name) %}
+  {{ email_detail('Periodo', period_name) }}
+  {{ email_detail('Las inscripciones cierran el', closes_at) }}
+{% endcall %}
+
+<p>Entra a SIIAP y pulsa «Postularme» en la página del programa. Si tienes dudas sobre requisitos o documentos, escribe a la coordinación del programa.</p>
+{% endblock %}
+
+{% block cta %}
+{{ email_button(program_url, 'Postularme ahora') }}
+{% endblock %}

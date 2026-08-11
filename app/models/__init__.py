@@ -28,3 +28,4 @@ from .role_permission_audit import RolePermissionAudit
 from .user_permission import UserPermission
 from .purge_run import PurgeRun
 from .password_reset_token import PasswordResetToken
+from .program_admission_interest import ProgramAdmissionInterest

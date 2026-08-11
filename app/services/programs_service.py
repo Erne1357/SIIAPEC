@@ -1,4 +1,6 @@
 # app/services/programs_service.py
+import logging
+
 from sqlalchemy.orm import joinedload, selectinload
 from app import db
 from app.models.program import Program
@@ -134,3 +136,110 @@ def update_program_config(program_id: int, data: dict):
 
     db.session.commit()
     return program
+
+
+# ---------------------------------------------------------------------------
+# Interés en una futura convocatoria de admisión
+# ---------------------------------------------------------------------------
+
+class AdmissionAlreadyOpenError(Exception):
+    """Raised when a user registers interest while admissions are already open."""
+
+
+class AlreadyInterestedError(Exception):
+    """Raised when the user already asked to be notified for the same period."""
+
+
+def register_admission_interest(program_id: int, user_id: int):
+    """
+    Record that `user_id` wants to be told when `program_id` reopens admissions.
+
+    Returns the ProgramAdmissionInterest row. Raises AdmissionAlreadyOpenError
+    when there is nothing to wait for, and AlreadyInterestedError when the same
+    user already registered for the same upcoming period.
+    """
+    from app.models.program_admission_interest import ProgramAdmissionInterest
+    from app.services.notification_service import NotificationService
+    from app.services.user_history_service import UserHistoryService
+    from app.utils.datetime_utils import format_date_es
+
+    program = Program.query.get(program_id)
+    if not program:
+        raise ProgramNotFound()
+
+    if get_open_admission_period() is not None:
+        raise AdmissionAlreadyOpenError()
+
+    next_period = get_next_upcoming_period()
+    period_id = next_period.id if next_period else None
+
+    existing = ProgramAdmissionInterest.query.filter_by(
+        user_id=user_id,
+        program_id=program_id,
+        period_id=period_id,
+    ).first()
+    if existing:
+        raise AlreadyInterestedError()
+
+    interest = ProgramAdmissionInterest(
+        user_id=user_id,
+        program_id=program_id,
+        period_id=period_id,
+    )
+
+    try:
+        db.session.add(interest)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    if next_period:
+        when = format_date_es(next_period.admission_start_date)
+        message = (
+            f'Te avisaremos en cuanto abran las inscripciones de '
+            f'{program.name}. El proceso inicia el {when}.'
+        )
+    else:
+        message = (
+            f'Te avisaremos en cuanto se publique la próxima convocatoria de '
+            f'{program.name}.'
+        )
+
+    # El interés ya está guardado. Historial y notificación son efectos
+    # secundarios: si fallan, se registra el error pero no se le devuelve un
+    # 500 a alguien cuyo aviso SÍ quedó activado.
+    try:
+        UserHistoryService.log_action(
+            user_id=user_id,
+            admin_id=user_id,
+            action='admission_interest_registered',
+            details={
+                'program_id': program_id,
+                'program_name': program.name,
+                'period_id': period_id,
+            },
+        )
+
+        NotificationService.create_notification(
+            user_id=user_id,
+            notification_type='admission_interest',
+            title='Aviso de convocatoria activado',
+            message=message,
+            priority='low',
+            action_url=f'/programs/{program.slug}',
+            data={'program_id': program_id, 'period_id': period_id},
+        )
+        # Ninguno de los dos hace commit: log_action sólo add() y
+        # create_notification add() + flush(). Sin esto se quedaban en la
+        # sesión y se perdían al cerrar la petición.
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        # logging estándar, no current_app: los servicios no dependen de Flask.
+        logging.getLogger(__name__).exception(
+            'Interés de convocatoria guardado (id=%s) pero fallaron los '
+            'efectos secundarios (historial/notificación).', interest.id
+        )
+
+    return interest

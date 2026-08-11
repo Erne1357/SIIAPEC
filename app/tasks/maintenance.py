@@ -3,6 +3,7 @@ Tareas de mantenimiento periódico del sistema SIIAP.
 
 Programadas automáticamente a través de Celery Beat (ver app/celery_app.py):
   - cleanup_old_notifications          → diario a las 04:00
+  - notify_admission_period_open       → diario a las 07:00
   - check_deferral_expirations         → diario a las 08:00
   - notify_pending_permanence_docs     → lunes a las 09:00
 
@@ -367,4 +368,132 @@ def notify_pending_permanence_docs(self):
     except Exception as exc:
         db.session.rollback()
         logger.error(f"[notify_pending_permanence_docs] Error: {exc}", exc_info=True)
+        raise self.retry(exc=exc)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. AVISO DE APERTURA DE CONVOCATORIA
+# ─────────────────────────────────────────────────────────────────────────────
+
+@celery.task(
+    name='app.tasks.maintenance.notify_admission_period_open',
+    bind=True,
+    max_retries=3,
+    default_retry_delay=300,
+)
+def notify_admission_period_open(self):
+    """
+    Avisa a quien pidió "Avísame cuando abra" que la convocatoria ya está abierta.
+
+    Sin esta tarea el botón del diálogo de convocatoria cerrada guardaba una
+    fila que nadie volvía a leer, mientras la interfaz prometía un correo.
+
+    Cubre dos conjuntos:
+      - Los interesados registrados PARA el periodo que abrió hoy.
+      - Los que se registraron sin periodo confirmado (period_id NULL), que
+        esperan la próxima convocatoria sea cual sea.
+
+    `notified_at` marca la fila, así que no re-notifica. Programada a diario.
+    """
+    from app import db
+    from app.models.academic_period import AcademicPeriod
+    from app.models.program_admission_interest import ProgramAdmissionInterest
+    from app.services.email_service import EmailService
+    from app.services.email_templates import EmailTemplates
+    from app.services.notification_service import NotificationService
+    from app.utils.datetime_utils import format_date_es, now_local
+
+    logger.info("[notify_admission_period_open] Buscando convocatorias abiertas hoy...")
+
+    try:
+        today = now_local().date()
+        open_periods = (
+            AcademicPeriod.query
+            .filter(
+                AcademicPeriod.admission_start_date <= today,
+                AcademicPeriod.admission_end_date >= today,
+            )
+            .all()
+        )
+
+        if not open_periods:
+            logger.info("[notify_admission_period_open] Ninguna convocatoria abierta hoy.")
+            return {'notified': 0, 'reason': 'no_open_period'}
+
+        period = open_periods[0]
+        period_ids = [p.id for p in open_periods]
+
+        pending = (
+            ProgramAdmissionInterest.query
+            .filter(
+                ProgramAdmissionInterest.notified_at.is_(None),
+                db.or_(
+                    ProgramAdmissionInterest.period_id.in_(period_ids),
+                    ProgramAdmissionInterest.period_id.is_(None),
+                ),
+            )
+            .all()
+        )
+
+        if not pending:
+            logger.info("[notify_admission_period_open] Sin interesados pendientes.")
+            return {'notified': 0, 'reason': 'no_pending_interest'}
+
+        closes_at = format_date_es(period.admission_end_date)
+        notified = 0
+
+        for interest in pending:
+            program = interest.program
+            user = interest.user
+            if not program or not user:
+                continue
+
+            program_url = f'/programs/{program.slug}'
+            message = (
+                f'Ya puedes postularte a {program.name}. '
+                f'Las inscripciones cierran el {closes_at}.'
+            )
+
+            notification = NotificationService.create_notification(
+                user_id=user.id,
+                notification_type='admission_period_open',
+                title='Ya abrió la convocatoria',
+                message=message,
+                priority='high',
+                action_url=program_url,
+                data={'program_id': program.id, 'period_id': period.id},
+            )
+
+            # El correo es best-effort: si la cola falla, el aviso en la app ya
+            # quedó y la fila NO se marca, para reintentar mañana.
+            try:
+                subject, html = EmailTemplates.admission_period_open(
+                    user_name=f'{user.first_name} {user.last_name}',
+                    program_name=program.name,
+                    period_name=period.name,
+                    closes_at=closes_at,
+                    program_url=program_url,
+                )
+                EmailService.queue_email(
+                    user_id=user.id,
+                    subject=subject,
+                    html_content=html,
+                    notification_id=notification.id if notification else None,
+                )
+            except Exception as mail_err:
+                logger.warning(
+                    "[notify_admission_period_open] No se pudo encolar el correo "
+                    "para user=%s program=%s: %s", user.id, program.id, mail_err
+                )
+
+            interest.notified_at = now_local()
+            notified += 1
+
+        db.session.commit()
+        logger.info(f"[notify_admission_period_open] Avisos enviados: {notified}")
+        return {'notified': notified, 'period': period.name}
+
+    except Exception as exc:
+        db.session.rollback()
+        logger.error(f"[notify_admission_period_open] Error: {exc}", exc_info=True)
         raise self.retry(exc=exc)
