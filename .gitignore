@@ -72,14 +72,15 @@ instance/
 tests/prueba.py
 
 #database
-# Se ignora todo salvo los parches de datos: `flask apply-patches` los ejecuta
-# en produccion, asi que tienen que viajar en el repo. Con `database/` a secas
-# git ni siquiera entraba en la carpeta y la negacion no surtia efecto: hay que
-# re-incluir cada nivel.
+# NADA de database/ viaja en el repo: es decision explicita del dueno. Los
+# archivos se quedan en disco y se aplican a mano en el servidor
+# (`flask seed-permissions`, `flask apply-patches`, `flask seed-test-data`).
+# Con `database/` a secas git ni siquiera entraba en la carpeta, asi que hace
+# falta re-incluir cada nivel para que las reglas de dentro tengan efecto.
 # `database/DML/pruebas/` estuvo versionado por accidente (11 archivos, entraron
-# antes de esta regla). Se saco del indice con `git rm --cached`; sigue en disco
-# porque `flask seed-test-data` lo lee. No se reescribio el historial: no hay
-# credenciales ni datos privilegiados ahi, y un rebase no compensaba el riesgo.
+# antes de esta regla) y se saco del indice con `git rm --cached` en 404e579.
+# No se reescribio el historial: no hay credenciales ni datos privilegiados ahi,
+# y un rebase no compensaba el riesgo.
 database/*
 !database/DML/
 database/DML/*
@@ -91,10 +92,21 @@ docker/.env.prod
 docker/.env.dev
 
 #claude local
+# Salida y configuracion de las herramientas de agente: nunca entra al repo.
+# `.impeccable/config.json` si llego a estar versionado (986bb15) y se saco del
+# indice en un commit posterior; sigue en disco.
 .claude/
 .impeccable/
 CLAUDE.md
 docs/contexto/
+
+# Planes y documentos de trabajo generados durante una sesion. Se quedan
+# SIEMPRE en local: son el andamio, no el edificio.
+plans/
+docs/planes/
+PLAN*.md
+*_PLAN.md
+*.plan.md
 
 # Archivos de notas/documentación local
 MEJORAS_BACKEND.md
