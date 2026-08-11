@@ -169,15 +169,6 @@ body.login-page-body .auth-bg {
   text-decoration: underline;
 }
 
-/* Vía de recuperación de contraseña: no hay flujo automático todavía, así
-   que la salida es el correo de Posgrado. */
-.login-card__help {
-  margin-top: var(--space-3);
-  font-size: var(--fs-xs);
-  line-height: var(--lh-normal);
-  color: var(--text-secondary);
-}
-
 /* Enlace de salida de la pantalla de contraseña: es un destino aislado, no
    va en línea dentro de un párrafo, así que necesita objetivo táctil. */
 .login-card__back-link {
