@@ -399,13 +399,43 @@
         // Normalizar cada semestre: filtrar null/undefined; garantizar que tenga
         // courses array y un número de semestre válido (>0). Datos legacy podían
         // tener 0/null/undefined o arrays sparse.
+        //
+        // El formato antiguo guardaba {number, name, subjects:["Materia", …]}.
+        // Antes esta normalización dejaba courses:[] y descartaba subjects, así
+        // que abrir esta pantalla y guardar borraba el plan de estudios entero
+        // sin avisar. Ahora las materias antiguas se migran a courses.
         curriculumData.semesters = curriculumData.semesters
           .filter(sem => sem && typeof sem === 'object')
-          .map((sem, idx) => ({
-            ...sem,
-            semester: (Number.isInteger(sem.semester) && sem.semester > 0) ? sem.semester : (idx + 1),
-            courses: Array.isArray(sem.courses) ? sem.courses.filter(c => c && typeof c === 'object') : [],
-          }));
+          .map((sem, idx) => {
+            let courses = Array.isArray(sem.courses)
+              ? sem.courses.filter(c => c && typeof c === 'object')
+              : [];
+
+            // El formato antiguo sólo guarda el nombre. NO se inventa código,
+            // créditos ni tipo: rellenarlos con 'obligatoria' habría escrito
+            // una clasificación que nadie capturó, y guardar la pantalla por
+            // cualquier otro motivo la habría vuelto permanente.
+            if (courses.length === 0 && Array.isArray(sem.subjects)) {
+              courses = sem.subjects
+                .filter(s => s)
+                .map(s => (typeof s === 'string'
+                  ? { code: '', name: s.trim(), credits: '', type: '' }
+                  : {
+                      code: s.code || '',
+                      name: s.name || '',
+                      credits: s.credits || '',
+                      type: s.type || '',
+                    }))
+                .filter(c => c.name);
+            }
+
+            const number = (Number.isInteger(sem.semester) && sem.semester > 0)
+              ? sem.semester
+              : ((Number.isInteger(sem.number) && sem.number > 0) ? sem.number : (idx + 1));
+
+            const { subjects, number: _legacyNumber, ...rest } = sem;
+            return { ...rest, semester: number, courses };
+          });
       } catch (e) {
         console.error('Error parsing curriculum:', e);
         curriculumData = { type: 'semestral', semesters: [] };

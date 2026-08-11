@@ -192,3 +192,88 @@ class Program(db.Model):
         elif self.duration_semesters:
             return f"{self.duration_semesters} semestres"
         return "Duración variable"
+
+    @property
+    def curriculum_semesters(self):
+        """
+        Normalized curriculum: a list of {semester, name, courses}.
+
+        `curriculum_structure` has been written in two shapes over time. The
+        editor's canonical one is {"semester": 1, "courses": [{...}]}; earlier
+        seeds used {"number": 1, "name": "...", "subjects": ["Materia", ...]}.
+        The public page only ever read the canonical one, so a program with a
+        legacy plan loaded rendered "Plan de estudios no disponible" while
+        holding four full semesters.
+
+        Reading both here keeps the template unaware that two shapes exist.
+        Semesters with no courses and no usable number are dropped.
+        """
+        structure = self.curriculum_structure
+        if not isinstance(structure, dict):
+            return []
+
+        raw_semesters = structure.get('semesters')
+        if not isinstance(raw_semesters, list):
+            return []
+
+        normalized = []
+        for index, raw in enumerate(raw_semesters):
+            if not isinstance(raw, dict):
+                continue
+
+            number = raw.get('semester')
+            if not isinstance(number, int) or number <= 0:
+                number = raw.get('number')
+            if not isinstance(number, int) or number <= 0:
+                number = index + 1
+
+            courses = []
+            for course in (raw.get('courses') or []):
+                if isinstance(course, dict) and (course.get('name') or course.get('code')):
+                    courses.append({
+                        'code': course.get('code'),
+                        'name': course.get('name') or course.get('code'),
+                        'credits': course.get('credits'),
+                        'type': course.get('type'),
+                    })
+
+            # Legacy: lista plana de nombres de materia, sin código ni créditos.
+            if not courses:
+                for subject in (raw.get('subjects') or []):
+                    if isinstance(subject, str) and subject.strip():
+                        courses.append({
+                            'code': None,
+                            'name': subject.strip(),
+                            'credits': None,
+                            'type': None,
+                        })
+                    elif isinstance(subject, dict) and subject.get('name'):
+                        courses.append({
+                            'code': subject.get('code'),
+                            'name': subject.get('name'),
+                            'credits': subject.get('credits'),
+                            'type': subject.get('type'),
+                        })
+
+            if not courses:
+                continue
+
+            normalized.append({
+                'semester': number,
+                'name': raw.get('name'),
+                'courses': courses,
+            })
+
+        return normalized
+
+    @property
+    def curriculum_total_credits(self):
+        """Suma de créditos del plan normalizado. 0 si el plan no los declara."""
+        total = 0
+        for semester in self.curriculum_semesters:
+            for course in semester['courses']:
+                try:
+                    total += int(course.get('credits') or 0)
+                except (TypeError, ValueError):
+                    continue
+        return total
