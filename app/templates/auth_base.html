@@ -98,6 +98,10 @@
 
   <!-- Bootstrap JS Bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Escapado canónico: PRIMERO, todo lo demás depende de SIIAP.escapeHtml/escapeAttr -->
+  <script src="{{ url_for('static', filename='js/utils/escape.js') }}?v={{ static_version }}"></script>
+
   <script src="{{ url_for('static', filename='js/flash.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/utils/button-loading.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/utils/password-toggle.js') }}?v={{ static_version }}"></script>

@@ -5,6 +5,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timezone
 from app.models.user import User
 from app.models.role import Role
+from app.utils.validators import (
+    EMAIL_MAX_LENGTH,
+    InputValidationError,
+    validate_person_name,
+    validate_short_text,
+)
 from app import db
 
 pages_auth = Blueprint("pages_auth", __name__)
@@ -73,7 +79,31 @@ def register_page():
                 return jsonify({"ok": False, "error": error_msg}), 400
             flash(error_msg, "danger")
             return render_template("auth/register.html")
-            
+
+        # These fields are attacker-controlled and are later rendered by the
+        # staff consoles, so they are validated at the boundary: the stored
+        # value is either clean or the registration is rejected.
+        try:
+            first_name = validate_person_name(first_name, label="Nombre")
+            last_name = validate_person_name(last_name, label="Apellido paterno")
+            mother_last_name = validate_person_name(
+                mother_last_name, label="Apellido materno", required=False
+            )
+            username = validate_short_text(
+                username, label="Nombre de usuario", required=True
+            )
+            email = validate_short_text(
+                email,
+                label="Correo electrónico",
+                required=True,
+                max_length=EMAIL_MAX_LENGTH,
+            )
+        except InputValidationError as e:
+            if is_ajax:
+                return jsonify({"ok": False, "error": e.message}), 400
+            flash(e.message, "danger")
+            return render_template("auth/register.html")
+
         if password != confirm:
             error_msg = "Las contraseñas no coinciden."
             if is_ajax:

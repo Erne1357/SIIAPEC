@@ -106,7 +106,7 @@
       programSelects.forEach(select => {
         if (select) {
           select.innerHTML = '<option value="">Seleccionar programa...</option>' +
-            programs.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            programs.map(p => `<option value="${SIIAP.escapeAttr(p.id)}">${SIIAP.escapeHtml(p.name)}</option>`).join('');
         }
       });
       
@@ -137,19 +137,19 @@
     }
     
     tbody.innerHTML = currentEvents.map(event => `
-      <tr data-event-id="${event.id}" class="event-row" style="cursor: pointer;">
+      <tr data-event-id="${SIIAP.escapeAttr(event.id)}" class="event-row" style="cursor: pointer;">
         <td>
-          <div class="fw-semibold">${event.title}</div>
+          <div class="fw-semibold">${SIIAP.escapeHtml(event.title)}</div>
           <small class="text-muted">${event.type === 'interview' ? 'Entrevista' : 'Defensa'}</small>
         </td>
         <td>
-          <span class="badge bg-primary">${event.program_name}</span>
+          <span class="badge bg-primary">${SIIAP.escapeHtml(event.program_name)}</span>
         </td>
-        <td class="text-center">${event.windows_count || 0}</td>
-        <td class="text-center">${event.slots_total || 0}</td>
+        <td class="text-center">${SIIAP.escapeHtml(event.windows_count || 0)}</td>
+        <td class="text-center">${SIIAP.escapeHtml(event.slots_total || 0)}</td>
         <td class="text-center">
           <span class="badge bg-${event.slots_booked > 0 ? 'warning' : 'secondary'}">
-            ${event.slots_booked || 0}
+            ${SIIAP.escapeHtml(event.slots_booked || 0)}
           </span>
         </td>
         <td class="text-end">
@@ -194,30 +194,32 @@
       const dateStr = startTime.toLocaleDateString('es-MX');
       const timeStr = `${startTime.toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})} - ${endTime.toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}`;
       
+      const slotInfo = `${dateStr} ${timeStr}`;
+
       return `
-        <tr data-slot-id="${slot.id}" class="slot-${slot.status}">
-          <td>${dateStr}</td>
-          <td>${timeStr}</td>
+        <tr data-slot-id="${SIIAP.escapeAttr(slot.id)}" class="slot-${SIIAP.escapeAttr(slot.status)}">
+          <td>${SIIAP.escapeHtml(dateStr)}</td>
+          <td>${SIIAP.escapeHtml(timeStr)}</td>
           <td class="text-center">
             <span class="badge bg-${slot.status === 'free' ? 'success' : slot.status === 'booked' ? 'primary' : 'secondary'}">
-              ${slot.status === 'free' ? 'Libre' : slot.status === 'booked' ? 'Ocupado' : slot.status}
+              ${slot.status === 'free' ? 'Libre' : slot.status === 'booked' ? 'Ocupado' : SIIAP.escapeHtml(slot.status)}
             </span>
           </td>
           <td>
-            ${slot.student_name || '—'}
+            ${slot.student_name ? SIIAP.escapeHtml(slot.student_name) : '—'}
           </td>
           <td class="text-end">
             ${slot.status === 'free' ? `
-              <button class="btn btn-sm btn-outline-primary btn-assign-slot" 
-                      data-slot-id="${slot.id}" 
-                      data-slot-info="${dateStr} ${timeStr}">
+              <button class="btn btn-sm btn-outline-primary btn-assign-slot"
+                      data-slot-id="${SIIAP.escapeAttr(slot.id)}"
+                      data-slot-info="${SIIAP.escapeAttr(slotInfo)}">
                 <i class="bi bi-person-plus-fill"></i> Asignar
               </button>
             ` : slot.status === 'booked' ? `
-              <button class="btn btn-sm btn-outline-danger btn-cancel-appointment" 
-                      data-slot-id="${slot.id}"
-                      data-slot-info="${dateStr} ${timeStr}"
-                      data-student-name="${slot.student_name || 'Sin asignar'}">
+              <button class="btn btn-sm btn-outline-danger btn-cancel-appointment"
+                      data-slot-id="${SIIAP.escapeAttr(slot.id)}"
+                      data-slot-info="${SIIAP.escapeAttr(slotInfo)}"
+                      data-student-name="${SIIAP.escapeAttr(slot.student_name || 'Sin asignar')}">
                 <i class="bi bi-x-lg"></i> Cancelar
               </button>
             ` : ''}
@@ -260,13 +262,13 @@
     }
     
     eligibleStudents.innerHTML = eligibleStudentsList.map(student => `
-      <div class="list-group-item student-card" data-student-id="${student.id}">
+      <div class="list-group-item student-card" data-student-id="${SIIAP.escapeAttr(student.id)}">
         <div class="d-flex align-items-center">
-          <img src="${student.avatar_url || '/static/assets/images/default.jpg'}" 
+          <img src="${SIIAP.escapeAttr(student.avatar_url || '/static/assets/images/default.jpg')}"
                class="rounded-circle me-2" width="32" height="32" alt="Avatar">
           <div class="flex-grow-1">
-            <div class="fw-semibold small">${student.full_name}</div>
-            <div class="text-muted small">${student.email}</div>
+            <div class="fw-semibold small">${SIIAP.escapeHtml(student.full_name)}</div>
+            <div class="text-muted small">${SIIAP.escapeHtml(student.email)}</div>
           </div>
           <div class="text-end">
             <span class="badge bg-success small">Elegible</span>
@@ -520,8 +522,8 @@
     
     const studentSelect = document.getElementById('assignStudentId');
     studentSelect.innerHTML = '<option value="">Seleccionar estudiante...</option>' +
-      eligibleStudentsList.map(s => 
-        `<option value="${s.id}">${s.full_name} - ${s.email}</option>`
+      eligibleStudentsList.map(s =>
+        `<option value="${SIIAP.escapeAttr(s.id)}">${SIIAP.escapeHtml(s.full_name)} - ${SIIAP.escapeHtml(s.email)}</option>`
       ).join('');
     
     assignSlotModal.show();

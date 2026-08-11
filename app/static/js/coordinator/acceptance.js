@@ -39,13 +39,6 @@ class AcceptanceManager {
         return p ? p.name : '—';
     }
 
-    /** Escapa un valor para usarlo dentro de un atributo HTML. */
-    _escAttr(value) {
-        return String(value == null ? '' : value)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
-
     /**
      * Celda «Programa» del modo «Todos los programas». La columna se acota por
      * CSS (.program-col) para que un nombre largo no empuje el resto de la
@@ -55,7 +48,7 @@ class AcceptanceManager {
     _programCell(name) {
         const value = name || '';
         return this._isAllMode()
-            ? `<td class="program-col text-muted small" title="${this._escAttr(value)}">${value}</td>`
+            ? `<td class="program-col text-muted small" title="${SIIAP.escapeAttr(value)}">${SIIAP.escapeHtml(value)}</td>`
             : '';
     }
 
@@ -97,7 +90,7 @@ class AcceptanceManager {
                         <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
                         <h3 class="empty-state__title">No se pudieron cargar los datos</h3>
                         <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
-                        <p class="empty-state__error-detail">${detail || ''}</p>
+                        <p class="empty-state__error-detail">${SIIAP.escapeHtml(detail || '')}</p>
                     </div>
                 </td>
             </tr>`;
@@ -121,6 +114,8 @@ class AcceptanceManager {
     }
 
     bindEvents() {
+        this._bindRowActions();
+
         if (this.programSelector) {
             this.programSelector.addEventListener('change', () => {
                 this.currentProgramId = this.programSelector.value;
@@ -184,6 +179,58 @@ class AcceptanceManager {
                 this._setNotesRequired('deferralNotesRequired', 'reviewDeferralNotes', e.target.value === 'rejected');
             });
         });
+    }
+
+    /**
+     * Row action buttons are rendered from database text (applicant names,
+     * program and period names, stored file paths), so they must never carry an
+     * inline onclick: a quote inside the value breaks out of the JS string no
+     * matter how the value is escaped. Each button ships its payload in data-*
+     * attributes and one delegated listener per table resolves the action.
+     * The tables live in the template, so the listener survives every re-render
+     * of their <tbody>.
+     */
+    _bindRowActions() {
+        const tableIds = [
+            'pendingDocsTable', 'receiptTable', 'completedTable',
+            'pendingRequestsTable', 'deferredTable',
+        ];
+        tableIds.forEach(id => {
+            document.getElementById(id)?.addEventListener('click', (e) => {
+                this._handleRowAction(e);
+            });
+        });
+    }
+
+    /** Dispatches a delegated click coming from a [data-action] row button. */
+    _handleRowAction(event) {
+        const btn = event.target.closest('[data-action]');
+        if (!btn) return;
+        const data = btn.dataset;
+
+        switch (data.action) {
+            case 'upload-doc':
+                this.showUploadModal(data.userId, data.programId, data.applicantName, data.docType);
+                break;
+            case 'defer':
+                this.showDeferModal(data.userId, data.programId, data.applicantName);
+                break;
+            case 'review-receipt':
+                this.showReviewModal(data.docId, data.applicantName, data.filePath);
+                break;
+            case 'assign-control-number':
+                this.showAssignControlNumberModal(data.userId, data.programId, data.applicantName);
+                break;
+            case 'review-deferral':
+                this.showReviewDeferralModal(
+                    data.deferralId, data.applicantName, data.deferralNumber,
+                    data.periodName, data.reason
+                );
+                break;
+            case 'reactivate':
+                this.showReactivateModal(data.userId, data.programId, data.applicantName, data.periodName);
+                break;
+        }
     }
 
     /**
@@ -303,38 +350,40 @@ class AcceptanceManager {
             const docs = a.acceptance_docs;
             const letterStatus = this.renderDocBadge(docs.acceptance_letter);
             const scheduleStatus = this.renderDocBadge(docs.course_schedule);
-            const safeName = user.full_name.replace(/'/g, "\\'");
             const programCell = this._programCell(a.__program_name);
+
+            // Payload shared by every action button of the row.
+            const rowData = `data-user-id="${SIIAP.escapeAttr(user.id)}"
+                                    data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                                    data-applicant-name="${SIIAP.escapeAttr(user.full_name)}"`;
+
+            // Same two variants as before: primary + upload icon when the file is
+            // missing, secondary + replace icon when it already exists.
+            const uploadBtn = (docType, label) => {
+                const hasFile = !!docs[docType]?.file_path;
+                const variant = hasFile ? 'btn-outline-secondary' : 'btn-outline-primary';
+                const icon = hasFile ? 'arrow-repeat' : 'upload';
+                return `
+                            <button type="button" class="btn btn-sm ${variant} btn-action"
+                                    data-action="upload-doc" data-doc-type="${docType}"
+                                    ${rowData}>
+                                <i class="bi bi-${icon}"></i> ${label}
+                            </button>`;
+            };
 
             return `
                 <tr>
                     ${programCell}
-                    <td class="applicant-name">${user.full_name}</td>
-                    <td class="applicant-email">${user.email}</td>
+                    <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                    <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
                     <td class="text-center">${letterStatus}</td>
                     <td class="text-center">${scheduleStatus}</td>
                     <td class="text-center">
                         <div class="btn-group-actions">
-                            ${!docs.acceptance_letter?.file_path ? `
-                            <button class="btn btn-sm btn-outline-primary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'acceptance_letter')">
-                                <i class="bi bi-upload"></i> Carta
-                            </button>` : `
-                            <button class="btn btn-sm btn-outline-secondary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'acceptance_letter')">
-                                <i class="bi bi-arrow-repeat"></i> Carta
-                            </button>`}
-                            ${!docs.course_schedule?.file_path ? `
-                            <button class="btn btn-sm btn-outline-primary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'course_schedule')">
-                                <i class="bi bi-upload"></i> Tira
-                            </button>` : `
-                            <button class="btn btn-sm btn-outline-secondary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'course_schedule')">
-                                <i class="bi bi-arrow-repeat"></i> Tira
-                            </button>`}
-                            <button class="btn btn-sm btn-outline-warning btn-action"
-                                    onclick="acceptanceManager.showDeferModal(${user.id}, ${up.program_id}, '${safeName}')">
+                            ${uploadBtn('acceptance_letter', 'Carta')}
+                            ${uploadBtn('course_schedule', 'Tira')}
+                            <button type="button" class="btn btn-sm btn-outline-warning btn-action"
+                                    data-action="defer" ${rowData}>
                                 <i class="bi bi-arrow-clockwise"></i> Diferir
                             </button>
                             ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
@@ -390,14 +439,17 @@ class AcceptanceManager {
             return `
                 <tr>
                     ${programCell}
-                    <td class="applicant-name">${user.full_name}</td>
-                    <td class="applicant-email">${user.email}</td>
+                    <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                    <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
                     <td class="text-center">${this.renderDocBadge(docs.acceptance_letter)}</td>
                     <td class="text-center">${this.renderDocBadge(docs.course_schedule)}</td>
                     <td class="text-center">${SIIAP.statusBadge('review', 'Subida', 'sm')}</td>
                     <td class="text-center">
-                        <button class="btn btn-sm btn-primary btn-action"
-                                onclick="acceptanceManager.showReviewModal(${receiptDoc.id}, '${user.full_name}', '${receiptDoc.file_path}')">
+                        <button type="button" class="btn btn-sm btn-primary btn-action"
+                                data-action="review-receipt"
+                                data-doc-id="${SIIAP.escapeAttr(receiptDoc.id)}"
+                                data-applicant-name="${SIIAP.escapeAttr(user.full_name)}"
+                                data-file-path="${SIIAP.escapeAttr(receiptDoc.file_path)}">
                             <i class="bi bi-eye"></i> Revisar
                         </button>
                     </td>
@@ -429,11 +481,14 @@ class AcceptanceManager {
 
             let controlNumberCell;
             if (user.control_number) {
-                controlNumberCell = `<span class="badge bg-primary font-monospace">${user.control_number}</span>`;
+                controlNumberCell = `<span class="badge bg-primary font-monospace">${SIIAP.escapeHtml(user.control_number)}</span>`;
             } else {
                 controlNumberCell = `
-                    <button class="btn btn-sm btn-outline-success btn-action"
-                            onclick="acceptanceManager.showAssignControlNumberModal(${user.id}, ${up.program_id}, '${user.full_name.replace(/'/g, "\\'")}')">
+                    <button type="button" class="btn btn-sm btn-outline-success btn-action"
+                            data-action="assign-control-number"
+                            data-user-id="${SIIAP.escapeAttr(user.id)}"
+                            data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                            data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                         <i class="bi bi-hash"></i> Asignar
                     </button>`;
             }
@@ -441,8 +496,8 @@ class AcceptanceManager {
             return `
                 <tr>
                     ${programCell}
-                    <td class="applicant-name">${user.full_name}</td>
-                    <td class="applicant-email">${user.email}</td>
+                    <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                    <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
                     <td class="text-center">${SIIAP.statusBadge('approved', 'Disponible', 'sm')}</td>
                     <td class="text-center">${SIIAP.statusBadge('approved', 'Disponible', 'sm')}</td>
                     <td class="text-center">${SIIAP.statusBadge('approved', 'Aprobada', 'sm')}</td>
@@ -606,11 +661,13 @@ class AcceptanceManager {
         // Construir URL de descarga del archivo
         if (filePath) {
             // filePath tiene formato: user_id/acceptance/filename.pdf
-            const parts = filePath.split('/');
+            // Cada segmento se codifica por separado: el nombre del archivo lo
+            // controla quien lo sube y puede traer ?, # o espacios.
+            const parts = String(filePath).split('/');
             const userId = parts[0];
             const phase = parts[1];
-            const filename = parts.slice(2).join('/');
-            const downloadUrl = `/files/doc/${userId}/${phase}/${filename}`;
+            const filename = parts.slice(2).map(encodeURIComponent).join('/');
+            const downloadUrl = `/files/doc/${encodeURIComponent(userId)}/${encodeURIComponent(phase)}/${filename}`;
             const viewBtn = document.getElementById('viewReceiptBtn');
             viewBtn.href = downloadUrl;
             viewBtn.classList.remove('disabled');
@@ -712,21 +769,29 @@ class AcceptanceManager {
                     );
                 } else {
                     requestsTbody.innerHTML = pending_requests.map(p => {
-                        const safeName = p.user.full_name.replace(/'/g, "\\'");
-                        const safeReason = (p.deferral.reason || '').replace(/'/g, "\\'");
+                        const reason = p.deferral.reason || 'Sin especificar';
+                        const periodName = p.deferral.deferred_to_period_name;
+                        const periodCell = periodName
+                            ? SIIAP.escapeHtml(periodName)
+                            : '<em class="text-muted">Por asignar</em>';
                         const programCell = this._programCell(p.__program_name);
                         return `
                             <tr>
                                 ${programCell}
-                                <td>${p.user.full_name}</td>
-                                <td>${p.user.email}</td>
-                                <td class="text-center">#${p.deferral.deferral_number}</td>
-                                <td>${p.deferral.deferred_to_period_name || '<em class="text-muted">Por asignar</em>'}</td>
+                                <td>${SIIAP.escapeHtml(p.user.full_name)}</td>
+                                <td>${SIIAP.escapeHtml(p.user.email)}</td>
+                                <td class="text-center">#${SIIAP.escapeHtml(p.deferral.deferral_number)}</td>
+                                <td>${periodCell}</td>
                                 <td class="reason-cell fst-italic text-muted"
-                                    title="${this._escAttr(p.deferral.reason || 'Sin especificar')}">${p.deferral.reason || 'Sin especificar'}</td>
+                                    title="${SIIAP.escapeAttr(reason)}">${SIIAP.escapeHtml(reason)}</td>
                                 <td class="text-center">
-                                    <button class="btn btn-sm btn-primary"
-                                            onclick="acceptanceManager.showReviewDeferralModal(${p.deferral.id}, '${safeName}', ${p.deferral.deferral_number}, '${p.deferral.deferred_to_period_name || ''}', '${safeReason}')">
+                                    <button type="button" class="btn btn-sm btn-primary"
+                                            data-action="review-deferral"
+                                            data-deferral-id="${SIIAP.escapeAttr(p.deferral.id)}"
+                                            data-applicant-name="${SIIAP.escapeAttr(p.user.full_name)}"
+                                            data-deferral-number="${SIIAP.escapeAttr(p.deferral.deferral_number)}"
+                                            data-period-name="${SIIAP.escapeAttr(periodName || '')}"
+                                            data-reason="${SIIAP.escapeAttr(p.deferral.reason || '')}">
                                         <i class="bi bi-eye me-1"></i>Revisar
                                     </button>
                                 </td>
@@ -745,26 +810,37 @@ class AcceptanceManager {
                     );
                 } else {
                     deferredTbody.innerHTML = deferred.map(d => {
-                        const safeName = d.user.full_name.replace(/'/g, "\\'");
                         const deferral = d.deferral;
                         const canReactivate = deferral && deferral.deferred_to_period_id;
                         const deferralsLeft = d.can_defer_again
                             ? SIIAP.statusBadge('deliberation', `${d.deferrals_used}/2 usados`, 'sm')
                             : SIIAP.statusBadge('rejected', 'Máximo alcanzado', 'sm');
                         const reactivateBtn = canReactivate
-                            ? `<button class="btn btn-sm btn-success" onclick="acceptanceManager.showReactivateModal(${d.user_program.user_id}, ${d.user_program.program_id}, '${safeName}', '${deferral.deferred_to_period_name || ''}')">
+                            ? `<button type="button" class="btn btn-sm btn-success"
+                                       data-action="reactivate"
+                                       data-user-id="${SIIAP.escapeAttr(d.user_program.user_id)}"
+                                       data-program-id="${SIIAP.escapeAttr(d.user_program.program_id)}"
+                                       data-applicant-name="${SIIAP.escapeAttr(d.user.full_name)}"
+                                       data-period-name="${SIIAP.escapeAttr(deferral.deferred_to_period_name || '')}">
                                    <i class="bi bi-person-check-fill me-1"></i>Reactivar
                                </button>`
                             : `<span class="text-muted small">Sin periodo destino</span>`;
+                        const originalPeriod = deferral ? SIIAP.escapeHtml(deferral.original_period_name || '-') : '-';
+                        let targetPeriod = '-';
+                        if (deferral) {
+                            targetPeriod = deferral.deferred_to_period_name
+                                ? SIIAP.escapeHtml(deferral.deferred_to_period_name)
+                                : '<em class="text-muted">Por asignar</em>';
+                        }
                         const programCell = this._programCell(d.__program_name);
                         return `
                             <tr>
                                 ${programCell}
-                                <td>${d.user.full_name}</td>
-                                <td>${d.user.email}</td>
+                                <td>${SIIAP.escapeHtml(d.user.full_name)}</td>
+                                <td>${SIIAP.escapeHtml(d.user.email)}</td>
                                 <td class="text-center">${deferralsLeft}</td>
-                                <td>${deferral ? (deferral.original_period_name || '-') : '-'}</td>
-                                <td>${deferral ? (deferral.deferred_to_period_name || '<em class="text-muted">Por asignar</em>') : '-'}</td>
+                                <td>${originalPeriod}</td>
+                                <td>${targetPeriod}</td>
                                 <td class="text-center">${reactivateBtn}</td>
                             </tr>`;
                     }).join('');

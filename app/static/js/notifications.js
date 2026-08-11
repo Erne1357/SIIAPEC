@@ -346,6 +346,8 @@ class NotificationManager {
     }
 
     renderNotificationItem(notification) {
+        // icon/color come from the local lookup tables below, never from the
+        // payload, so they are the only interpolations left unescaped here.
         const icon = this.getIconForType(notification.type);
         const color = this.getColorForType(notification.type);
         const unreadClass = notification.is_read ? '' : 'unread';
@@ -364,12 +366,12 @@ class NotificationManager {
                 <div class="notification-actions">
                     <button type="button" class="btn btn-sm btn-success"
                             data-respond-invitation="accepted"
-                            data-notification-id="${notification.id}">
+                            data-notification-id="${SIIAP.escapeAttr(notification.id)}">
                         <i class="bi bi-check" aria-hidden="true"></i> Aceptar invitación
                     </button>
                     <button type="button" class="btn btn-sm btn-danger"
                             data-respond-invitation="rejected"
-                            data-notification-id="${notification.id}">
+                            data-notification-id="${SIIAP.escapeAttr(notification.id)}">
                         <i class="bi bi-x" aria-hidden="true"></i> Rechazar invitación
                     </button>
                 </div>
@@ -380,18 +382,18 @@ class NotificationManager {
         // teclado (Enter/Espacio). Sin esto, abrir una notificación era
         // imposible sin ratón (WCAG 2.1.1).
         return `
-            <div class="notification-item ${unreadClass}" data-id="${notification.id}"
-                 data-action-url="${this.escapeHtml(notification.action_url || '')}"
+            <div class="notification-item ${unreadClass}" data-id="${SIIAP.escapeAttr(notification.id)}"
+                 data-action-url="${SIIAP.escapeAttr(notification.action_url || '')}"
                  role="button" tabindex="0">
                 <div class="d-flex gap-3">
                     <div class="notification-icon bg-${color}" aria-hidden="true">
                         <i class="${icon}"></i>
                     </div>
                     <div class="notification-content flex-grow-1">
-                        ${readState}<strong>${this.escapeHtml(notification.title)}</strong>
-                        <p class="mb-1">${this.escapeHtml(notification.message)}</p>
+                        ${readState}<strong>${SIIAP.escapeHtml(notification.title)}</strong>
+                        <p class="mb-1">${SIIAP.escapeHtml(notification.message)}</p>
                         ${actionsHtml}
-                        <small>${timeAgo}${linkHint}</small>
+                        <small>${SIIAP.escapeHtml(timeAgo)}${linkHint}</small>
                     </div>
                     ${!notification.is_read ? `
                         <button type="button" class="btn-mark-read"
@@ -548,7 +550,29 @@ class NotificationManager {
         }
     }
 
+    /**
+     * Rejects anything that is not http(s) before it reaches location.href.
+     * A stored `javascript:` action_url would otherwise run on click.
+     * @param {string} url
+     * @returns {boolean}
+     */
+    _isNavigableUrl(url) {
+        try {
+            const parsed = new URL(url, window.location.origin);
+            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch {
+            return false;
+        }
+    }
+
     async _navigateToUrl(url) {
+        if (!this._isNavigableUrl(url)) {
+            window.dispatchEvent(new CustomEvent('flash', {
+                detail: { level: 'warning', message: 'Esta página ya no está disponible.' }
+            }));
+            return;
+        }
+
         try {
             const res = await fetch(url, { method: 'HEAD', credentials: 'same-origin' });
             if (res.ok) {
@@ -611,12 +635,6 @@ class NotificationManager {
         } catch (error) {
             console.error('Error responding to invitation:', error);
         }
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     }
 }
 

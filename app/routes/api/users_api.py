@@ -8,14 +8,23 @@ from app.models.user_history import UserHistory
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
 from app.utils.permissions import permission_required
+from app.utils.validators import (
+    InputValidationError,
+    validate_person_name,
+    validate_short_text,
+)
 
 api_users = Blueprint("api_users", __name__, url_prefix="/api/v1/users")
 
 def _sanitize(s: str | None) -> str | None:
-    if s is None: 
+    if s is None:
         return None
     s = s.strip()
     return s or None
+
+def _has_text(value) -> bool:
+    """True when the payload carries a non-blank string for this field."""
+    return isinstance(value, str) and bool(value.strip())
 
 @api_users.get("/me")
 @login_required
@@ -157,16 +166,33 @@ def update_me():
       - scolarship_type (str, opt)
     """
     payload = request.get_json(silent=True) or {}
-    first = _sanitize(payload.get("first_name"))
-    last  = _sanitize(payload.get("last_name"))
-    mother = _sanitize(payload.get("mother_last_name"))
-    scol  = _sanitize(payload.get("scolarship_type"))
 
-    if not first or not last:
+    first_raw = payload.get("first_name")
+    last_raw = payload.get("last_name")
+    if not _has_text(first_raw) or not _has_text(last_raw):
         return jsonify({
             "data": None,
             "flash": [{"level": "danger", "message": "Nombre y Apellido Paterno son obligatorios."}],
             "error": {"code": "VALIDATION", "message": "Campos requeridos faltantes"},
+            "meta": {}
+        }), 400
+
+    # Same rules as self-registration (app/utils/validators.py): these values
+    # are rendered by the staff consoles, so storage must stay clean.
+    try:
+        first = validate_person_name(first_raw, label="Nombre")
+        last = validate_person_name(last_raw, label="Apellido paterno")
+        mother = validate_person_name(
+            payload.get("mother_last_name"), label="Apellido materno", required=False
+        )
+        scol = validate_short_text(
+            payload.get("scolarship_type"), label="Tipo de beca"
+        )
+    except InputValidationError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": e.message}],
+            "error": {"code": "VALIDATION", "message": e.message},
             "meta": {}
         }), 400
 

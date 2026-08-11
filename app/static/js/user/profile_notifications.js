@@ -178,7 +178,7 @@ class ProfileNotificationsManager {
                     <div class="empty-state__icon"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i></div>
                     <h3 class="empty-state__title">No pudimos cargar tus notificaciones</h3>
                     <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
-                    <p class="empty-state__error-detail">${this.escapeHtml(error.message || 'Error de red')}</p>
+                    <p class="empty-state__error-detail">${SIIAP.escapeHtml(error.message || 'Error de red')}</p>
                     <div class="empty-state__actions">
                         <button type="button" id="retryNotifications" class="btn btn-outline-primary">
                             <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Reintentar
@@ -226,6 +226,8 @@ class ProfileNotificationsManager {
     }
 
     renderFullNotification(notification) {
+        // icon/color come from the local lookup tables below, never from the
+        // payload, so they are the only interpolations left unescaped here.
         const icon = this.getIconForType(notification.type);
         const color = this.getColorForType(notification.type);
         const unreadClass = notification.is_read ? '' : 'unread';
@@ -243,12 +245,12 @@ class ProfileNotificationsManager {
             actionsHtml = `
                 <div class="notification-actions">
                     <button type="button" class="btn btn-sm btn-success respond-invitation"
-                            data-notification-id="${notification.id}"
+                            data-notification-id="${SIIAP.escapeAttr(notification.id)}"
                             data-response="accepted">
                         <i class="bi bi-check" aria-hidden="true"></i> Aceptar
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-danger respond-invitation"
-                            data-notification-id="${notification.id}"
+                            data-notification-id="${SIIAP.escapeAttr(notification.id)}"
                             data-response="rejected">
                         <i class="bi bi-x" aria-hidden="true"></i> Rechazar
                     </button>
@@ -264,32 +266,32 @@ class ProfileNotificationsManager {
 
         return `
             <div class="notification-item ${unreadClass}${hasLink ? ' cursor-pointer' : ''}"
-                 data-id="${notification.id}"
-                 data-action-url="${this.escapeHtml(notification.action_url || '')}">
+                 data-id="${SIIAP.escapeAttr(notification.id)}"
+                 data-action-url="${SIIAP.escapeAttr(notification.action_url || '')}">
                 <div class="notification-full-item">
                     <div class="notification-icon bg-${color}" aria-hidden="true">
                         <i class="${icon}"></i>
                     </div>
                     <div class="notification-content flex-grow-1">
-                        <p class="fw-semibold mb-1">${this.escapeHtml(notification.title)}</p>
-                        <p class="mb-2">${this.escapeHtml(notification.message)}</p>
+                        <p class="fw-semibold mb-1">${SIIAP.escapeHtml(notification.title)}</p>
+                        <p class="mb-2">${SIIAP.escapeHtml(notification.message)}</p>
                         ${actionsHtml}
                         <div class="notification-meta">
                             <span>
-                                <span class="notification-priority ${priorityClass}">${this.escapeHtml(priorityLabel)}</span>
-                                <span class="ms-2">${time}</span>
+                                <span class="notification-priority ${SIIAP.escapeAttr(priorityClass)}">${SIIAP.escapeHtml(priorityLabel)}</span>
+                                <span class="ms-2">${SIIAP.escapeHtml(time)}</span>
                                 ${linkHint}
                             </span>
                             <div class="d-flex gap-1">
                                 ${!notification.is_read ? `
                                     <button type="button" class="btn btn-sm btn-outline-primary mark-read-btn"
-                                            data-id="${notification.id}">
+                                            data-id="${SIIAP.escapeAttr(notification.id)}">
                                         <i class="bi bi-check" aria-hidden="true"></i> Marcar leída
                                     </button>
                                 ` : ''}
                                 <button type="button" class="btn btn-sm btn-outline-danger delete-btn tap-target"
-                                        data-id="${notification.id}"
-                                        aria-label="Eliminar la notificación «${this.escapeHtml(notification.title)}»"
+                                        data-id="${SIIAP.escapeAttr(notification.id)}"
+                                        aria-label="Eliminar la notificación «${SIIAP.escapeAttr(notification.title)}»"
                                         title="Eliminar notificación">
                                     <i class="bi bi-trash" aria-hidden="true"></i>
                                 </button>
@@ -349,7 +351,29 @@ class ProfileNotificationsManager {
         });
     }
 
+    /**
+     * Rejects anything that is not http(s) before it reaches location.href.
+     * A stored `javascript:` action_url would otherwise run on click.
+     * @param {string} url
+     * @returns {boolean}
+     */
+    _isNavigableUrl(url) {
+        try {
+            const parsed = new URL(url, window.location.origin);
+            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch {
+            return false;
+        }
+    }
+
     async _navigateToUrl(url) {
+        if (!this._isNavigableUrl(url)) {
+            window.dispatchEvent(new CustomEvent('flash', {
+                detail: { level: 'warning', message: 'Esta página ya no está disponible.' }
+            }));
+            return;
+        }
+
         try {
             const res = await fetch(url, { method: 'HEAD', credentials: 'same-origin' });
             if (res.ok) {
@@ -586,14 +610,6 @@ class ProfileNotificationsManager {
             'deferral_request_received': 'info',
         };
         return colors[type] || 'info';
-    }
-
-
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     }
 }
 

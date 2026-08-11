@@ -7,6 +7,12 @@
     let currentPage = 1;
     let currentFilters = {};
     
+    // Escapado de salida. Son referencias al helper canónico
+    // (app/static/js/utils/escape.js), no copias locales: se resuelven en cada
+    // llamada para no depender del orden de carga de los scripts.
+    const escapeHtml = (value) => window.SIIAP.escapeHtml(value);
+    const escapeAttr = (value) => window.SIIAP.escapeAttr(value);
+
     // Anuncia el resultado de una carga asíncrona en la región viva compartida.
     const announce = (message) => {
         if (window.SIIAP && typeof window.SIIAP.announce === 'function') {
@@ -78,34 +84,44 @@
     function renderUsersTable(users) {
         const tbody = document.getElementById('usersTableBody');
         
-        tbody.innerHTML = users.map(user => `
+        tbody.innerHTML = users.map(user => {
+            // Mismo texto que antes; se escapa una sola vez por contexto.
+            const fullName = `${user.first_name} ${user.last_name}`;
+            const nameText = escapeHtml(fullName);
+            const nameAttr = escapeAttr(fullName);
+            const idAttr = escapeAttr(user.id);
+            const toggleLabel = user.is_active ? 'Desactivar' : 'Activar';
+
+            // getRoleBadgeClass() devuelve siempre un valor de su propio mapa,
+            // nunca texto de la base de datos: no requiere escapado.
+            return `
             <tr class="user-row">
                 <th scope="row" class="fw-normal">
                     <div class="d-flex align-items-center">
-                        <img src="${user.avatar_url}" class="rounded-circle avatar-sm me-2" alt="">
+                        <img src="${escapeAttr(user.avatar_url)}" class="rounded-circle avatar-sm me-2" alt="">
                         <div>
                             <button type="button" class="user-row__trigger"
-                                    onclick="window.usersManager.showUserDetail(${user.id})">
-                                ${user.first_name} ${user.last_name}
+                                    data-action="show-detail" data-user-id="${idAttr}">
+                                ${nameText}
                             </button>
-                            <small class="text-muted d-block">${user.email}</small>
+                            <small class="text-muted d-block">${escapeHtml(user.email)}</small>
                         </div>
                     </div>
                 </th>
                 <td>
                     <span class="badge ${getRoleBadgeClass(user.role)}">
-                        ${getRoleLabel(user.role)}
+                        ${escapeHtml(getRoleLabel(user.role))}
                     </span>
                 </td>
                 <td>
-                    ${user.program 
-                        ? `<span class="badge bg-secondary">${user.program.name}</span>` 
+                    ${user.program
+                        ? `<span class="badge bg-secondary">${escapeHtml(user.program.name)}</span>`
                         : '<small class="text-muted">Sin asignar</small>'
                     }
                 </td>
                 <td>
-                    ${user.control_number 
-                        ? `<span class="badge bg-dark control-number-badge">${user.control_number}</span>`
+                    ${user.control_number
+                        ? `<span class="badge bg-dark control-number-badge">${escapeHtml(user.control_number)}</span>`
                         : '<small class="text-muted">Sin asignar</small>'
                     }
                 </td>
@@ -116,38 +132,67 @@
                 </td>
                 <td class="text-end">
                     <div class="btn-group btn-group-sm" role="group"
-                         aria-label="Acciones de ${user.first_name} ${user.last_name}">
+                         aria-label="Acciones de ${nameAttr}">
                         <button type="button" class="btn btn-outline-primary tap-target"
-                                onclick="window.usersManager.editUser(${user.id})"
-                                aria-label="Editar a ${user.first_name} ${user.last_name}"
-                                title="Editar a ${user.first_name} ${user.last_name}">
+                                data-action="edit-user" data-user-id="${idAttr}"
+                                aria-label="Editar a ${nameAttr}"
+                                title="Editar a ${nameAttr}">
                             <i class="bi bi-pencil" aria-hidden="true"></i>
                         </button>
                         <button type="button" class="btn btn-outline-danger tap-target"
-                                onclick="window.usersManager.resetPassword(${user.id}, '${user.first_name} ${user.last_name}')"
-                                aria-label="Restablecer la contraseña de ${user.first_name} ${user.last_name}"
-                                title="Restablecer la contraseña de ${user.first_name} ${user.last_name}">
+                                data-action="reset-password" data-user-id="${idAttr}"
+                                data-user-name="${nameAttr}"
+                                aria-label="Restablecer la contraseña de ${nameAttr}"
+                                title="Restablecer la contraseña de ${nameAttr}">
                             <i class="bi bi-key" aria-hidden="true"></i>
                         </button>
                         ${(!user.control_number && user.role === 'applicant') ? `
                         <button type="button" class="btn btn-outline-primary tap-target"
-                                onclick="window.usersManager.assignControlNumber(${user.id})"
-                                aria-label="Asignar número de control a ${user.first_name} ${user.last_name}"
+                                data-action="assign-control-number" data-user-id="${idAttr}"
+                                aria-label="Asignar número de control a ${nameAttr}"
                                 title="Asignar número de control y convertir en estudiante">
                             <i class="bi bi-123" aria-hidden="true"></i>
                         </button>
                         ` : ''}
                         <button type="button" class="btn btn-outline-${user.is_active ? 'danger' : 'success'} tap-target"
-                                onclick="window.usersManager.toggleUserActive(${user.id})"
-                                aria-label="${user.is_active ? 'Desactivar' : 'Activar'} a ${user.first_name} ${user.last_name}"
-                                title="${user.is_active ? 'Desactivar' : 'Activar'} a ${user.first_name} ${user.last_name}">
+                                data-action="toggle-active" data-user-id="${idAttr}"
+                                aria-label="${toggleLabel} a ${nameAttr}"
+                                title="${toggleLabel} a ${nameAttr}">
                             <i class="bi bi-${user.is_active ? 'x-circle' : 'check-circle'}" aria-hidden="true"></i>
                         </button>
                         ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
                     </div>
                 </td>
             </tr>
-        `).join('');
+        `;
+        }).join('');
+    }
+
+    // Una sola escucha delegada para toda la tabla: ningún botón lleva onclick
+    // en línea, así el nombre del usuario nunca se concatena dentro de código.
+    function onUsersTableClick(event) {
+        const btn = event.target.closest('[data-action]');
+        if (!btn) return;
+
+        const userId = btn.dataset.userId;
+
+        switch (btn.dataset.action) {
+            case 'show-detail':
+                showUserDetail(userId);
+                break;
+            case 'edit-user':
+                editUser(userId);
+                break;
+            case 'reset-password':
+                resetPassword(userId, btn.dataset.userName || '');
+                break;
+            case 'assign-control-number':
+                assignControlNumber(userId);
+                break;
+            case 'toggle-active':
+                toggleUserActive(userId);
+                break;
+        }
     }
     
     // Renderizar paginación
@@ -166,12 +211,12 @@
         html += `
             <li class="page-item ${!has_prev ? 'disabled' : ''}">
                 <a class="page-link" href="#" aria-label="Página anterior"
-                   onclick="window.usersManager.loadUsers(${page - 1}); return false;">
+                   data-page="${escapeAttr(page - 1)}">
                     <i class="bi bi-chevron-left" aria-hidden="true"></i>
                 </a>
             </li>
         `;
-        
+
         // Páginas
         for (let i = 1; i <= pages; i++) {
             if (i === 1 || i === pages || (i >= page - 2 && i <= page + 2)) {
@@ -179,7 +224,7 @@
                     <li class="page-item ${i === page ? 'active' : ''}">
                         <a class="page-link" href="#" aria-label="Página ${i}"
                            ${i === page ? 'aria-current="page"' : ''}
-                           onclick="window.usersManager.loadUsers(${i}); return false;">
+                           data-page="${escapeAttr(i)}">
                             ${i}
                         </a>
                     </li>
@@ -188,18 +233,31 @@
                 html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
             }
         }
-        
+
         // Siguiente
         html += `
             <li class="page-item ${!has_next ? 'disabled' : ''}">
                 <a class="page-link" href="#" aria-label="Página siguiente"
-                   onclick="window.usersManager.loadUsers(${page + 1}); return false;">
+                   data-page="${escapeAttr(page + 1)}">
                     <i class="bi bi-chevron-right" aria-hidden="true"></i>
                 </a>
             </li>
         `;
-        
+
         container.innerHTML = html;
+    }
+
+    // Escucha delegada de la paginación: el enlace sólo declara su página.
+    function onPaginationClick(event) {
+        const link = event.target.closest('[data-page]');
+        if (!link) return;
+
+        event.preventDefault();
+
+        const item = link.closest('.page-item');
+        if (item && item.classList.contains('disabled')) return;
+
+        loadUsers(Number(link.dataset.page));
     }
     
     // Actualizar contador total
@@ -216,9 +274,9 @@
         modal.show();
         
         try {
-            const res = await fetch(`${API_BASE}/${userId}`);
+            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}`);
             const json = await res.json();
-            
+
             if (!res.ok) throw new Error(json.error?.message);
 
             console.log("JSON DATA en showUserDetail:", json);
@@ -227,13 +285,13 @@
             const user = json.data.user;
             const program = json.data.user.program;
             const history = json.data.history || [];
-            
+
             content.innerHTML = `
                 <div class="row">
                     <div class="col-md-4 text-center">
-                        <img src="${user.avatar_url}" alt="" loading="lazy" class="rounded-circle avatar-xl">
-                        <h5 class="mt-3">${user.first_name} ${user.last_name}</h5>
-                        <span class="badge ${getRoleBadgeClass(user.role)}">${getRoleLabel(user.role)}</span>
+                        <img src="${escapeAttr(user.avatar_url)}" alt="" loading="lazy" class="rounded-circle avatar-xl">
+                        <h5 class="mt-3">${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)}</h5>
+                        <span class="badge ${getRoleBadgeClass(user.role)}">${escapeHtml(getRoleLabel(user.role))}</span>
                         <br>
                         <span class="badge ${user.is_active ? 'bg-success' : 'bg-danger'} mt-2">
                             ${user.is_active ? 'Activo' : 'Inactivo'}
@@ -242,40 +300,41 @@
                     <div class="col-md-8">
                         <h6>Información básica</h6>
                         <dl class="row mb-0">
-                            <dt class="col-5">Correo</dt><dd class="col-7">${user.email}</dd>
-                            <dt class="col-5">Usuario</dt><dd class="col-7">${user.username}</dd>
-                            <dt class="col-5">Teléfono</dt><dd class="col-7">${user.phone || 'No registrado'}</dd>
-                            <dt class="col-5">CURP</dt><dd class="col-7">${user.curp || 'No registrado'}</dd>
+                            <dt class="col-5">Correo</dt><dd class="col-7">${escapeHtml(user.email)}</dd>
+                            <dt class="col-5">Usuario</dt><dd class="col-7">${escapeHtml(user.username)}</dd>
+                            <dt class="col-5">Teléfono</dt><dd class="col-7">${escapeHtml(user.phone || 'No registrado')}</dd>
+                            <dt class="col-5">CURP</dt><dd class="col-7">${escapeHtml(user.curp || 'No registrado')}</dd>
                             <dt class="col-5">Fecha de registro</dt><dd class="col-7">${formatDate(user.registration_date)}</dd>
                             <dt class="col-5">Último acceso</dt><dd class="col-7">${formatDate(user.last_login)}</dd>
                         </dl>
-                        
+
                         ${program ? `
                         <h6 class="mt-3">Programa</h6>
-                        <p><strong>${program.name}</strong> (${program.slug})</p>
+                        <p><strong>${escapeHtml(program.name)}</strong> (${escapeHtml(program.slug)})</p>
                         ` : ''}
-                        
+
                         ${user.control_number ? `
                         <h6 class="mt-3">Número de Control</h6>
-                        <p class="font-monospace fs-5">${user.control_number}</p>
+                        <p class="font-monospace fs-5">${escapeHtml(user.control_number)}</p>
                         ` : ''}
-                        
+
                         <h6 class="mt-3">Historial Reciente</h6>
                         ${history.length > 0 ? `
                             <ul class="list-group list-group-flush">
                                 ${history.slice(0, 5).map(entry => `
                                     <li class="list-group-item px-0 py-2">
                                         <small>
-                                            <strong>${entry.action_label}</strong><br>
-                                            ${entry.admin_name} - ${formatDate(entry.timestamp)}
+                                            <strong>${escapeHtml(entry.action_label)}</strong><br>
+                                            ${escapeHtml(entry.admin_name)} - ${formatDate(entry.timestamp)}
                                         </small>
                                     </li>
                                 `).join('')}
                             </ul>
                         ` : '<p class="text-muted">Sin historial</p>'}
-                        
+
                         ${history.length > 5 ? `
-                            <button class="btn btn-sm btn-link" onclick="window.usersManager.showHistory(${userId})">
+                            <button type="button" class="btn btn-sm btn-link"
+                                    data-action="show-history" data-user-id="${escapeAttr(userId)}">
                                 Ver historial completo
                             </button>
                         ` : ''}
@@ -294,14 +353,30 @@
             }
 
         } catch (error) {
-            content.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+            content.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
         }
     }
-    
+
+    // Escucha delegada del modal de detalle: cubre el botón de historial y los
+    // botones de revocación que se inyectan después dentro del mismo contenedor.
+    function onUserDetailClick(event) {
+        const btn = event.target.closest('[data-action]');
+        if (!btn) return;
+
+        switch (btn.dataset.action) {
+            case 'show-history':
+                showHistory(btn.dataset.userId);
+                break;
+            case 'revoke-delegation':
+                revokeDelegation(btn.dataset.delegationId, btn.dataset.userId);
+                break;
+        }
+    }
+
     // Editar usuario
     async function editUser(userId) {
         try {
-            const res = await fetch(`${API_BASE}/${userId}`);
+            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}`);
             const json = await res.json();
             
             if (!res.ok) throw new Error(json.error?.message);
@@ -371,7 +446,7 @@
         if (!ok) return;
         
         try {
-            const res = await fetch(`${API_BASE}/${userId}/reset-password`, {
+            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}/reset-password`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': getCsrf()
@@ -394,7 +469,7 @@
     // Toggle activo/inactivo
     async function toggleUserActive(userId) {
         try {
-            const res = await fetch(`${API_BASE}/${userId}/toggle-active`, {
+            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}/toggle-active`, {
                 method: 'PATCH',
                 headers: {
                     'X-CSRFToken': getCsrf()
@@ -419,7 +494,7 @@
     // Asignar número de control
     async function assignControlNumber(userId) {
         try {
-            const res = await fetch(`${API_BASE}/${userId}`);
+            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}`);
             const json = await res.json();
             
             if (!res.ok) throw new Error(json.error?.message);
@@ -494,7 +569,7 @@
         modal.show();
         
         try {
-            const res = await fetch(`${API_BASE}/${userId}/history`);
+            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}/history`);
             const json = await res.json();
             
             if (!res.ok) throw new Error(json.error?.message);
@@ -512,9 +587,9 @@
                         <div class="list-group-item">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
-                                    <h6 class="mb-1">${entry.action_label}</h6>
-                                    ${entry.details ? `<p class="mb-1 small">${entry.details}</p>` : ''}
-                                    <small class="text-muted">Por: ${entry.admin_name}</small>
+                                    <h6 class="mb-1">${escapeHtml(entry.action_label)}</h6>
+                                    ${entry.details ? `<p class="mb-1 small">${escapeHtml(entry.details)}</p>` : ''}
+                                    <small class="text-muted">Por: ${escapeHtml(entry.admin_name)}</small>
                                 </div>
                                 <small class="text-muted">${formatDate(entry.timestamp)}</small>
                             </div>
@@ -522,9 +597,9 @@
                     `).join('')}
                 </div>
             `;
-            
+
         } catch (error) {
-            content.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+            content.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
         }
     }
     
@@ -546,7 +621,7 @@
             scopeInfo.classList.add('d-none');
         } else {
             const progs = (ctx.coordinatedProgramNames || []).join(', ') || '(sin programas)';
-            scopeInfo.innerHTML = `<i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Ámbito de delegación: <strong>${progs}</strong>. Los permisos se aplicarán a cada uno de tus programas coordinados.`;
+            scopeInfo.innerHTML = `<i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Ámbito de delegación: <strong>${escapeHtml(progs)}</strong>. Los permisos se aplicarán a cada uno de tus programas coordinados.`;
             scopeInfo.classList.remove('d-none');
         }
 
@@ -567,7 +642,7 @@
             }
             renderDelegatablePermissions(delegatableCache);
         } catch (error) {
-            loading.innerHTML = `<div class="alert alert-danger mb-0">${error.message}</div>`;
+            loading.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(error.message)}</div>`;
         }
     }
 
@@ -591,16 +666,16 @@
             const items = byResource[resource].map(p => `
                 <div class="form-check">
                     <input class="form-check-input ss-perm-check" type="checkbox"
-                           id="ss_perm_${p.permission_id}" value="${p.codename}">
-                    <label class="form-check-label small" for="ss_perm_${p.permission_id}">
-                        <code class="small">${p.codename}</code>
-                        <span class="text-muted ms-1">— ${p.display_name}</span>
+                           id="ss_perm_${escapeAttr(p.permission_id)}" value="${escapeAttr(p.codename)}">
+                    <label class="form-check-label small" for="ss_perm_${escapeAttr(p.permission_id)}">
+                        <code class="small">${escapeHtml(p.codename)}</code>
+                        <span class="text-muted ms-1">— ${escapeHtml(p.display_name)}</span>
                     </label>
                 </div>
             `).join('');
             return `
                 <div class="mb-2">
-                    <div class="fw-semibold text-uppercase small text-muted mb-1">${resource}</div>
+                    <div class="fw-semibold text-uppercase small text-muted mb-1">${escapeHtml(resource)}</div>
                     ${items}
                 </div>
             `;
@@ -710,7 +785,7 @@
         if (!ctx.canViewDelegations) return '';
 
         try {
-            const res = await fetch(`${PERMISSIONS_API}/user/${userId}`);
+            const res = await fetch(`${PERMISSIONS_API}/user/${encodeURIComponent(userId)}`);
             const json = await res.json();
             if (!res.ok) return '';
             const dels = json.data || [];
@@ -723,24 +798,27 @@
                 const scope = d.program_name
                     ? d.program_name
                     : (d.program_id ? `Programa #${d.program_id}` : 'Global');
+                const codename = d.permission_codename || '';
                 const expires = d.expires_at
                     ? `<small class="text-muted ms-2">Vence: ${formatDate(d.expires_at)}</small>`
                     : '';
                 const revokeBtn = (active && ctx.canRevokeDelegations)
                     ? `<button type="button" class="btn btn-sm btn-outline-danger tap-target"
-                               onclick="window.usersManager.revokeDelegation(${d.id}, ${userId})"
-                               aria-label="Revocar el permiso ${d.permission_codename || ''}"
-                               title="Revocar el permiso ${d.permission_codename || ''}">
+                               data-action="revoke-delegation"
+                               data-delegation-id="${escapeAttr(d.id)}"
+                               data-user-id="${escapeAttr(userId)}"
+                               aria-label="Revocar el permiso ${escapeAttr(codename)}"
+                               title="Revocar el permiso ${escapeAttr(codename)}">
                            <i class="bi bi-x-circle" aria-hidden="true"></i>
                        </button>`
                     : '';
                 return `
                     <tr class="${active ? '' : 'text-muted'}">
                         <th scope="row" class="fw-normal">
-                            <code class="small">${d.permission_codename || ''}</code>
-                            ${d.permission_display_name ? `<span class="text-muted small d-block">${d.permission_display_name}</span>` : ''}
+                            <code class="small">${escapeHtml(codename)}</code>
+                            ${d.permission_display_name ? `<span class="text-muted small d-block">${escapeHtml(d.permission_display_name)}</span>` : ''}
                         </th>
-                        <td>${scope}</td>
+                        <td>${escapeHtml(scope)}</td>
                         <td>
                             ${active
                                 ? '<span class="status-badge status-badge--accepted status-badge--sm"><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>Activa</span></span>'
@@ -786,7 +864,7 @@
         if (!ok) return;
 
         try {
-            const res = await fetch(`${PERMISSIONS_API}/delegation/${upId}`, {
+            const res = await fetch(`${PERMISSIONS_API}/delegation/${encodeURIComponent(upId)}`, {
                 method: 'DELETE',
                 headers: { 'X-CSRFToken': getCsrf() }
             });
@@ -876,6 +954,13 @@
     document.addEventListener('DOMContentLoaded', function() {
         // Cargar usuarios inicial
         loadUsers();
+
+        // Delegación de eventos sobre contenedores estables: las filas, la
+        // paginación y el detalle se repintan, la escucha se registra una vez.
+        document.getElementById('usersTableBody').addEventListener('click', onUsersTableClick);
+        document.getElementById('paginationControls').addEventListener('click', onPaginationClick);
+        const detailContent = document.getElementById('userDetailContent');
+        if (detailContent) detailContent.addEventListener('click', onUserDetailClick);
 
         // Tiempo real: otro admin creó/modificó/eliminó un usuario → refrescar lista
         window.addEventListener('siiap:admin_user:changed', (e) => {

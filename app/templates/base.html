@@ -333,6 +333,9 @@
     var userLoggedIn        = String(window.SIIAP_BASE.userLoggedIn);
   </script>
 
+  <!-- Escapado canónico: PRIMERO, todo lo demás depende de SIIAP.escapeHtml/escapeAttr -->
+  <script src="{{ url_for('static', filename='js/utils/escape.js') }}?v={{ static_version }}"></script>
+
   <!-- API Client + diálogos reutilizables + helpers UI -->
   <script src="{{ url_for('static', filename='js/utils/api.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/utils/dialogs.js') }}?v={{ static_version }}"></script>

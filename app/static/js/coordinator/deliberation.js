@@ -16,6 +16,7 @@ class DeliberationManager {
 
     init() {
         this.bindEvents();
+        this.bindTableActions();
         this.loadStats();
         this.loadPendingInterview();
         this.joinDeliberationRoom();
@@ -101,17 +102,21 @@ class DeliberationManager {
                         <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
                         <h3 class="empty-state__title">No se pudieron cargar los aspirantes</h3>
                         <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
-                        <p class="empty-state__error-detail">${detail || ''}</p>
+                        <p class="empty-state__error-detail">${SIIAP.escapeHtml(detail)}</p>
                     </div>
                 </td>
             </tr>`;
     }
 
-    /** Fecha corta en español; delega en el helper compartido. */
+    /**
+     * Fecha corta en español; delega en el helper compartido y devuelve el
+     * texto ya escapado, listo para insertarse en una plantilla literal.
+     */
     _formatDate(value) {
-        return window.SIIAP && SIIAP.formatDate
+        const text = SIIAP.formatDate
             ? SIIAP.formatDate(value, 'numeric', '-')
             : (value || '-');
+        return SIIAP.escapeHtml(text);
     }
 
     /** Número real de columnas del <thead> (incluye la de Programa inyectada). */
@@ -124,13 +129,6 @@ class DeliberationManager {
         if (window.SIIAP && SIIAP.announce) SIIAP.announce(message);
     }
 
-    /** Escapa un valor para usarlo dentro de un atributo HTML. */
-    _escAttr(value) {
-        return String(value == null ? '' : value)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
-
     /**
      * Celda «Programa» del modo «Todos los programas». La columna se acota por
      * CSS (.program-col): en el portátil los anchos preferidos de la tabla
@@ -140,14 +138,18 @@ class DeliberationManager {
     _programCell(name) {
         const value = name || '';
         return this._isAllMode()
-            ? `<td class="program-col text-muted small" title="${this._escAttr(value)}">${value}</td>`
+            ? `<td class="program-col text-muted small" title="${SIIAP.escapeAttr(value)}">${SIIAP.escapeHtml(value)}</td>`
             : '';
     }
 
-    /** Celda de notas: dos líneas legibles + texto completo en el title. */
-    _notesCell(text) {
-        const value = text || '-';
-        return `<td class="notes-cell" title="${this._escAttr(String(value).replace(/<[^>]*>/g, ' '))}">${value}</td>`;
+    /**
+     * Celda de notas: dos líneas legibles + texto completo en el title.
+     * `html` llega ya escapado por quien la llama (puede traer su propio
+     * <strong>/<br>); `plain` es el mismo contenido en texto plano para el
+     * atributo title.
+     */
+    _notesCell(html, plain) {
+        return `<td class="notes-cell" title="${SIIAP.escapeAttr(plain)}">${html}</td>`;
     }
 
     // ── WebSocket ─────────────────────────────────────────────────────────────
@@ -174,11 +176,14 @@ class DeliberationManager {
                 data.program_id &&
                 String(data.program_id) !== String(this.currentProgramId)) return;
 
-            // Recargar stats y la pestaña activa para reflejar el nuevo estado
+            // Recargar stats y la pestaña activa para reflejar el nuevo estado.
+            // El payload del socket nunca se pinta directamente: la tabla se
+            // vuelve a construir desde la API con los mismos renderers escapados.
             this.loadStats();
             this.loadCurrentTab();
 
-            // Notificar visualmente
+            // Notificar visualmente. showFlash() escapa el mensaje como texto,
+            // así que aquí no se pre-escapa (se vería doblemente escapado).
             window.dispatchEvent(new CustomEvent('flash', {
                 detail: {
                     level: 'info',
@@ -229,6 +234,44 @@ class DeliberationManager {
         // Confirm start deliberation
         document.getElementById('confirmStartDelibBtn')?.addEventListener('click', () => {
             this.startDeliberation();
+        });
+    }
+
+    /**
+     * Un único listener delegado para los botones de acción de las cinco
+     * tablas. Las filas se pintan con innerHTML, así que los datos del
+     * aspirante viajan en atributos data-* escapados y nunca dentro de un
+     * onclick: un nombre con comillas rompería el literal de JavaScript.
+     */
+    bindTableActions() {
+        const container = document.getElementById('statusTabsContent');
+        if (!container) return;
+
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+
+            const userId = Number(btn.dataset.userId);
+            const programId = Number(btn.dataset.programId);
+            const applicantName = btn.dataset.applicantName || '';
+
+            switch (btn.dataset.action) {
+                case 'mark-interview':
+                    this.markInterviewCompleted(userId, programId, applicantName);
+                    break;
+                case 'start-deliberation':
+                    this.showStartDeliberation(userId, programId, applicantName);
+                    break;
+                case 'decide':
+                    this.showDecisionModal(userId, programId, applicantName, btn.dataset.decision);
+                    break;
+                case 'force-reset':
+                    this.forceResetApplicant(userId, programId, applicantName);
+                    break;
+                case 'reset':
+                    this.resetApplicant(userId, programId);
+                    break;
+            }
         });
     }
 
@@ -291,13 +334,16 @@ class DeliberationManager {
         return `
             <tr>
                 ${programCell}
-                <td class="applicant-name">${user.full_name}</td>
-                <td class="applicant-email">${user.email}</td>
-                <td>${user.curp || '-'}</td>
+                <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
+                <td>${SIIAP.escapeHtml(user.curp || '-')}</td>
                 <td class="text-center">${formatDate(up.enrollment_date)}</td>
                 <td class="text-center">
-                    <button class="btn btn-sm btn-success btn-action"
-                            onclick="deliberationManager.markInterviewCompleted(${user.id}, ${up.program_id}, '${user.full_name}')">
+                    <button type="button" class="btn btn-sm btn-success btn-action"
+                            data-action="mark-interview"
+                            data-user-id="${SIIAP.escapeAttr(user.id)}"
+                            data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                            data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                         <i class="bi bi-check2-circle"></i> Marcar Completada
                     </button>
                     ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
@@ -454,14 +500,17 @@ class DeliberationManager {
                 return `
                     <tr>
                         ${programCell}
-                        <td class="applicant-name">${user.full_name}</td>
-                        <td class="applicant-email">${user.email}</td>
-                        <td>${user.curp || '-'}</td>
+                        <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                        <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
+                        <td>${SIIAP.escapeHtml(user.curp || '-')}</td>
                         <td class="text-center">${formatDate(up.enrollment_date)}</td>
                         <td class="text-center">
                             <div class="btn-group-actions">
-                                <button class="btn btn-sm btn-primary btn-action"
-                                        onclick="deliberationManager.showStartDeliberation(${user.id}, ${up.program_id}, '${user.full_name}')">
+                                <button type="button" class="btn btn-sm btn-primary btn-action"
+                                        data-action="start-deliberation"
+                                        data-user-id="${SIIAP.escapeAttr(user.id)}"
+                                        data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                                        data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                                     <i class="bi bi-play-fill"></i> Iniciar
                                 </button>
                                 ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
@@ -474,17 +523,23 @@ class DeliberationManager {
                 return `
                     <tr>
                         ${programCell}
-                        <td class="applicant-name">${user.full_name}</td>
-                        <td class="applicant-email">${user.email}</td>
+                        <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                        <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
                         <td class="text-center">${formatDate(up.deliberation_started_at)}</td>
                         <td class="text-center">
                             <div class="btn-group-actions">
-                                <button class="btn btn-sm btn-success btn-action"
-                                        onclick="deliberationManager.showDecisionModal(${user.id}, ${up.program_id}, '${user.full_name}', 'accept')">
+                                <button type="button" class="btn btn-sm btn-success btn-action"
+                                        data-action="decide" data-decision="accept"
+                                        data-user-id="${SIIAP.escapeAttr(user.id)}"
+                                        data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                                        data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                                     <i class="bi bi-check-lg"></i> Aceptar
                                 </button>
-                                <button class="btn btn-sm btn-danger btn-action"
-                                        onclick="deliberationManager.showDecisionModal(${user.id}, ${up.program_id}, '${user.full_name}', 'reject')">
+                                <button type="button" class="btn btn-sm btn-danger btn-action"
+                                        data-action="decide" data-decision="reject"
+                                        data-user-id="${SIIAP.escapeAttr(user.id)}"
+                                        data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                                        data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                                     <i class="bi bi-x-lg"></i> Rechazar
                                 </button>
                                 ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
@@ -495,19 +550,23 @@ class DeliberationManager {
 
             case 'accepted': {
                 const forceResetBtn = window.canForceReset
-                    ? `<button class="btn btn-sm btn-outline-secondary btn-action"
+                    ? `<button type="button" class="btn btn-sm btn-outline-secondary btn-action"
                                title="Reiniciar estado a En Proceso (solo admin)"
-                               onclick="deliberationManager.forceResetApplicant(${user.id}, ${up.program_id}, '${user.full_name}')">
+                               data-action="force-reset"
+                               data-user-id="${SIIAP.escapeAttr(user.id)}"
+                               data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                               data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                            <i class="bi bi-arrow-counterclockwise"></i>
                        </button>`
                     : '';
+                const notes = up.decision_notes || '-';
                 return `
                     <tr>
                         ${programCell}
-                        <td class="applicant-name">${user.full_name}</td>
-                        <td class="applicant-email">${user.email}</td>
+                        <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                        <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
                         <td class="text-center">${formatDate(up.decision_at)}</td>
-                        ${this._notesCell(up.decision_notes)}
+                        ${this._notesCell(SIIAP.escapeHtml(notes), notes)}
                         <td class="text-center">${forceResetBtn}${window.siiapStudentRecordBtn ? ' ' + window.siiapStudentRecordBtn(user.id) : ''}</td>
                     </tr>
                 `;
@@ -518,21 +577,35 @@ class DeliberationManager {
                     ? SIIAP.statusBadge('deliberation', 'Correcciones', 'sm')
                     : SIIAP.statusBadge('rejected', 'Definitivo', 'sm');
                 const resetBtn = up.rejection_type === 'partial'
-                    ? `<button class="btn btn-sm btn-outline-primary btn-action"
-                               onclick="deliberationManager.resetApplicant(${user.id}, ${up.program_id})">
+                    ? `<button type="button" class="btn btn-sm btn-outline-primary btn-action"
+                               data-action="reset"
+                               data-user-id="${SIIAP.escapeAttr(user.id)}"
+                               data-program-id="${SIIAP.escapeAttr(up.program_id)}">
                            <i class="bi bi-arrow-counterclockwise"></i> Reiniciar
                        </button>`
                     : '';
 
-                // Parsear correction_required: puede ser JSON {archive_id, archive_name, notes} o texto plano
-                let correctionDisplay = up.correction_required || up.decision_notes || '-';
+                // Parsear correction_required: puede ser JSON {archive_id, archive_name, notes} o texto plano.
+                // Se construyen dos versiones: el HTML de la celda (con el marcado
+                // propio y los datos escapados) y el texto plano para el title.
+                const correctionPlain = up.correction_required || up.decision_notes || '-';
+                let correctionHtml = SIIAP.escapeHtml(correctionPlain);
+                let correctionTitle = correctionPlain;
                 if (up.correction_required) {
                     try {
                         const corr = JSON.parse(up.correction_required);
-                        const parts = [];
-                        if (corr.archive_name) parts.push(`<strong>Documento:</strong> ${corr.archive_name}`);
-                        if (corr.notes) parts.push(corr.notes);
-                        correctionDisplay = parts.join('<br>') || '-';
+                        const htmlParts = [];
+                        const textParts = [];
+                        if (corr.archive_name) {
+                            htmlParts.push(`<strong>Documento:</strong> ${SIIAP.escapeHtml(corr.archive_name)}`);
+                            textParts.push(`Documento: ${corr.archive_name}`);
+                        }
+                        if (corr.notes) {
+                            htmlParts.push(SIIAP.escapeHtml(corr.notes));
+                            textParts.push(corr.notes);
+                        }
+                        correctionHtml = htmlParts.join('<br>') || '-';
+                        correctionTitle = textParts.join(' ') || '-';
                     } catch (e) {
                         // No es JSON, usar el texto tal cual
                     }
@@ -541,11 +614,11 @@ class DeliberationManager {
                 return `
                     <tr>
                         ${programCell}
-                        <td class="applicant-name">${user.full_name}</td>
-                        <td class="applicant-email">${user.email}</td>
+                        <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                        <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
                         <td class="text-center">${rejectionBadge}</td>
                         <td class="text-center">${formatDate(up.decision_at)}</td>
-                        ${this._notesCell(correctionDisplay)}
+                        ${this._notesCell(correctionHtml, correctionTitle)}
                         <td class="text-center">${resetBtn}${window.siiapStudentRecordBtn ? ' ' + window.siiapStudentRecordBtn(user.id) : ''}</td>
                     </tr>
                 `;

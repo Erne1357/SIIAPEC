@@ -33,7 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (programFilter && data.programs) {
         programFilter.innerHTML = '<option value="">Todos los programas</option>' +
-          data.programs.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+          data.programs.map(p =>
+            `<option value="${SIIAP.escapeAttr(p.id)}">${SIIAP.escapeHtml(p.name)}</option>`
+          ).join('');
       }
     } catch (err) {
       console.error('Error loading programs:', err);
@@ -94,49 +96,53 @@ document.addEventListener('DOMContentLoaded', () => {
       .filter(s => s.current_phase === 'admission')
       .sort((a, b) => a.progress_percentage - b.progress_percentage);
 
-    tbody.innerHTML = admissionStudents.map(student => `
-      <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}" 
+    tbody.innerHTML = admissionStudents.map(student => {
+      // Numeric coercion for the CSS custom property: a string value here would
+      // be a style-attribute injection, and escaping alone does not fix that.
+      const progress = Number(student.progress_percentage) || 0;
+      return `
+      <tr data-student-id="${SIIAP.escapeAttr(student.id)}" class="${student.can_manage ? '' : 'table-secondary'}"
           title="${student.can_manage ? '' : 'Solo consulta - Programa de otro coordinador'}">
         <td>
-          <img src="${student.avatar_url || '/static/assets/images/default.jpg'}" 
+          <img src="${SIIAP.escapeAttr(student.avatar_url || '/static/assets/images/default.jpg')}"
                alt="" class="rounded-circle avatar-xs">
         </td>
         <td>
           <div>
-            <div class="fw-semibold">${student.full_name}</div>
-            <small class="text-muted">${student.email}</small>
+            <div class="fw-semibold">${SIIAP.escapeHtml(student.full_name)}</div>
+            <small class="text-muted">${SIIAP.escapeHtml(student.email)}</small>
           </div>
         </td>
         <td>
-          <span class="text-secondary small">${student.program_name}</span>
+          <span class="text-secondary small">${SIIAP.escapeHtml(student.program_name)}</span>
           ${!student.can_manage ? '<i class="bi bi-eye text-secondary ms-1" aria-hidden="true"></i><span class="visually-hidden">Solo consulta</span>' : ''}
         </td>
         <td class="text-center">
-          <div class="progress" role="progressbar" aria-valuenow="${student.progress_percentage}"
+          <div class="progress" role="progressbar" aria-valuenow="${progress}"
                aria-valuemin="0" aria-valuemax="100" aria-label="Progreso documental">
-            <div class="progress-bar progress-bar--dynamic" style="--progress: ${student.progress_percentage}%"></div>
+            <div class="progress-bar progress-bar--dynamic" style="--progress: ${progress}%"></div>
           </div>
-          <small class="text-secondary">${student.progress_percentage}% completado</small>
+          <small class="text-secondary">${progress}% completado</small>
         </td>
         <td class="text-center">
-          <span class="badge bg-success me-1" title="Aprobados">${student.approved_docs}<span class="visually-hidden"> aprobados</span></span>
-          <span class="badge bg-warning me-1" title="Pendientes">${student.pending_docs}<span class="visually-hidden"> pendientes</span></span>
-          <span class="badge bg-info me-1" title="En prórroga">${student.extended_docs}<span class="visually-hidden"> en prórroga</span></span>
-          <span class="badge bg-danger" title="Rechazados">${student.rejected_docs}<span class="visually-hidden"> rechazados</span></span>
+          <span class="badge bg-success me-1" title="Aprobados">${SIIAP.escapeHtml(student.approved_docs)}<span class="visually-hidden"> aprobados</span></span>
+          <span class="badge bg-warning me-1" title="Pendientes">${SIIAP.escapeHtml(student.pending_docs)}<span class="visually-hidden"> pendientes</span></span>
+          <span class="badge bg-info me-1" title="En prórroga">${SIIAP.escapeHtml(student.extended_docs)}<span class="visually-hidden"> en prórroga</span></span>
+          <span class="badge bg-danger" title="Rechazados">${SIIAP.escapeHtml(student.rejected_docs)}<span class="visually-hidden"> rechazados</span></span>
         </td>
         <td class="text-center">
           ${getStatusBadge(student.overall_status)}
         </td>
         <td>
           <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary btn-view-student" 
-                    data-student-id="${student.id}" title="Ver detalles">
+            <button class="btn btn-outline-primary btn-view-student"
+                    data-student-id="${SIIAP.escapeAttr(student.id)}" title="Ver detalles">
               <i class="bi bi-eye"></i>
             </button>
             ${student.can_manage ? `
             <button type="button" class="btn btn-outline-success btn-upload-for tap-target"
-                    data-student-id="${student.id}" title="Subir documento"
-                    aria-label="Subir documento de ${student.full_name}">
+                    data-student-id="${SIIAP.escapeAttr(student.id)}" title="Subir documento"
+                    aria-label="Subir documento de ${SIIAP.escapeAttr(student.full_name)}">
               <i class="bi bi-upload" aria-hidden="true"></i>
             </button>
             ` : ''}
@@ -144,7 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </td>
       </tr>
-    `).join('') || emptyRow(7, 'people', 'Sin estudiantes en admisión',
+    `;
+    }).join('') || emptyRow(7, 'people', 'Sin estudiantes en admisión',
         'Ajusta los filtros o espera a que se registren nuevos aspirantes.');
     SIIAP.announce(`${admissionStudents.length} estudiante(s) en admisión.`);
   }
@@ -157,24 +164,24 @@ document.addEventListener('DOMContentLoaded', () => {
       .sort((a, b) => a.academic_progress - b.academic_progress);
 
     tbody.innerHTML = permanenceStudents.map(student => `
-      <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}"
+      <tr data-student-id="${SIIAP.escapeAttr(student.id)}" class="${student.can_manage ? '' : 'table-secondary'}"
           title="${student.can_manage ? '' : 'Solo consulta - Programa de otro coordinador'}">
         <td>
-          <img src="${student.avatar_url || '/static/assets/images/default.jpg'}"
+          <img src="${SIIAP.escapeAttr(student.avatar_url || '/static/assets/images/default.jpg')}"
                alt="" class="rounded-circle avatar-xs">
         </td>
         <td>
           <div>
-            <div class="fw-semibold">${student.full_name}</div>
-            <small class="text-muted">${student.email}</small>
+            <div class="fw-semibold">${SIIAP.escapeHtml(student.full_name)}</div>
+            <small class="text-muted">${SIIAP.escapeHtml(student.email)}</small>
           </div>
         </td>
         <td>
-          <span class="text-secondary small">${student.program_name}</span>
+          <span class="text-secondary small">${SIIAP.escapeHtml(student.program_name)}</span>
           ${!student.can_manage ? '<i class="bi bi-eye text-secondary ms-1" aria-hidden="true"></i><span class="visually-hidden">Solo consulta</span>' : ''}
         </td>
         <td class="text-center">
-          <span class="badge bg-secondary">${student.current_semester || '—'}</span>
+          <span class="badge bg-secondary">${SIIAP.escapeHtml(student.current_semester || '—')}</span>
           <span class="visually-hidden">semestre</span>
         </td>
         <td class="text-center">
@@ -186,9 +193,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>
           <div class="btn-group btn-group-sm" role="group">
             <button type="button" class="btn btn-outline-info btn-view-permanence tap-target"
-                    data-student-id="${student.id}"
+                    data-student-id="${SIIAP.escapeAttr(student.id)}"
                     title="Ver detalle de permanencia"
-                    aria-label="Ver detalle de permanencia de ${student.full_name}">
+                    aria-label="Ver detalle de permanencia de ${SIIAP.escapeAttr(student.full_name)}">
               <i class="bi bi-person-badge" aria-hidden="true"></i>
             </button>
             ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(student.id) : ''}
@@ -207,32 +214,35 @@ document.addEventListener('DOMContentLoaded', () => {
       .filter(s => s.current_phase === 'conclusion')
       .sort((a, b) => a.conclusion_progress - b.conclusion_progress);
 
-    tbody.innerHTML = conclusionStudents.map(student => `
-      <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}"
+    tbody.innerHTML = conclusionStudents.map(student => {
+      // Numeric coercion for the CSS custom property (style-attribute injection).
+      const progress = Number(student.conclusion_progress) || 0;
+      return `
+      <tr data-student-id="${SIIAP.escapeAttr(student.id)}" class="${student.can_manage ? '' : 'table-secondary'}"
           title="${student.can_manage ? '' : 'Solo consulta - Programa de otro coordinador'}">
         <td>
-          <img src="${student.avatar_url || '/static/assets/images/default.jpg'}" 
+          <img src="${SIIAP.escapeAttr(student.avatar_url || '/static/assets/images/default.jpg')}"
                alt="" class="rounded-circle avatar-xs">
         </td>
         <td>
           <div>
-            <div class="fw-semibold">${student.full_name}</div>
-            <small class="text-muted">${student.email}</small>
+            <div class="fw-semibold">${SIIAP.escapeHtml(student.full_name)}</div>
+            <small class="text-muted">${SIIAP.escapeHtml(student.email)}</small>
           </div>
         </td>
         <td>
-          <span class="text-secondary small">${student.program_name}</span>
+          <span class="text-secondary small">${SIIAP.escapeHtml(student.program_name)}</span>
           ${!student.can_manage ? '<i class="bi bi-eye text-secondary ms-1" aria-hidden="true"></i><span class="visually-hidden">Solo consulta</span>' : ''}
         </td>
         <td class="text-center">
-          <span class="badge bg-secondary">${student.conclusion_stage || 'Inicial'}</span>
+          <span class="badge bg-secondary">${SIIAP.escapeHtml(student.conclusion_stage || 'Inicial')}</span>
         </td>
         <td class="text-center">
-          <div class="progress" role="progressbar" aria-valuenow="${student.conclusion_progress}"
+          <div class="progress" role="progressbar" aria-valuenow="${progress}"
                aria-valuemin="0" aria-valuemax="100" aria-label="Progreso de conclusión">
-            <div class="progress-bar progress-bar--dynamic bg-success" style="--progress: ${student.conclusion_progress}%"></div>
+            <div class="progress-bar progress-bar--dynamic bg-success" style="--progress: ${progress}%"></div>
           </div>
-          <small class="text-secondary">${student.conclusion_progress}% completado</small>
+          <small class="text-secondary">${progress}% completado</small>
         </td>
         <td class="text-center">
           ${getStatusBadge(student.conclusion_status)}
@@ -240,15 +250,16 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>
           <div class="btn-group btn-group-sm" role="group">
             <button type="button" class="btn btn-outline-primary btn-view-student tap-target"
-                    data-student-id="${student.id}" title="Ver detalles"
-                    aria-label="Ver detalles de ${student.full_name}">
+                    data-student-id="${SIIAP.escapeAttr(student.id)}" title="Ver detalles"
+                    aria-label="Ver detalles de ${SIIAP.escapeAttr(student.full_name)}">
               <i class="bi bi-eye" aria-hidden="true"></i>
             </button>
             ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(student.id) : ''}
           </div>
         </td>
       </tr>
-    `).join('') || emptyRow(7, 'award', 'Sin estudiantes en conclusión',
+    `;
+    }).join('') || emptyRow(7, 'award', 'Sin estudiantes en conclusión',
         'Ajusta los filtros o espera a que avancen a la fase de conclusión.');
     SIIAP.announce(`${conclusionStudents.length} estudiante(s) en conclusión.`);
   }
@@ -308,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="progress-bar progress-bar--dynamic bg-info" style="--progress: ${completed}%"></div>
         ${inProgressBar}
       </div>
-      <small class="text-secondary">${completedSemesters} de ${total} semestres · ${completed}%</small>
+      <small class="text-secondary">${SIIAP.escapeHtml(completedSemesters)} de ${SIIAP.escapeHtml(total)} semestres · ${completed}%</small>
     `;
   }
 
@@ -428,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.show();
 
     try {
-      const res = await fetch(`/api/v1/coordinator/student/${studentId}/details`, {
+      const res = await fetch(`/api/v1/coordinator/student/${encodeURIComponent(studentId)}/details`, {
         credentials: 'same-origin'
       });
 
@@ -444,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('modalContent').innerHTML = `
       <div class="alert alert-danger">
         <i class="bi bi-exclamation-triangle-fill me-2"></i>
-        Error al cargar información: ${err.message}
+        Error al cargar información: ${SIIAP.escapeHtml(err.message)}
       </div>
     `;
     }
@@ -468,6 +479,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderGeneralTab(student, metrics, missing) {
     const generalContent = document.getElementById('generalTabContent');
+    // Numeric coercion for the CSS custom property (style-attribute injection).
+    const progress = Number(metrics.progress_percentage) || 0;
 
     generalContent.innerHTML = `
     <!-- Métricas -->
@@ -475,28 +488,28 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="col-6 col-md-3">
         <div class="stat-card stat-card--success h-100">
           <i class="bi bi-check-circle-fill stat-card__icon" aria-hidden="true"></i>
-          <p class="stat-card__value">${metrics.approved}</p>
+          <p class="stat-card__value">${SIIAP.escapeHtml(metrics.approved)}</p>
           <p class="stat-card__label">Aprobados</p>
         </div>
       </div>
       <div class="col-6 col-md-3">
         <div class="stat-card stat-card--warning h-100">
           <i class="bi bi-hourglass-split stat-card__icon" aria-hidden="true"></i>
-          <p class="stat-card__value">${metrics.pending}</p>
+          <p class="stat-card__value">${SIIAP.escapeHtml(metrics.pending)}</p>
           <p class="stat-card__label">Pendientes</p>
         </div>
       </div>
       <div class="col-6 col-md-3">
         <div class="stat-card stat-card--danger h-100">
           <i class="bi bi-x-circle-fill stat-card__icon" aria-hidden="true"></i>
-          <p class="stat-card__value">${metrics.rejected}</p>
+          <p class="stat-card__value">${SIIAP.escapeHtml(metrics.rejected)}</p>
           <p class="stat-card__label">Rechazados</p>
         </div>
       </div>
       <div class="col-6 col-md-3">
         <div class="stat-card stat-card--info h-100">
           <i class="bi bi-clock-history stat-card__icon" aria-hidden="true"></i>
-          <p class="stat-card__value">${metrics.extended}</p>
+          <p class="stat-card__value">${SIIAP.escapeHtml(metrics.extended)}</p>
           <p class="stat-card__label">En prórroga</p>
         </div>
       </div>
@@ -506,10 +519,10 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="mb-4">
       <h4 class="h6 mb-2">Progreso general</h4>
       <div class="progress progress--lg" role="progressbar"
-           aria-valuenow="${metrics.progress_percentage}" aria-valuemin="0" aria-valuemax="100"
+           aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"
            aria-label="Progreso general del expediente">
-        <div class="progress-bar progress-bar--dynamic bg-success" style="--progress: ${metrics.progress_percentage}%">
-          ${metrics.progress_percentage}%
+        <div class="progress-bar progress-bar--dynamic bg-success" style="--progress: ${progress}%">
+          ${progress}%
         </div>
       </div>
     </div>
@@ -535,8 +548,8 @@ document.addEventListener('DOMContentLoaded', () => {
           ${missing.map(item => `
             <li class="list-group-item d-flex justify-content-between align-items-center">
               <div>
-                <strong>${item.archive}</strong>
-                <small class="d-block text-muted">${item.step}</small>
+                <strong>${SIIAP.escapeHtml(item.archive)}</strong>
+                <small class="d-block text-muted">${SIIAP.escapeHtml(item.step)}</small>
               </div>
               ${item.status === 'rejected'
                 ? SIIAP.statusBadge('rejected', 'Rechazado', 'sm')
@@ -553,27 +566,27 @@ document.addEventListener('DOMContentLoaded', () => {
       <dl class="row g-3 mb-0">
         <div class="col-md-6">
           <dt class="small text-secondary fw-normal">Teléfono</dt>
-          <dd class="mb-0">${student.profile_data.phone || student.profile_data.mobile_phone || 'No registrado'}</dd>
+          <dd class="mb-0">${SIIAP.escapeHtml(student.profile_data.phone || student.profile_data.mobile_phone || 'No registrado')}</dd>
         </div>
         <div class="col-md-6">
           <dt class="small text-secondary fw-normal">CURP</dt>
-          <dd class="mb-0">${student.profile_data.curp || 'No registrado'}</dd>
+          <dd class="mb-0">${SIIAP.escapeHtml(student.profile_data.curp || 'No registrado')}</dd>
         </div>
         <div class="col-md-6">
           <dt class="small text-secondary fw-normal">Fecha de nacimiento</dt>
-          <dd class="mb-0">${SIIAP.formatDate(student.profile_data.birth_date, 'long', 'No registrado')}</dd>
+          <dd class="mb-0">${SIIAP.escapeHtml(SIIAP.formatDate(student.profile_data.birth_date, 'long', 'No registrado'))}</dd>
         </div>
         <div class="col-md-6">
           <dt class="small text-secondary fw-normal">NSS</dt>
-          <dd class="mb-0">${student.profile_data.nss || 'No registrado'}</dd>
+          <dd class="mb-0">${SIIAP.escapeHtml(student.profile_data.nss || 'No registrado')}</dd>
         </div>
         <div class="col-12">
           <dt class="small text-secondary fw-normal">Contacto de emergencia</dt>
           <dd class="mb-0">
-            ${student.profile_data.emergency_contact.name || 'No registrado'}
+            ${SIIAP.escapeHtml(student.profile_data.emergency_contact.name || 'No registrado')}
             <small class="d-block text-secondary">
-              ${student.profile_data.emergency_contact.phone || ''}
-              ${student.profile_data.emergency_contact.relationship ? `(${student.profile_data.emergency_contact.relationship})` : ''}
+              ${SIIAP.escapeHtml(student.profile_data.emergency_contact.phone || '')}
+              ${student.profile_data.emergency_contact.relationship ? `(${SIIAP.escapeHtml(student.profile_data.emergency_contact.relationship)})` : ''}
             </small>
           </dd>
         </div>
@@ -596,12 +609,12 @@ document.addEventListener('DOMContentLoaded', () => {
     docsContent.innerHTML = readOnlyWarning + documents.map(step => `
     <section class="mb-4">
       <h4 class="h6 d-flex align-items-center gap-2 mb-2">
-        <span>${step.sequence}. ${step.step_name}</span>
+        <span>${SIIAP.escapeHtml(step.sequence)}. ${SIIAP.escapeHtml(step.step_name)}</span>
         ${getArchiveStatusBadge(step.state)}
       </h4>
       <div class="siiap-table-wrapper">
           <table class="table siiap-table table-sm table-hover mb-0">
-            <caption class="visually-hidden">Documentos de la etapa ${step.step_name}</caption>
+            <caption class="visually-hidden">Documentos de la etapa ${SIIAP.escapeHtml(step.step_name)}</caption>
             <thead class="table-light">
               <tr>
                 <th scope="col">Documento</th>
@@ -615,29 +628,29 @@ document.addEventListener('DOMContentLoaded', () => {
               ${step.archives.map(arch => `
                 <tr>
                   <td>
-                    <strong>${arch.name}</strong>
+                    <strong>${SIIAP.escapeHtml(arch.name)}</strong>
                     ${arch.uploaded_by_role === 'program_admin' ? '<i class="bi bi-person-vcard-fill text-brand-primary ms-1" title="Subido por coordinador" aria-hidden="true"></i><span class="visually-hidden">Subido por el coordinador</span>' : ''}
                   </td>
                   <td class="text-center">
                     ${getArchiveStatusBadge(arch.status)}
                   </td>
-                  <td>${SIIAP.formatDate(arch.uploaded_at, 'numeric', '-')}</td>
+                  <td>${SIIAP.escapeHtml(SIIAP.formatDate(arch.uploaded_at, 'numeric', '-'))}</td>
                   <td>
-                    <small class="text-secondary">${arch.reviewer_comment || '-'}</small>
+                    <small class="text-secondary">${SIIAP.escapeHtml(arch.reviewer_comment || '-')}</small>
                   </td>
                   <td class="text-center">
                     <div class="btn-group btn-group-sm" role="group">
                       ${arch.has_submission ? `
-                        <a href="${arch.file_url}" target="_blank" rel="noopener"
+                        <a href="${SIIAP.escapeAttr(arch.file_url)}" target="_blank" rel="noopener"
                            class="btn btn-outline-primary tap-target"
-                           title="Ver documento" aria-label="Ver documento ${arch.name} (se abre en una pestaña nueva)">
+                           title="Ver documento" aria-label="Ver documento ${SIIAP.escapeAttr(arch.name)} (se abre en una pestaña nueva)">
                           <i class="bi bi-eye" aria-hidden="true"></i>
                         </a>
                       ` : ''}
                       ${canManage && arch.allow_coordinator_upload ? `
                         <button type="button" class="btn btn-outline-success btn-upload-for-modal tap-target"
-                                data-student-id="${studentId}" data-archive-id="${arch.id}"
-                                title="Subir documento" aria-label="Subir documento ${arch.name}">
+                                data-student-id="${SIIAP.escapeAttr(studentId)}" data-archive-id="${SIIAP.escapeAttr(arch.id)}"
+                                title="Subir documento" aria-label="Subir documento ${SIIAP.escapeAttr(arch.name)}">
                           <i class="bi bi-upload" aria-hidden="true"></i>
                         </button>
                       ` : ''}
@@ -686,7 +699,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <p class="mb-2 small"><strong>Elementos faltantes:</strong></p>
         <ul class="small mb-0">
           ${eligibility.missing_items.map(item => `
-            <li>${item.type === 'profile' ? item.description : `${item.step}: ${item.archive} (${item.current_status})`}</li>
+            <li>${item.type === 'profile'
+              ? SIIAP.escapeHtml(item.description)
+              : `${SIIAP.escapeHtml(item.step)}: ${SIIAP.escapeHtml(item.archive)} (${SIIAP.escapeHtml(item.current_status)})`}</li>
           `).join('')}
         </ul>
       ` : ''}
@@ -706,20 +721,20 @@ document.addEventListener('DOMContentLoaded', () => {
           <dl class="row g-3 mb-0">
             <div class="col-md-6">
               <dt class="small text-secondary fw-normal">Evento</dt>
-              <dd class="mb-0"><strong>${appt.event.title}</strong></dd>
+              <dd class="mb-0"><strong>${SIIAP.escapeHtml(appt.event.title)}</strong></dd>
             </div>
             <div class="col-md-6">
               <dt class="small text-secondary fw-normal">Fecha y hora</dt>
               <dd class="mb-0">
-                ${SIIAP.formatDate(appt.slot.starts_at, 'long', '—')}
+                ${SIIAP.escapeHtml(SIIAP.formatDate(appt.slot.starts_at, 'long', '—'))}
                 <small class="d-block text-secondary">
-                  ${SIIAP.formatTime(appt.slot.starts_at, '—')} – ${SIIAP.formatTime(appt.slot.ends_at, '—')}
+                  ${SIIAP.escapeHtml(SIIAP.formatTime(appt.slot.starts_at, '—'))} – ${SIIAP.escapeHtml(SIIAP.formatTime(appt.slot.ends_at, '—'))}
                 </small>
               </dd>
             </div>
             <div class="col-md-6">
               <dt class="small text-secondary fw-normal">Lugar</dt>
-              <dd class="mb-0">${appt.event.location || 'Por confirmar'}</dd>
+              <dd class="mb-0">${SIIAP.escapeHtml(appt.event.location || 'Por confirmar')}</dd>
             </div>
             <div class="col-md-6">
               <dt class="small text-secondary fw-normal">Estado</dt>
@@ -728,7 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ${appt.notes ? `
               <div class="col-12">
                 <dt class="small text-secondary fw-normal">Notas</dt>
-                <dd class="mb-0 small">${appt.notes}</dd>
+                <dd class="mb-0 small">${SIIAP.escapeHtml(appt.notes)}</dd>
               </div>
             ` : ''}
           </dl>
@@ -906,7 +921,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const select = document.getElementById('targetStudent');
 
       select.innerHTML = '<option value="">Seleccionar estudiante...</option>' +
-        data.students.map(s => `<option value="${s.id}">${s.full_name} - ${s.program_name}</option>`).join('');
+        data.students.map(s =>
+          `<option value="${SIIAP.escapeAttr(s.id)}">${SIIAP.escapeHtml(s.full_name)} - ${SIIAP.escapeHtml(s.program_name)}</option>`
+        ).join('');
 
     } catch (err) {
       console.error('Error loading students list:', err);
@@ -915,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadStudentArchives(studentId) {
     try {
-      const res = await fetch(`/api/v1/coordinator/student/${studentId}/uploadable-archives`, {
+      const res = await fetch(`/api/v1/coordinator/student/${encodeURIComponent(studentId)}/uploadable-archives`, {
         credentials: 'same-origin'
       });
 
@@ -929,7 +946,9 @@ document.addEventListener('DOMContentLoaded', () => {
         select.disabled = true;
       } else {
         select.innerHTML = '<option value="">Seleccionar archivo...</option>' +
-          data.archives.map(a => `<option value="${a.id}">${a.name} (${a.step_name})</option>`).join('');
+          data.archives.map(a =>
+            `<option value="${SIIAP.escapeAttr(a.id)}">${SIIAP.escapeHtml(a.name)} (${SIIAP.escapeHtml(a.step_name)})</option>`
+          ).join('');
         select.disabled = false;
       }
 
@@ -977,7 +996,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.show();
 
     try {
-      const res = await fetch(`/api/v1/coordinator/student/${studentId}/permanence-details`, {
+      const res = await fetch(`/api/v1/coordinator/student/${encodeURIComponent(studentId)}/permanence-details`, {
         credentials: 'same-origin'
       });
       const data = await res.json();
@@ -986,7 +1005,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       document.getElementById('permModalSpinner').innerHTML = `
         <div class="alert alert-danger">
-          <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>No se pudo cargar el detalle: ${err.message}
+          <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>No se pudo cargar el detalle: ${SIIAP.escapeHtml(err.message)}
         </div>`;
     }
   }
@@ -1035,15 +1054,15 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="col-6 col-md-4">
         <div class="stat-card stat-card--brand h-100">
           <i class="bi bi-mortarboard-fill stat-card__icon" aria-hidden="true"></i>
-          <p class="stat-card__value">${user_program.current_semester}</p>
+          <p class="stat-card__value">${SIIAP.escapeHtml(user_program.current_semester)}</p>
           <p class="stat-card__label">Semestre actual</p>
         </div>
       </div>
       <div class="col-6 col-md-4">
         <div class="stat-card stat-card--info h-100">
           <i class="bi bi-calendar-event-fill stat-card__icon" aria-hidden="true"></i>
-          <p class="kpi-value kpi-value--sm">${active_period ? active_period.name : '—'}</p>
-          <p class="stat-card__label">${active_period ? active_period.code : 'Sin periodo activo'}</p>
+          <p class="kpi-value kpi-value--sm">${active_period ? SIIAP.escapeHtml(active_period.name) : '—'}</p>
+          <p class="stat-card__label">${active_period ? SIIAP.escapeHtml(active_period.code) : 'Sin periodo activo'}</p>
         </div>
       </div>
       <div class="col-12 col-md-4">
@@ -1116,10 +1135,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="row g-2 align-items-center">
           <div class="col-auto">${semesterStatusBadge(current_enrollment.status)}</div>
           ${current_enrollment.enrollment_confirmed
-            ? `<div class="col-auto small text-secondary">Confirmada${confirmedAt ? ' el ' + confirmedAt : ''}</div>`
+            ? `<div class="col-auto small text-secondary">Confirmada${confirmedAt ? ' el ' + SIIAP.escapeHtml(confirmedAt) : ''}</div>`
             : `<div class="col-auto small text-secondary">Pendiente de confirmación por el coordinador</div>`}
           ${current_enrollment.notes
-            ? `<div class="col-12"><small class="text-secondary fst-italic">"${current_enrollment.notes}"</small></div>`
+            ? `<div class="col-12"><small class="text-secondary fst-italic">"${SIIAP.escapeHtml(current_enrollment.notes)}"</small></div>`
             : ''}
         </div>`;
     }
@@ -1153,10 +1172,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '<i class="bi bi-dash-circle text-secondary" aria-hidden="true"></i><span class="visually-hidden">Sin confirmar</span>';
               return `
                 <tr>
-                  <td class="text-center fw-bold">Sem. ${h.semester_number}</td>
+                  <td class="text-center fw-bold">Sem. ${SIIAP.escapeHtml(h.semester_number)}</td>
                   <td>
-                    ${h.period_name}
-                    <span class="badge bg-secondary ms-1">${h.period_code}</span>
+                    ${SIIAP.escapeHtml(h.period_name)}
+                    <span class="badge bg-secondary ms-1">${SIIAP.escapeHtml(h.period_code)}</span>
                   </td>
                   <td class="text-center">${semesterStatusBadge(h.status)}</td>
                   <td class="text-center">${confirmedIcon}</td>
