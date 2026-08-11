@@ -27,8 +27,23 @@ Two tiers, deliberately named so the call site reads unambiguously:
      return True; there is no other door.
 
 Global admins (`User.get_accessible_program_ids()` returns None — i.e. the
-postgraduate_admin, who holds `academic_periods.api.create`) are in scope for
-everything and both tiers return True for them.
+postgraduate_admin, whose ROLE grants `academic_periods.api.create`) are in
+scope for everything and both tiers return True for them. Global scope is a
+role-level fact on purpose: `User.has_global_program_scope()` ignores
+delegations, so a delegation of that codename scoped to one program can never
+turn its holder into a global admin.
+
+Where a non-global scope comes from (`User.get_accessible_program_ids()`):
+  - the programs the user coordinates (`Program.coordinator_id`), plus
+  - the program of each active delegation THAT ADDS A CAPABILITY — a delegated
+    codename the user's role already grants contributes nothing, so nobody can
+    widen their reach by handing themselves (or being handed) a permission they
+    already had. A delegation with `program_id = NULL` adds no scope either.
+
+Permission ≠ scope, and the permission layer no longer pretends otherwise:
+`User.has_permission(codename)` takes NO program_id and answers only "may this
+account do this at all". Every "may it do it HERE" question comes through this
+module.
 
 Framework-agnostic by contract: no `request`, no `g`, no `current_user` in
 this module. Callers pass User objects / ids explicitly. The Flask-facing

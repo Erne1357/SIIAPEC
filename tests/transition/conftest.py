@@ -106,12 +106,33 @@ def _make_perm(codename, role):
 
 @pytest.fixture
 def permissions(app, roles):
-    """Mapea los permisos de la transición a los roles correctos."""
+    """
+    Mapea los permisos de la transición a los roles correctos.
+
+    Réplica de `database/DML/permissions/02_role_permissions.sql`: el rol
+    postgraduate_admin lleva ahí `academic_periods.api.create` (el marcador de
+    alcance global, sin el cual no alcanza ningún programa concreto) y
+    `permanence.api.transition_all` (el modo "todos los programas"). Omitirlos
+    daba un jefe de posgrado que no existe en producción.
+    """
+    _make_perm('academic_periods.api.create', roles['postgraduate_admin'])
     _make_perm('permanence.api.advance_bulk', roles['postgraduate_admin'])
+    _make_perm('permanence.api.transition_all', roles['postgraduate_admin'])
     _make_perm('permanence.api.upload_my_payment', roles['student'])
     _make_perm('permanence.api.view_my_enrollment', roles['student'])
     _make_perm('permanence.api.list_students', roles['program_admin'])
     _make_perm('permanence.api.confirm_enrollment', roles['program_admin'])
+    return True
+
+
+@pytest.fixture
+def coordinator_advance_bulk(app, roles, permissions):
+    """
+    Concede `permanence.api.advance_bulk` al rol program_admin, SIN
+    `transition_all`: el despliegue que delega el avance masivo a las
+    coordinaciones. Debe poder correr la transición de su propio programa.
+    """
+    _make_perm('permanence.api.advance_bulk', roles['program_admin'])
     return True
 
 
@@ -188,6 +209,18 @@ def program(app, coordinator):
     p = Program(
         name='Test MII', description='Test', coordinator_id=coordinator.id,
         slug='test-mii', is_active=True, duration_semesters=4,
+    )
+    db.session.add(p)
+    db.session.flush()
+    return p
+
+
+@pytest.fixture
+def foreign_program(app, postgrad_admin):
+    """Programa ajeno: lo coordina el jefe de posgrado, no `coordinator`."""
+    p = Program(
+        name='Test MAI', description='Test', coordinator_id=postgrad_admin.id,
+        slug='test-mai', is_active=True, duration_semesters=4,
     )
     db.session.add(p)
     db.session.flush()

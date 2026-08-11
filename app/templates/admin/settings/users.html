@@ -229,13 +229,34 @@
 
       <hr>
 
+      {# Alcance de la cuenta. Una delegación sin programa no otorga acceso a
+         ningún expediente, así que la cuenta tiene que nacer atada a programas
+         concretos: para el jefe de posgrado, los que elija aquí; para un
+         coordinador, los que ya están a su alcance. #}
+      <div class="mb-2">
+        <h3 class="h6 mb-1"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Programas de la cuenta</h3>
+        <p class="text-muted small mb-0">
+          Los permisos delegados solo tendrán efecto dentro de estos programas.
+        </p>
+      </div>
+      <div id="ss_scope_info" class="alert alert-secondary small py-2 mb-3 d-none"></div>
+      <div id="ss_programs_block" class="mb-3 d-none">
+        <fieldset>
+          <legend class="form-label">
+            Selecciona los programas<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>
+          </legend>
+          <div id="ss_programs_list" class="border rounded p-3" aria-live="polite"></div>
+        </fieldset>
+      </div>
+
+      <hr>
+
       <div class="mb-2">
         <h3 class="h6 mb-1"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Permisos a delegar</h3>
         <p class="text-muted small mb-0">
           Selecciona los permisos que este usuario podrá ejercer en tu nombre.
         </p>
       </div>
-      <div id="ss_scope_info" class="alert alert-secondary small py-2 mb-2 d-none"></div>
       <div id="ss_permissions_loading" class="text-center py-3">
         <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
         <span class="ms-2">Cargando permisos delegables…</span>
@@ -266,7 +287,10 @@
 <script>
   window.SIIAP_USERS_CTX = {
     canCreateSocialService: {{ has_perm('admin_users.api.create_social_service')|tojson }},
-    canDelegateGlobal:      {{ has_perm('academic_periods.api.create')|tojson }},
+    {# Alcance global = hecho de ROL, nunca un permiso delegado. Con has_perm()
+       una delegación de 'academic_periods.api.create' sobre UN programa ponía
+       esta bandera en true y la UI ofrecía delegar sobre todos. #}
+    canDelegateGlobal:      {{ current_user.has_global_program_scope()|tojson }},
     canViewDelegations:     {{ has_perm('permissions.api.list_user_permissions')|tojson }},
     canRevokeDelegations:   {{ has_perm('permissions.api.revoke_delegation')|tojson }},
     coordinatedPrograms:    {{ (current_user.coordinated_programs | map(attribute='id') | list)|tojson }},

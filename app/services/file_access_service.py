@@ -40,17 +40,44 @@ from app.services import program_scope_service
 VIEW_DOC_OTHERS_PERMISSION = 'files.api.view_doc_others'
 
 
+# Two storage formats coexist in the database. save_user_doc() returns
+# '<user_id>/<phase>/<filename>', relative to USER_DOCS_FOLDER, and that is what
+# new rows carry. Older rows were written relative to UPLOAD_FOLDER instead and
+# carry a leading 'documents/'. In the production dump the split is 121 of 227
+# Submission rows and 21 of 21 AcceptanceDocument rows on the prefixed form.
+_LEGACY_PREFIX = 'documents/'
+
+
 def normalize_relative_path(relative_path: str) -> Optional[str]:
     """
-    Normalise a stored/served relative path so it can be compared against the
-    value persisted in the database ('42/admission/acta.pdf').
+    Normalise a stored/served relative path to the canonical, unprefixed form
+    ('42/admission/acta.pdf').
 
     Returns None when the value is empty or unusable.
     """
     if not relative_path or not isinstance(relative_path, str):
         return None
     cleaned = relative_path.replace('\\', '/').strip().lstrip('/')
+    while cleaned.startswith(_LEGACY_PREFIX):
+        cleaned = cleaned[len(_LEGACY_PREFIX):]
     return cleaned or None
+
+
+def path_variants(relative_path: str) -> list:
+    """
+    Every stored spelling a given document could have, canonical form first.
+
+    Ownership is resolved by matching the served path against the persisted
+    column, so the query has to accept both formats or every legacy row becomes
+    unreachable — a 404 for its own owner, not just for staff. Comparing on the
+    normalised form alone was exactly that bug.
+
+    Returns [] when the path is unusable.
+    """
+    rel = normalize_relative_path(relative_path)
+    if rel is None:
+        return []
+    return [rel, f'{_LEGACY_PREFIX}{rel}']
 
 
 def user_doc_owner_id(relative_path: str) -> Optional[int]:
@@ -67,14 +94,14 @@ def user_doc_owner_id(relative_path: str) -> Optional[int]:
                that no record points at is, for the application, non-existent
                (orphan bytes left behind by a re-upload must not be servable).
     """
-    rel = normalize_relative_path(relative_path)
-    if rel is None:
+    variants = path_variants(relative_path)
+    if not variants:
         return None
 
     # 1. Submissions (admission / permanence / conclusion documents)
     owner = (
         db.session.query(Submission.user_id)
-        .filter(Submission.file_path == rel)
+        .filter(Submission.file_path.in_(variants))
         .first()
     )
     if owner:
@@ -85,7 +112,7 @@ def user_doc_owner_id(relative_path: str) -> Optional[int]:
         db.session.query(UserProgram.user_id)
         .join(AcceptanceDocument,
               AcceptanceDocument.user_program_id == UserProgram.id)
-        .filter(AcceptanceDocument.file_path == rel)
+        .filter(AcceptanceDocument.file_path.in_(variants))
         .first()
     )
     if owner:
@@ -97,8 +124,8 @@ def user_doc_owner_id(relative_path: str) -> Optional[int]:
         .join(SemesterEnrollment,
               SemesterEnrollment.user_program_id == UserProgram.id)
         .filter(db.or_(
-            SemesterEnrollment.payment_proof_path == rel,
-            SemesterEnrollment.schedule_path == rel,
+            SemesterEnrollment.payment_proof_path.in_(variants),
+            SemesterEnrollment.schedule_path.in_(variants),
         ))
         .first()
     )

@@ -221,11 +221,24 @@ class PermissionTestCase(unittest.TestCase):
             self.assertTrue(self.social_user.has_permission('acceptance.api.upload_doc'))
 
     # ------------------------------------------------------------------
-    # 4. Scope de programa en UserPermission
+    # 4. Scope de programa: NO lo responde has_permission()
     # ------------------------------------------------------------------
+    #
+    # has_permission() ya no acepta program_id: un permiso de rol es
+    # institucional, así que filtrarlo por programa devolvía una respuesta
+    # falsa. El alcance lo da get_accessible_program_ids() y las guardas de
+    # program_scope_service.
 
-    def test_global_permission_matches_any_program(self):
-        """UserPermission sin program_id (NULL) aplica a cualquier programa."""
+    def test_has_permission_rejects_program_id_argument(self):
+        """Pasar program_id es un error de programación, no un filtro."""
+        with self.app.test_request_context('/'):
+            with self.assertRaises(TypeError):
+                self.social_user.has_permission(
+                    'acceptance.api.upload_doc', program_id=99
+                )
+
+    def test_global_delegation_grants_capability_but_no_scope(self):
+        """UserPermission con program_id NULL da capacidad, nunca alcance."""
         up = UserPermission(
             user_id=self.social_user.id,
             permission_id=self.perm_upload.id,
@@ -236,13 +249,12 @@ class PermissionTestCase(unittest.TestCase):
         db.session.commit()
 
         with self.app.test_request_context('/'):
-            # Aplica sin scope
             self.assertTrue(self.social_user.has_permission('acceptance.api.upload_doc'))
-            # Aplica con cualquier program_id porque es global
-            self.assertTrue(self.social_user.has_permission('acceptance.api.upload_doc', program_id=99))
+            # NULL no significa "todos los programas" para el alcance.
+            self.assertEqual(self.social_user.get_accessible_program_ids(), set())
 
-    def test_scoped_permission_matches_correct_program(self):
-        """UserPermission con program_id=5 solo aplica al programa 5."""
+    def test_scoped_delegation_defines_the_scope(self):
+        """UserPermission con program_id=5 mete el 5 —y sólo el 5— en el alcance."""
         up = UserPermission(
             user_id=self.social_user.id,
             permission_id=self.perm_upload.id,
@@ -253,21 +265,8 @@ class PermissionTestCase(unittest.TestCase):
         db.session.commit()
 
         with self.app.test_request_context('/'):
-            self.assertTrue(self.social_user.has_permission('acceptance.api.upload_doc', program_id=5))
-
-    def test_scoped_permission_denied_for_other_program(self):
-        """UserPermission con program_id=5 NO aplica al programa 99."""
-        up = UserPermission(
-            user_id=self.social_user.id,
-            permission_id=self.perm_upload.id,
-            granted_by=self.admin_user.id,
-            program_id=5,
-        )
-        db.session.add(up)
-        db.session.commit()
-
-        with self.app.test_request_context('/'):
-            self.assertFalse(self.social_user.has_permission('acceptance.api.upload_doc', program_id=99))
+            self.assertTrue(self.social_user.has_permission('acceptance.api.upload_doc'))
+            self.assertEqual(self.social_user.get_accessible_program_ids(), {5})
 
     # ------------------------------------------------------------------
     # 5. Caché por request (flask.g)

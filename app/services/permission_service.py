@@ -12,7 +12,7 @@ from app.models.permission import Permission
 from app.models.role_permission import RolePermission, RolePermissionOverride
 from app.models.role_permission_audit import RolePermissionAudit
 from app.models.user_permission import UserPermission
-from app.models.user import User
+from app.models.user import User, SELF_SERVICE_PERMISSIONS
 from app.models.role import Role
 from app.utils.validators import (
     EMAIL_MAX_LENGTH,
@@ -23,6 +23,46 @@ from app.utils.validators import (
 
 class PermissionError(Exception):
     """Error de negocio en operaciones de permisos."""
+
+
+#: Recursos que nadie puede delegar: darlos sería regalar el control del propio
+#: sistema de permisos (delegar la delegación, revocar delegaciones ajenas…).
+NON_DELEGATABLE_RESOURCES = {'permissions'}
+
+
+def _normalize_program_id(program_id):
+    """`program_id` a int, o None para 'todos los programas'. Basura → error."""
+    if program_id is None or program_id == '':
+        return None
+    try:
+        return int(program_id)
+    except (TypeError, ValueError):
+        raise PermissionError("program_id inválido.")
+
+
+def _require_delegation_scope(granter, program_id):
+    """
+    El otorgante sólo reparte lo que ya alcanza.
+
+    - `program_id=None` significa "todos los programas": sólo puede crearlo
+      quien ya tiene alcance global (jefe de posgrado).
+    - Cualquier otro programa debe estar dentro de
+      `granter.get_accessible_program_ids()`.
+    """
+    from app.services import program_scope_service as scope_service
+
+    if program_id is None:
+        if not scope_service.is_global_scope(granter):
+            raise PermissionError(
+                "Debes indicar el programa de la delegación: sólo el jefe de "
+                "posgrado puede delegar sobre todos los programas."
+            )
+        return
+
+    if not scope_service.program_in_scope(granter, program_id):
+        raise PermissionError(
+            "No puedes delegar sobre un programa que no está a tu alcance."
+        )
 
 
 # ===========================================================================
@@ -105,16 +145,20 @@ def get_user_effective_permissions(user_id, program_id=None):
 def get_delegatable_permissions(user_id, program_id=None):
     """
     Retorna los permisos que user puede delegar (los que él mismo tiene).
-    Solo retorna permisos de tipo 'api' (no pages) y excluye permisos de
-    permisos-sobre-permisos para evitar escalación de privilegios.
-    """
-    EXCLUDED_RESOURCES = {'permissions'}  # no se puede delegar control del sistema de permisos
 
+    Sólo permisos de tipo 'api' (no pages). Se excluyen:
+      - los del propio sistema de permisos (escalación de privilegios),
+      - los de cuenta propia, que no confieren alcance sobre ningún programa y
+        que `delegate_permission` rechaza.
+    Esta lista alimenta el selector de la UI: lo que aparece aquí tiene que ser
+    exactamente lo que el servicio acepta.
+    """
     perms = get_user_effective_permissions(user_id, program_id)
     return [
         p for p in perms
-        if p['codename'].split('.')[0] not in EXCLUDED_RESOURCES
+        if p['codename'].split('.')[0] not in NON_DELEGATABLE_RESOURCES
         and p['codename'].split('.')[1] == 'api'
+        and p['codename'] not in SELF_SERVICE_PERMISSIONS
     ]
 
 
@@ -126,28 +170,67 @@ def delegate_permission(granter_id, grantee_id, codename, program_id=None, note=
     """
     Delega un permiso de granter → grantee.
 
-    Validaciones:
-      - granter debe tener permissions.api.delegate
-      - granter debe tener el permiso que quiere delegar
-      - El par (grantee, codename, program_id) no debe tener ya una delegación activa
+    Una delegación otorga capacidad Y alcance: el programa de la delegación
+    entra en `grantee.get_accessible_program_ids()`. Por eso las validaciones
+    de abajo no son formalidades — cada una cierra una vía de escalación:
+
+      - No se puede delegar a uno mismo. Antes, un coordinador del programa A
+        se autodelegaba cualquier codename sobre el programa B y a partir de la
+        siguiente petición su alcance era {A, B}: expediente completo, PII,
+        documentos, fotos y escrituras de B.
+      - Sólo se delega DENTRO del alcance propio: nadie reparte acceso a un
+        programa que no controla. `program_id=None` (todos los programas) queda
+        reservado a quien ya tiene alcance global.
+      - No se delegan permisos del propio sistema de permisos: delegar
+        'permissions.api.delegate' sería regalar la llave de la puerta.
+      - No se delegan permisos de cuenta propia (`SELF_SERVICE_PERMISSIONS`).
+        Todo el mundo los tiene ya sobre sí mismo, así que delegarlos no aporta
+        capacidad; lo único que podían aportar era alcance sobre el programa
+        indicado, que es justo la escalada que se quiere cerrar.
+        `get_accessible_program_ids()` los ignora, y aquí se rechazan en voz
+        alta en lugar de crear una fila que no hace nada.
     """
     granter = User.query.get(granter_id)
     if not granter:
         raise PermissionError("Usuario otorgante no encontrado.")
 
+    grantee = User.query.get(grantee_id)
+    if not grantee:
+        raise PermissionError("Usuario destinatario no encontrado.")
+
+    if grantee.id == granter.id:
+        raise PermissionError(
+            "No puedes delegarte permisos a ti mismo. Una delegación amplía el "
+            "alcance del destinatario; autodelegarse sería ampliarse el propio."
+        )
+
     if not granter.has_permission('permissions.api.delegate'):
         raise PermissionError("No tienes permiso para delegar.")
 
-    if not granter.has_permission(codename, program_id=program_id):
+    if not granter.has_permission(codename):
         raise PermissionError(f"No puedes delegar '{codename}' porque no lo tienes.")
 
     perm = Permission.query.filter_by(codename=codename, is_active=True).first()
     if not perm:
         raise PermissionError(f"Permiso '{codename}' no existe o está inactivo.")
 
+    if perm.resource in NON_DELEGATABLE_RESOURCES:
+        raise PermissionError(
+            f"No se puede delegar permisos del sistema de permisos: '{codename}'."
+        )
+
+    if codename in SELF_SERVICE_PERMISSIONS:
+        raise PermissionError(
+            f"'{codename}' es un permiso de cuenta propia: cada usuario ya lo "
+            "ejerce sobre sí mismo y delegarlo no da acceso a ningún programa."
+        )
+
+    program_id = _normalize_program_id(program_id)
+    _require_delegation_scope(granter, program_id)
+
     # Check duplicado activo (usando la constraint uq_user_permission_active)
     existing = UserPermission.query.filter_by(
-        user_id=grantee_id,
+        user_id=grantee.id,
         permission_id=perm.id,
         program_id=program_id,
         is_active=True
@@ -158,9 +241,9 @@ def delegate_permission(granter_id, grantee_id, codename, program_id=None, note=
         )
 
     up = UserPermission(
-        user_id=grantee_id,
+        user_id=grantee.id,
         permission_id=perm.id,
-        granted_by=granter_id,
+        granted_by=granter.id,
         program_id=program_id,
         expires_at=expires_at,
         note=note,
@@ -173,8 +256,19 @@ def delegate_permission(granter_id, grantee_id, codename, program_id=None, note=
 def revoke_delegation(revoker_id, user_permission_id):
     """
     Revoca una delegación activa.
-    Solo puede revocar el granted_by original o alguien con permissions.api.delegate global.
+
+    Puede revocar:
+      - quien la otorgó (`granted_by`),
+      - quien tiene alcance global (jefe de posgrado),
+      - quien tiene 'permissions.api.revoke_delegation' Y el programa de la
+        delegación está dentro de su alcance.
+
+    Antes bastaba con tener 'permissions.api.delegate' —que todo program_admin
+    tiene por rol— y el id es enumerable: cualquier coordinador podía revocar
+    CUALQUIER delegación del sistema, incluidas las del jefe de posgrado.
     """
+    from app.services import program_scope_service as scope_service
+
     up = UserPermission.query.get(user_permission_id)
     if not up:
         raise PermissionError("Delegación no encontrada.")
@@ -182,9 +276,17 @@ def revoke_delegation(revoker_id, user_permission_id):
         raise PermissionError("Esta delegación ya fue revocada.")
 
     revoker = User.query.get(revoker_id)
+    if not revoker:
+        raise PermissionError("Usuario no encontrado.")
+
     can_revoke = (
         up.granted_by == revoker_id
-        or revoker.has_permission('permissions.api.delegate')
+        or scope_service.is_global_scope(revoker)
+        or (
+            revoker.has_permission('permissions.api.revoke_delegation')
+            and up.program_id is not None
+            and scope_service.program_in_scope(revoker, up.program_id)
+        )
     )
     if not can_revoke:
         raise PermissionError("No tienes permiso para revocar esta delegación.")
@@ -195,7 +297,14 @@ def revoke_delegation(revoker_id, user_permission_id):
 
 
 def get_user_delegations(user_id):
-    """Permisos directamente delegados a un usuario (no los de rol)."""
+    """
+    Permisos directamente delegados a un usuario (no los de rol), SIN filtrar.
+
+    Uso interno / alcance global. Una ruta expuesta debe usar
+    `get_user_delegations_for_viewer`: esta lista revela qué permisos y sobre
+    qué programas tiene una cuenta, que es el paso de reconocimiento previo a
+    una escalada por delegación.
+    """
     return (
         UserPermission.query
         .filter_by(user_id=user_id)
@@ -204,21 +313,67 @@ def get_user_delegations(user_id):
     )
 
 
+def get_user_delegations_for_viewer(viewer, user_id):
+    """
+    Delegaciones de `user_id` que `viewer` tiene derecho a ver.
+
+    Reglas:
+      - alcance global (jefe de posgrado) o consultarse a sí mismo → todo;
+      - en otro caso, sólo las delegaciones que el propio viewer otorgó y las
+        que caen dentro de su alcance de programas.
+
+    Nunca lanza por "no autorizado": devuelve la lista recortada (vacía si no
+    hay nada visible), de modo que el endpoint no sirva como oráculo de
+    existencia de cuentas ni de permisos ajenos.
+
+    Args:
+        viewer (User): el usuario que consulta (objeto, no id — este servicio
+            no toca `current_user`).
+        user_id (int): cuenta consultada.
+    """
+    from app.services import program_scope_service as scope_service
+
+    rows = get_user_delegations(user_id)
+
+    viewer_id = getattr(viewer, 'id', None)
+    if viewer_id is None:
+        return []
+    if viewer_id == user_id or scope_service.is_global_scope(viewer):
+        return rows
+
+    scope = scope_service.accessible_program_ids(viewer) or set()
+    return [
+        up for up in rows
+        if up.granted_by == viewer_id
+        or (up.program_id is not None and up.program_id in scope)
+    ]
+
+
 def create_social_service_user(creator_id, user_data, permissions_to_delegate,
                                 program_ids=None, expires_at=None):
     """
     Crea un usuario con rol 'social_service' y delega los permisos especificados.
 
-    Reglas de scope:
-      - program_admin (sin academic_periods.api.create): scope se auto-asigna a
-        todos los programas que coordina. Se ignora program_ids del payload.
-      - postgraduate_admin: respeta program_ids; si vacío/None, scope global (NULL).
+    Reglas de scope — una cuenta de servicio social SIEMPRE nace atada a
+    programas concretos:
+      - Creador con alcance global (jefe de posgrado): `program_ids` es
+        OBLIGATORIO. Antes, una lista vacía se traducía en `program_id = NULL`
+        en cada delegación; como `get_accessible_program_ids()` descarta las
+        delegaciones sin programa, la cuenta nacía con alcance `set()`: la
+        persona recibía su correo de activación, entraba y encontraba /admin/review
+        permanentemente vacío, con cada endpoint respondiendo 403 y sin nada en
+        la interfaz que lo explicara. Ahora se rechaza antes de crear nada.
+      - Creador sin alcance global (coordinador): se toma su alcance real
+        (programas que coordina + delegaciones vigentes) y se ignora
+        `program_ids` del payload. Si no alcanza ningún programa, no puede crear
+        la cuenta.
 
     Args:
       creator_id: ID del usuario otorgante.
       user_data: dict con first_name, last_name, mother_last_name, email, is_internal.
       permissions_to_delegate: lista de codenames a delegar.
-      program_ids: lista opcional de program_id (solo relevante para postgraduate_admin).
+      program_ids: lista de program_id. Obligatoria para un creador global;
+        ignorada para un coordinador (se usa su propio alcance).
       expires_at: datetime opcional de vencimiento común para todas las delegaciones.
 
     La cuenta NO recibe contraseña compartida: se guarda una aleatoria que nadie
@@ -275,27 +430,70 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
     if not permissions_to_delegate:
         raise PermissionError("Debe delegarse al menos un permiso.")
 
-    is_postgraduate = creator.has_permission('academic_periods.api.create')
+    # Alcance global se decide por ROL, nunca por un permiso delegado: si se
+    # leyera con has_permission(), delegar 'academic_periods.api.create' sobre
+    # UN programa convertiría al destinatario en administrador global.
+    is_postgraduate = creator.has_global_program_scope()
     if is_postgraduate:
-        effective_pids = list(program_ids) if program_ids else [None]
+        try:
+            effective_pids = sorted({int(pid) for pid in (program_ids or [])})
+        except (TypeError, ValueError):
+            raise PermissionError("La lista de programas contiene un valor inválido.")
     else:
-        coord_pids = [p.id for p in creator.coordinated_programs]
-        if not coord_pids:
+        # Alcance real del creador, no sólo lo que coordina: una cuenta de
+        # servicio social nunca puede nacer con más alcance que quien la crea.
+        creator_pids = sorted(creator.get_accessible_program_ids() or set())
+        if not creator_pids:
             raise PermissionError("No coordinas programas. No puedes crear servicio social.")
-        effective_pids = coord_pids
+        effective_pids = creator_pids
+
+    # Sin programas no hay cuenta. Una delegación con program_id NULL no aporta
+    # alcance (`User.get_accessible_program_ids` la ignora), así que crear la
+    # cuenta aquí sería fabricar un usuario que nunca podrá ver un expediente.
+    if not effective_pids:
+        raise PermissionError(
+            "Selecciona al menos un programa para la cuenta de servicio social. "
+            "Una delegación sin programa no otorga acceso a ningún expediente: "
+            "la cuenta se crearía sin poder trabajar."
+        )
+
+    # Los programas deben existir. Con alcance global `_require_delegation_scope`
+    # acepta cualquier id, así que un id inventado crearía delegaciones colgando
+    # de un programa inexistente.
+    from app.models.program import Program
+
+    found_pids = {
+        pid for (pid,) in db.session.query(Program.id)
+        .filter(Program.id.in_(effective_pids))
+        .all()
+    }
+    missing_pids = [pid for pid in effective_pids if pid not in found_pids]
+    if missing_pids:
+        raise PermissionError(
+            "Alguno de los programas seleccionados no existe: "
+            + ", ".join(str(pid) for pid in missing_pids)
+        )
+
+    # Alcance: cada programa destino debe estar dentro del alcance del creador.
+    for pid in effective_pids:
+        _require_delegation_scope(creator, pid)
 
     perm_objects = {}
     for codename in permissions_to_delegate:
         perm = Permission.query.filter_by(codename=codename, is_active=True).first()
         if not perm:
             raise PermissionError(f"Permiso '{codename}' no existe o está inactivo.")
-        if perm.resource == 'permissions':
+        if perm.resource in NON_DELEGATABLE_RESOURCES:
             raise PermissionError(f"No se puede delegar permisos del sistema de permisos: '{codename}'.")
+        if codename in SELF_SERVICE_PERMISSIONS:
+            raise PermissionError(
+                f"'{codename}' es un permiso de cuenta propia y no otorga "
+                "acceso a ningún programa; quítalo de la selección."
+            )
         perm_objects[codename] = perm
-        for pid in effective_pids:
-            if not creator.has_permission(codename, program_id=pid):
-                scope = f"programa {pid}" if pid else "ámbito global"
-                raise PermissionError(f"No puedes delegar '{codename}' en {scope}.")
+        # Capacidad: el creador debe tener el permiso.
+        if not creator.has_permission(codename):
+            raise PermissionError(f"No puedes delegar '{codename}' porque no lo tienes.")
 
     # The account is born with a password nobody knows — not the creator, not
     # the holder. Access arrives exclusively through the single-use link mailed

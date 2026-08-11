@@ -228,15 +228,16 @@ class EndpointAuthorizationTest(Phase12Base):
 
 
 # ---------------------------------------------------------------------------
-# 2. Program-scope enforcement (permission_required program_id_kwarg)
+# 2. Program-scope enforcement (@program_scope_required)
 # ---------------------------------------------------------------------------
 
 class ScopedEndpointTest(Phase12Base):
     """
-    Endpoint con @permission_required(codename, program_id_kwarg='program_id').
+    Endpoint con @permission_required(codename) + @program_scope_required(...).
 
     Usamos /api/v1/acceptance/program/<program_id>/stats:
-      - program_admin con permiso global (por rol) pasa para cualquier program_id
+      - el permiso de rol es institucional: NO abre programas ajenos, el
+        alcance lo decide `get_accessible_program_ids()`
       - social_service con delegación scoped pasa solo para su program_id
       - social_service sin permiso es rechazado con 403
     """
@@ -251,9 +252,24 @@ class ScopedEndpointTest(Phase12Base):
         self.prog_b = _program('Maestria B', self.coord2, slug='maestria-b')
         db.session.commit()
 
-    def test_global_permission_allows_any_program(self):
-        """program_admin con permiso por rol → pasa para cualquier program_id."""
+    def test_role_permission_does_not_open_other_programs(self):
+        """
+        El permiso de rol da capacidad, no alcance: el coordinador de A entra a
+        A y recibe 403 en B, que coordina otro.
+        """
         self._login_as(self.coord)
+
+        resp_a = self.client.get(self._stats_url(self.prog_a.id))
+        self.assertNotEqual(resp_a.status_code, 403,
+                            msg='El coordinador no pudo entrar a su propio programa')
+
+        resp_b = self.client.get(self._stats_url(self.prog_b.id))
+        self.assertEqual(resp_b.status_code, 403,
+                         msg='El permiso de rol abrió un programa ajeno')
+
+    def test_postgraduate_admin_reaches_every_program(self):
+        """El jefe de posgrado conserva acceso a todos los programas."""
+        self._login_as(self.postgrad)
 
         for pid in (self.prog_a.id, self.prog_b.id):
             resp = self.client.get(self._stats_url(pid))
@@ -288,21 +304,25 @@ class ScopedEndpointTest(Phase12Base):
         self.assertEqual(resp_b.status_code, 403,
                          msg='Delegación para prog_a concedió acceso a prog_b')
 
-    def test_social_service_global_delegation_spans_programs(self):
-        """Delegación sin program_id (global) permite cualquier programa."""
+    def test_global_delegation_grants_no_program_scope(self):
+        """
+        Delegación sin program_id: da capacidad, no alcance. `NULL` no se lee
+        como "todos los programas" — fail-closed —, así que la cuenta sigue sin
+        poder abrir ningún programa concreto.
+        """
         with self.app.test_request_context('/'):
             perm_svc.delegate_permission(
                 granter_id=self.postgrad.id,
                 grantee_id=self.social.id,
                 codename='acceptance.api.list_applicants',
-                # program_id=None → global
+                # program_id=None → sólo el jefe de posgrado puede crearla
             )
 
         self._login_as(self.social)
         for pid in (self.prog_a.id, self.prog_b.id):
             resp = self.client.get(self._stats_url(pid))
-            self.assertNotEqual(resp.status_code, 403,
-                                msg=f'Delegación global falló para pid={pid}')
+            self.assertEqual(resp.status_code, 403,
+                             msg=f'Delegación NULL dio alcance sobre pid={pid}')
 
 
 # ---------------------------------------------------------------------------

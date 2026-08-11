@@ -9,6 +9,13 @@ El flujo de deliberacion es:
    - Aceptar -> admission_status = 'accepted'
    - Rechazar -> admission_status = 'rejected'
    - Solicitar correccion -> admission_status = 'rejected', rejection_type = 'partial'
+
+ALCANCE: ninguna funcion de este modulo valida el alcance de programa del
+llamador — recibe `program_id` y opera sobre el. Es responsabilidad de la ruta
+declarar `@program_scope_required(program_id_kwarg='program_id')` (o
+`guard_program_scope`) antes de llamar aqui. Todas las consultas estan
+acotadas al `program_id` recibido, de modo que una ruta correctamente
+protegida no puede tocar el expediente de otro programa.
 """
 
 import json
@@ -132,8 +139,11 @@ def mark_interview_completed(user_id: int, program_id: int, coordinator_id: int 
 
     up.admission_status = 'interview_completed'
 
-    # Buscar y marcar la cita de entrevista como 'done'
-    # Se incluyen eventos globales (program_id=NULL) además de los del programa
+    # Buscar y marcar la cita de entrevista como 'done'.
+    # Se incluyen eventos globales (program_id=NULL) además de los del programa,
+    # pero un evento DEL PROGRAMA gana siempre: sin ese orden, un aspirante
+    # inscrito en dos programas podía ver cerrada la cita del otro programa
+    # sólo porque el `.first()` no era determinista.
     appointment = Appointment.query.join(
         Event, Appointment.event_id == Event.id
     ).filter(
@@ -141,6 +151,9 @@ def mark_interview_completed(user_id: int, program_id: int, coordinator_id: int 
         or_(Event.program_id == program_id, Event.program_id.is_(None)),
         Event.type == 'interview',
         Appointment.status == 'scheduled'
+    ).order_by(
+        (Event.program_id == program_id).desc(),
+        Appointment.id,
     ).first()
 
     if appointment:

@@ -3,8 +3,10 @@
 from app import db
 from app.models.user_history import UserHistory
 from app.models.user import User
+from app.models.user_program import UserProgram
 from flask_login import current_user
-from typing import Optional, Dict, Any, List
+from sqlalchemy import or_
+from typing import Iterable, Optional, Dict, Any, List
 from app.services.notification_service import NotificationService
 import json
 
@@ -367,18 +369,101 @@ class UserHistoryService:
         
         return query.all()
 
+    # ==================== ACTIVIDAD RECIENTE (CON ALCANCE) ====================
+
+    #: Default page size and hard ceiling for any "recent activity" listing.
+    #: The ceiling is enforced inside the service, not at the route, so a
+    #: caller asking a single-worker deployment for `?limit=1000000` cannot
+    #: turn a listing into a denial of service by finding a route that forgot
+    #: to clamp.
+    DEFAULT_ACTIVITY_LIMIT = 50
+    MAX_ACTIVITY_LIMIT = 200
+
     @staticmethod
-    def get_recent_activity(limit: int = 50) -> List[UserHistory]:
+    def clamp_activity_limit(limit: Optional[int]) -> int:
         """
-        Obtiene la actividad reciente de todos los usuarios.
-        
+        Coerce a caller-supplied limit into [1, MAX_ACTIVITY_LIMIT].
+
+        Anything unparseable, missing or < 1 falls back to
+        DEFAULT_ACTIVITY_LIMIT instead of raising: the limit is a comfort
+        parameter, never a security one.
+        """
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            return UserHistoryService.DEFAULT_ACTIVITY_LIMIT
+        if limit < 1:
+            return UserHistoryService.DEFAULT_ACTIVITY_LIMIT
+        return min(limit, UserHistoryService.MAX_ACTIVITY_LIMIT)
+
+    @staticmethod
+    def get_recent_activity(
+        limit: int,
+        program_ids: Optional[Iterable[int]],
+        viewer_id: Optional[int] = None,
+    ) -> List[UserHistory]:
+        """
+        Recent activity across users, restricted to the caller's programs.
+
+        `program_ids` is REQUIRED and deliberately has no default. This used to
+        be an unrestricted `SELECT ... ORDER BY timestamp DESC LIMIT n` over the
+        whole institution, and every row serialises its raw `details` JSON
+        (control numbers, student names, document and program names) — data
+        that is on the forbidden cross-program list. Forgetting the scope has
+        to be impossible, not merely discouraged.
+
         Args:
-            limit: Número máximo de entradas a retornar
-            
+            limit: max rows to return; always clamped to MAX_ACTIVITY_LIMIT.
+            program_ids:
+                None  → every program. ONLY pass None when
+                        `User.get_accessible_program_ids()` returned None
+                        (global scope, i.e. the jefe de posgrado).
+                set() → no program at all. The result is then limited to
+                        `viewer_id`'s own rows, and is empty without one.
+                        An empty set NEVER means "all programs".
+            viewer_id: the caller. Their own rows are always included — a user
+                is always in scope for themselves.
+
         Returns:
-            Lista de entradas del historial ordenadas por fecha (más reciente primero)
+            History entries, newest first. A row is included when the user it
+            is filed under (`UserHistory.user_id` — the ACTOR, see the class
+            docstring) belongs to at least one program inside `program_ids`,
+            or is the viewer.
+
+            Note the consequence for staff rows: administrative actions are
+            filed under the acting admin, who has no `UserProgram`, so another
+            coordinator's actions never appear in a non-global feed. That is
+            fail-closed and intended — those rows describe students the caller
+            may have no reach over.
         """
-        return UserHistory.query.order_by(UserHistory.timestamp.desc()).limit(limit).all()
+        limit = UserHistoryService.clamp_activity_limit(limit)
+        query = UserHistory.query
+
+        if program_ids is not None:
+            pids = set()
+            for pid in program_ids:
+                try:
+                    pids.add(int(pid))
+                except (TypeError, ValueError):
+                    continue
+
+            conditions = []
+            if pids:
+                scoped_user_ids = (
+                    db.session.query(UserProgram.user_id)
+                    .filter(UserProgram.program_id.in_(pids))
+                )
+                conditions.append(UserHistory.user_id.in_(scoped_user_ids))
+            if viewer_id is not None:
+                conditions.append(UserHistory.user_id == viewer_id)
+
+            if not conditions:
+                # No programs and no viewer: nothing is in scope. Fail closed.
+                return []
+
+            query = query.filter(or_(*conditions))
+
+        return query.order_by(UserHistory.timestamp.desc()).limit(limit).all()
 
     @staticmethod
     def get_admin_activity(admin_id: int, limit: Optional[int] = None) -> List[UserHistory]:

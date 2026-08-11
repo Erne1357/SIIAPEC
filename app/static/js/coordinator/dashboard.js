@@ -448,41 +448,162 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error desconocido');
 
-      renderStudentDetails(data.student, data.documents, data.interview, data.metrics, data.missing_documents, data.can_manage);
+      renderStudentDetails(data);
 
     } catch (err) {
       console.error('Error loading student details:', err);
-      document.getElementById('modalContent').innerHTML = `
+      // El error se pinta DENTRO del panel General, nunca sobre #modalContent:
+      // reemplazar el cuerpo entero borra las pestañas y sus contenedores, y a
+      // partir de ahí cualquier apertura posterior del modal falla en cadena.
+      document.getElementById('generalTabContent').innerHTML = `
       <div class="alert alert-danger">
-        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
         Error al cargar información: ${SIIAP.escapeHtml(err.message)}
       </div>
     `;
+      document.getElementById('documentsTabContent').innerHTML = '';
+      document.getElementById('interviewTabContent').innerHTML = '';
     }
   }
-  function renderStudentDetails(student, documents, interview, metrics, missing, canManage) {
-    // Header
-    document.getElementById('modalStudentName').textContent = student.full_name;
-    document.getElementById('modalStudentEmail').textContent = student.email;
-    document.getElementById('modalStudentAvatar').src = student.avatar_url || '/static/assets/images/default.jpg';
-    document.getElementById('modalStudentProgram').textContent = student.program.name;
 
-    // Tab General
-    renderGeneralTab(student, metrics, missing);
-
-    // Tab Documentos
-    renderDocumentsTab(documents, student.id, canManage);
-
-    // Tab Entrevista
-    renderInterviewTab(interview, student);
+  /**
+   * Aviso del nivel reducido entre programas.
+   *
+   * El backend responde 200 con `restricted: true` y todo lo prohibido en
+   * `null`. Sin este cartel el modal parecería un expediente vacío —«perfil
+   * incompleto», «sin documentos»— y eso sería afirmar como hecho algo que no
+   * sabemos. Aquí se dice lo único cierto: el dato existe, pero pertenece a
+   * otro programa.
+   */
+  function restrictedNotice(extra) {
+    return `
+      <div class="alert alert-info d-flex align-items-start gap-2">
+        <i class="bi bi-shield-lock-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+        <div>
+          <strong>Información limitada.</strong>
+          Esta persona pertenece a un programa que no gestionas. Solo puedes
+          consultar su nombre, su correo y su avance general.
+          ${extra ? `<span class="d-block mt-1">${extra}</span>` : ''}
+        </div>
+      </div>`;
   }
 
-  function renderGeneralTab(student, metrics, missing) {
+  function renderStudentDetails(data) {
+    const student = data.student;
+    const restricted = data.restricted === true || data.can_manage === false;
+
+    // Header
+    document.getElementById('modalStudentName').textContent = student.full_name || '';
+    document.getElementById('modalStudentEmail').textContent = student.email || '';
+    document.getElementById('modalStudentAvatar').src = student.avatar_url || '/static/assets/images/default.jpg';
+    document.getElementById('modalStudentProgram').textContent =
+      (student.program && student.program.name) || 'Programa no disponible';
+
+    // Tab General
+    renderGeneralTab(student, data.metrics || {}, data.missing_documents || [], restricted);
+
+    // Tab Documentos
+    renderDocumentsTab(data.documents || [], student.id, data.can_manage, restricted);
+
+    // Tab Entrevista
+    renderInterviewTab(data.interview || {}, student, restricted);
+  }
+
+  function renderGeneralTab(student, metrics, missing, restricted) {
     const generalContent = document.getElementById('generalTabContent');
     // Numeric coercion for the CSS custom property (style-attribute injection).
     const progress = Number(metrics.progress_percentage) || 0;
+    const profile = student.profile_data || {};
+    const emergency = profile.emergency_contact || {};
+
+    // Fuera de alcance no hay «perfil incompleto» ni «documentos en orden»: no
+    // los sabemos. Cada bloque que dependa de un dato prohibido se sustituye
+    // por su versión neutra en lugar de imprimir el valor por defecto.
+    const profileBlock = restricted
+      ? ''
+      : `
+    <div class="alert ${student.profile_completed ? 'alert-success' : 'alert-warning'} mb-4">
+      <h4 class="h6 mb-2">
+        <i class="bi bi-person-check-fill me-2" aria-hidden="true"></i>Estado del perfil
+      </h4>
+      ${student.profile_completed
+        ? '<p class="mb-0"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Perfil completo: elegible para entrevista</p>'
+        : '<p class="mb-0"><i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>Perfil incompleto: debe completar sus datos personales</p>'}
+    </div>`;
+
+    const missingBlock = restricted
+      ? ''
+      : (missing.length > 0 ? `
+      <div class="mb-4">
+        <h4 class="h6 mb-2">
+          <i class="bi bi-exclamation-circle-fill text-warning-strong me-2" aria-hidden="true"></i>
+          Documentos pendientes (${missing.length})
+        </h4>
+        <ul class="list-group">
+          ${missing.map(item => `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <strong>${SIIAP.escapeHtml(item.archive)}</strong>
+                <small class="d-block text-muted">${SIIAP.escapeHtml(item.step)}</small>
+              </div>
+              ${item.status === 'rejected'
+                ? SIIAP.statusBadge('rejected', 'Rechazado', 'sm')
+                : SIIAP.statusBadge('pending', 'Pendiente', 'sm')}
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    ` : '<div class="alert alert-success"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Todos los documentos están en orden</div>');
+
+    const personalBlock = restricted
+      ? `
+    <div>
+      <h4 class="h6 mb-3">Datos personales</h4>
+      <div class="empty-state empty-state--compact">
+        <div class="empty-state__icon"><i class="bi bi-shield-lock" aria-hidden="true"></i></div>
+        <h5 class="empty-state__title">Reservados a su programa</h5>
+        <p class="empty-state__description">
+          El teléfono, la CURP, el NSS, la fecha de nacimiento y el contacto de
+          emergencia solo puede consultarlos quien coordina el programa de esta
+          persona.
+        </p>
+      </div>
+    </div>`
+      : `
+    <div>
+      <h4 class="h6 mb-3">Datos personales</h4>
+      <dl class="row g-3 mb-0">
+        <div class="col-md-6">
+          <dt class="small text-secondary fw-normal">Teléfono</dt>
+          <dd class="mb-0">${SIIAP.escapeHtml(profile.phone || profile.mobile_phone || 'No registrado')}</dd>
+        </div>
+        <div class="col-md-6">
+          <dt class="small text-secondary fw-normal">CURP</dt>
+          <dd class="mb-0">${SIIAP.escapeHtml(profile.curp || 'No registrado')}</dd>
+        </div>
+        <div class="col-md-6">
+          <dt class="small text-secondary fw-normal">Fecha de nacimiento</dt>
+          <dd class="mb-0">${SIIAP.escapeHtml(SIIAP.formatDate(profile.birth_date, 'long', 'No registrado'))}</dd>
+        </div>
+        <div class="col-md-6">
+          <dt class="small text-secondary fw-normal">NSS</dt>
+          <dd class="mb-0">${SIIAP.escapeHtml(profile.nss || 'No registrado')}</dd>
+        </div>
+        <div class="col-12">
+          <dt class="small text-secondary fw-normal">Contacto de emergencia</dt>
+          <dd class="mb-0">
+            ${SIIAP.escapeHtml(emergency.name || 'No registrado')}
+            <small class="d-block text-secondary">
+              ${SIIAP.escapeHtml(emergency.phone || '')}
+              ${emergency.relationship ? `(${SIIAP.escapeHtml(emergency.relationship)})` : ''}
+            </small>
+          </dd>
+        </div>
+      </dl>
+    </div>`;
 
     generalContent.innerHTML = `
+    ${restricted ? restrictedNotice('Los contadores y el porcentaje de avance sí son datos reales.') : ''}
     <!-- Métricas -->
     <div class="row g-3 mb-4">
       <div class="col-6 col-md-3">
@@ -528,75 +649,34 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
     
     <!-- Estado del Perfil -->
-    <div class="alert ${student.profile_completed ? 'alert-success' : 'alert-warning'} mb-4">
-      <h4 class="h6 mb-2">
-        <i class="bi bi-person-check-fill me-2" aria-hidden="true"></i>Estado del perfil
-      </h4>
-      ${student.profile_completed
-        ? '<p class="mb-0"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Perfil completo: elegible para entrevista</p>'
-        : '<p class="mb-0"><i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>Perfil incompleto: debe completar sus datos personales</p>'}
-    </div>
-    
+    ${profileBlock}
+
     <!-- Documentos Faltantes/Rechazados -->
-    ${missing.length > 0 ? `
-      <div class="mb-4">
-        <h4 class="h6 mb-2">
-          <i class="bi bi-exclamation-circle-fill text-warning-strong me-2" aria-hidden="true"></i>
-          Documentos pendientes (${missing.length})
-        </h4>
-        <ul class="list-group">
-          ${missing.map(item => `
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              <div>
-                <strong>${SIIAP.escapeHtml(item.archive)}</strong>
-                <small class="d-block text-muted">${SIIAP.escapeHtml(item.step)}</small>
-              </div>
-              ${item.status === 'rejected'
-                ? SIIAP.statusBadge('rejected', 'Rechazado', 'sm')
-                : SIIAP.statusBadge('pending', 'Pendiente', 'sm')}
-            </li>
-          `).join('')}
-        </ul>
-      </div>
-    ` : '<div class="alert alert-success"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Todos los documentos están en orden</div>'}
-    
+    ${missingBlock}
+
     <!-- Datos Personales -->
-    <div>
-      <h4 class="h6 mb-3">Datos personales</h4>
-      <dl class="row g-3 mb-0">
-        <div class="col-md-6">
-          <dt class="small text-secondary fw-normal">Teléfono</dt>
-          <dd class="mb-0">${SIIAP.escapeHtml(student.profile_data.phone || student.profile_data.mobile_phone || 'No registrado')}</dd>
-        </div>
-        <div class="col-md-6">
-          <dt class="small text-secondary fw-normal">CURP</dt>
-          <dd class="mb-0">${SIIAP.escapeHtml(student.profile_data.curp || 'No registrado')}</dd>
-        </div>
-        <div class="col-md-6">
-          <dt class="small text-secondary fw-normal">Fecha de nacimiento</dt>
-          <dd class="mb-0">${SIIAP.escapeHtml(SIIAP.formatDate(student.profile_data.birth_date, 'long', 'No registrado'))}</dd>
-        </div>
-        <div class="col-md-6">
-          <dt class="small text-secondary fw-normal">NSS</dt>
-          <dd class="mb-0">${SIIAP.escapeHtml(student.profile_data.nss || 'No registrado')}</dd>
-        </div>
-        <div class="col-12">
-          <dt class="small text-secondary fw-normal">Contacto de emergencia</dt>
-          <dd class="mb-0">
-            ${SIIAP.escapeHtml(student.profile_data.emergency_contact.name || 'No registrado')}
-            <small class="d-block text-secondary">
-              ${SIIAP.escapeHtml(student.profile_data.emergency_contact.phone || '')}
-              ${student.profile_data.emergency_contact.relationship ? `(${SIIAP.escapeHtml(student.profile_data.emergency_contact.relationship)})` : ''}
-            </small>
-          </dd>
-        </div>
-      </dl>
-    </div>
+    ${personalBlock}
   `;
   }
 
-  function renderDocumentsTab(documents, studentId, canManage) {
+  function renderDocumentsTab(documents, studentId, canManage, restricted) {
     const docsContent = document.getElementById('documentsTabContent');
+
+    // Fuera de alcance el backend NO envía documentos: la lista vacía no
+    // significa «no subió nada», significa «no puedes verlos». Decirlo.
+    if (restricted) {
+      docsContent.innerHTML = `
+        ${restrictedNotice()}
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-file-earmark-lock" aria-hidden="true"></i></div>
+          <h4 class="empty-state__title">Documentos no disponibles</h4>
+          <p class="empty-state__description">
+            Los expedientes y sus archivos solo son accesibles para quien
+            coordina el programa de esta persona.
+          </p>
+        </div>`;
+      return;
+    }
 
     // Si es solo lectura, mostrar advertencia
     const readOnlyWarning = !canManage ? `
@@ -665,9 +745,27 @@ document.addEventListener('DOMContentLoaded', () => {
   `).join('');
   }
 
-  function renderInterviewTab(interview, student) {
+  function renderInterviewTab(interview, student, restricted) {
     const interviewContent = document.getElementById('interviewTabContent');
-    const eligibility = interview.eligibility;
+
+    // `eligible: null` no es «no cumple». Fuera de alcance la elegibilidad no
+    // se calcula, y pintar la alerta amarilla afirmaría un rechazo inexistente.
+    if (restricted) {
+      interviewContent.innerHTML = `
+        ${restrictedNotice()}
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
+          <h4 class="empty-state__title">Entrevista no disponible</h4>
+          <p class="empty-state__description">
+            La cita de entrevista y la elegibilidad las gestiona el programa al
+            que pertenece esta persona.
+          </p>
+        </div>`;
+      return;
+    }
+
+    const eligibility = interview.eligibility || {};
+    const missingItems = eligibility.missing_items || [];
     const appt = interview.appointment;
     const apptStatus = appt?.status;
     const interviewDone = apptStatus === 'done' || apptStatus === 'no_show';
@@ -694,11 +792,11 @@ document.addEventListener('DOMContentLoaded', () => {
           ? 'El estudiante cumple con todos los requisitos para la entrevista.'
           : 'El estudiante NO cumple con los requisitos para la entrevista.'}
       </p>
-      ${!eligibility.eligible && eligibility.missing_items.length > 0 ? `
+      ${!eligibility.eligible && missingItems.length > 0 ? `
         <hr>
         <p class="mb-2 small"><strong>Elementos faltantes:</strong></p>
         <ul class="small mb-0">
-          ${eligibility.missing_items.map(item => `
+          ${missingItems.map(item => `
             <li>${item.type === 'profile'
               ? SIIAP.escapeHtml(item.description)
               : `${SIIAP.escapeHtml(item.step)}: ${SIIAP.escapeHtml(item.archive)} (${SIIAP.escapeHtml(item.current_status)})`}</li>
@@ -1013,16 +1111,21 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderPermanenceModal(data) {
     const { student, user_program, program, active_period, current_enrollment,
             pending_admission_count, semester_history, can_manage } = data;
+    const restricted = data.restricted === true || can_manage === false;
 
     _permCurrentUserProgramId = user_program.id;
-    _permCurrentConacyt = user_program.has_conacyt_scholarship;
+    _permCurrentConacyt = user_program.has_conacyt_scholarship === true;
 
     // Header
     document.getElementById('permModalAvatar').src = student.avatar_url || '/static/assets/images/default.jpg';
     document.getElementById('permModalName').textContent = student.full_name;
     document.getElementById('permModalEmail').textContent = student.email;
-    document.getElementById('permModalProgram').textContent = program.name;
-    document.getElementById('permModalControlNumber').textContent = student.control_number || '(sin N° control)';
+    document.getElementById('permModalProgram').textContent = (program && program.name) || '—';
+    // Fuera de alcance el número de control no se envía: «(sin N° control)»
+    // afirmaría que no tiene, que es distinto de no poder verlo.
+    document.getElementById('permModalControlNumber').textContent = restricted
+      ? '—'
+      : (student.control_number || '(sin N° control)');
 
     // Alerta docs admisión pendientes
     const admAlert = document.getElementById('permAdmissionAlert');
@@ -1051,6 +1154,7 @@ document.addEventListener('DOMContentLoaded', () => {
       : [SIIAP.statusBadge('pending', 'Sin registro', 'sm'), 'bi-dash-circle'];
 
     document.getElementById('permSummaryCards').innerHTML = `
+      ${restricted ? `<div class="col-12">${restrictedNotice()}</div>` : ''}
       <div class="col-6 col-md-4">
         <div class="stat-card stat-card--brand h-100">
           <i class="bi bi-mortarboard-fill stat-card__icon" aria-hidden="true"></i>
@@ -1079,9 +1183,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const switchEl = document.getElementById('permConacytSwitch');
     const toggleWrap = document.getElementById('permConacytToggleWrap');
 
-    badge.innerHTML = _permCurrentConacyt
-      ? SIIAP.statusBadge('approved', 'Becario SECIHTI')
-      : SIIAP.statusBadge('pending', 'Sin beca SECIHTI');
+    // `has_conacyt_scholarship: null` (fuera de alcance) no es «sin beca».
+    badge.innerHTML = restricted
+      ? SIIAP.statusBadge('pending', 'Beca SECIHTI no disponible')
+      : (_permCurrentConacyt
+          ? SIIAP.statusBadge('approved', 'Becario SECIHTI')
+          : SIIAP.statusBadge('pending', 'Sin beca SECIHTI'));
     switchEl.checked = _permCurrentConacyt;
     toggleWrap.classList.toggle('d-none', !can_manage);
 

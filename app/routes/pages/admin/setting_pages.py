@@ -38,7 +38,7 @@ def config_program(slug):
         return render_template('404.html'), 404
 
     # Verificar permisos
-    if not current_user.has_permission('academic_periods.api.create'):
+    if not current_user.has_global_program_scope():
         # Verificar que sea coordinador del programa
         if program.coordinator_id != current_user.id:
             abort(403)  # Forbidden
@@ -62,7 +62,7 @@ def document_templates():
     """Gestión de plantillas de documentos institucionales."""
     return render_template(
         'admin/settings/document_templates.html',
-        is_postgrad_admin=current_user.has_permission('academic_periods.api.create'),
+        is_postgrad_admin=current_user.has_global_program_scope(),
     )
 
 

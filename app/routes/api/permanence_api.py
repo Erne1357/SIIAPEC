@@ -25,7 +25,7 @@ api_permanence = Blueprint(
 
 @api_permanence.get('/program/<int:program_id>/students')
 @login_required
-@permission_required('permanence.api.list_students', program_id_kwarg='program_id')
+@permission_required('permanence.api.list_students')
 @program_scope_required(program_id_kwarg='program_id')
 def api_get_enrolled_students(program_id):
     """Lista estudiantes inscritos con su estado de permanencia."""
@@ -46,7 +46,7 @@ def api_get_enrolled_students(program_id):
 
 @api_permanence.get('/program/<int:program_id>/stats')
 @login_required
-@permission_required('permanence.api.list_students', program_id_kwarg='program_id')
+@permission_required('permanence.api.list_students')
 @program_scope_required(program_id_kwarg='program_id')
 def api_get_permanence_stats(program_id):
     """Estadisticas de permanencia para un programa."""
@@ -148,7 +148,7 @@ def _guard_user_program_read(scope, codename='permanence.api.list_students'):
         return None
 
     program_id = scope.get('program_id')
-    if (current_user.has_permission(codename, program_id=program_id)
+    if (current_user.has_permission(codename)
             and scope_service.program_in_scope(current_user, program_id)):
         return None
 
@@ -237,7 +237,7 @@ def api_confirm_semester_enrollment(user_program_id):
 
 @api_permanence.get('/program/<int:program_id>/enrollment-overview')
 @login_required
-@permission_required('permanence.api.list_students', program_id_kwarg='program_id')
+@permission_required('permanence.api.list_students')
 @program_scope_required(program_id_kwarg='program_id')
 def api_get_enrollment_overview(program_id):
     """Vista consolidada de inscripción para la pestaña 'Inscripción'."""
@@ -429,7 +429,7 @@ def api_get_student_permanence(user_program_id):
 
 @api_permanence.get('/program/<int:program_id>/deadlines')
 @login_required
-@permission_required('permanence.api.manage_deadlines', program_id_kwarg='program_id')
+@permission_required('permanence.api.manage_deadlines')
 @program_scope_required(program_id_kwarg='program_id')
 def api_get_deadlines(program_id):
     """Lista ventanas de entrega del periodo activo para un programa.
@@ -449,7 +449,7 @@ def api_get_deadlines(program_id):
 
 @api_permanence.post('/program/<int:program_id>/deadlines')
 @login_required
-@permission_required('permanence.api.manage_deadlines', program_id_kwarg='program_id')
+@permission_required('permanence.api.manage_deadlines')
 @program_scope_required(program_id_kwarg='program_id')
 def api_create_deadline(program_id):
     """Crea una ventana de entrega. Body: {archive_id, label, sequence, academic_period_id, opens_at?, closes_at?}"""
@@ -741,7 +741,7 @@ def api_submit_permanence_document(user_program_id, deadline_id):
 
 @api_permanence.get('/program/<int:program_id>/pending-documents')
 @login_required
-@permission_required('permanence.api.review_doc', program_id_kwarg='program_id')
+@permission_required('permanence.api.review_doc')
 @program_scope_required(program_id_kwarg='program_id')
 def api_get_pending_documents(program_id):
     """Lista submissions de permanencia en estado 'review' para el programa."""
@@ -831,7 +831,7 @@ def api_get_payment_reference(user_program_id):
 
 @api_permanence.get('/program/<int:program_id>/leave-requests')
 @login_required
-@permission_required('permanence.api.review_doc', program_id_kwarg='program_id')
+@permission_required('permanence.api.review_doc')
 @program_scope_required(program_id_kwarg='program_id')
 def api_get_pending_leave_requests(program_id):
     """Lista solicitudes de baja temporal en estado 'review' para el programa."""
@@ -947,7 +947,7 @@ def api_process_leave_request(submission_id):
 
 @api_permanence.post('/program/<int:program_id>/deadlines/conacyt-monthly')
 @login_required
-@permission_required('permanence.api.manage_deadlines', program_id_kwarg='program_id')
+@permission_required('permanence.api.manage_deadlines')
 @program_scope_required(program_id_kwarg='program_id')
 def api_create_conacyt_monthly_deadlines(program_id):
     """
@@ -1064,14 +1064,36 @@ def api_toggle_conacyt_scholarship(user_program_id):
 
 # ── Transición semestral (Pasar Semestre) ─────────────────────────────────────
 
+#: Capacidad DECLARADA para correr la transición sobre TODOS los programas.
+#:
+#: `permanence.api.advance_bulk` dice que el llamador puede correr una
+#: transición; este codename dice que puede correrla sobre el instituto entero.
+#: Antes esa segunda condición se leía con `is_global_scope()`, que en realidad
+#: pregunta por `academic_periods.api.create`: un permiso de otro recurso, que
+#: no aparece por ningún lado en el catálogo junto a la transición y que dejaba
+#: fuera del cambio de semestre a cualquier despliegue donde `advance_bulk`
+#: estuviera concedido por separado. El requisito ahora se llama por su nombre.
+#:
+#: Se evalúa a nivel de ROL (`has_role_permission`) y no con `has_permission`:
+#: una delegación siempre lleva `program_id`, y "puedo trabajar en el programa
+#: A" jamás debe convertirse en "puedo cerrar el periodo de los 20 programas".
+#: Quien lo tenga delegado corre su transición indicando su `program_id`.
+GLOBAL_TRANSITION_PERMISSION = 'permanence.api.transition_all'
+
+
+def _may_run_global_transition(user) -> bool:
+    """True si el rol del usuario declara la transición de todos los programas."""
+    return bool(user) and user.has_role_permission(GLOBAL_TRANSITION_PERMISSION)
+
+
 def _deny_global_transition():
     """
-    403 en español para la transición GLOBAL. La ejecuta sólo quien tiene
-    alcance sobre todos los programas (jefatura de posgrado); un coordinador con
-    el permiso delegado debe indicar explícitamente su programa.
+    403 en español para la transición GLOBAL, nombrando el permiso que falta
+    para que la denegación sea diagnosticable desde el catálogo de permisos.
     """
-    msg = ('La transición de todos los programas sólo puede ejecutarla la '
-           'jefatura de posgrado. Indica un programa específico.')
+    msg = ('La transición de todos los programas requiere el permiso '
+           '«permanence.api.transition_all» (jefatura de posgrado). '
+           'Indica un programa específico para correr sólo el tuyo.')
     return jsonify({
         "data": None,
         "flash": [{"level": "danger", "message": msg}],
@@ -1086,6 +1108,11 @@ def _deny_global_transition():
 def api_transition_preview():
     """
     Vista previa de la transición semestral para un programa o para todos.
+
+    Permisos:
+        permanence.api.advance_bulk    — correr una transición (obligatorio)
+        permanence.api.transition_all  — además, correrla sobre TODOS los
+                                         programas (sólo el modo global)
 
     Query params:
         program_id  (int|"all") — omitido o "all" → preview global
@@ -1106,10 +1133,11 @@ def api_transition_preview():
 
     global_mode = (not program_id_raw or str(program_id_raw).strip().lower() == 'all')
 
-    # Alcance: el modo global recorre TODOS los programas; sólo lo ve quien
-    # tiene alcance global. Con un programa concreto, debe estar en su alcance.
+    # Capacidad + alcance. El modo global recorre TODOS los programas y exige
+    # la capacidad declarada `permanence.api.transition_all`. Con un programa
+    # concreto basta `advance_bulk` y que el programa esté en su alcance.
     if global_mode:
-        if not scope_service.is_global_scope(current_user):
+        if not _may_run_global_transition(current_user):
             return _deny_global_transition()
     else:
         try:
@@ -1166,6 +1194,11 @@ def api_transition_execute():
     """
     Ejecuta la transición semestral (cierre de periodo + avance masivo).
 
+    Permisos:
+        permanence.api.advance_bulk    — correr una transición (obligatorio)
+        permanence.api.transition_all  — además, correrla sobre TODOS los
+                                         programas (cuando se omite program_id)
+
     Body JSON:
         source_period_id (int) — requerido
         target_period_id (int) — requerido
@@ -1195,9 +1228,9 @@ def api_transition_execute():
             "meta": {}
         }), 400
 
-    # Alcance: sin program_id la transición corre sobre TODOS los programas —
-    # reservado a la jefatura de posgrado. Con program_id, debe estar dentro
-    # del alcance del llamador.
+    # Capacidad + alcance. Sin program_id la transición corre sobre TODOS los
+    # programas y exige la capacidad declarada `permanence.api.transition_all`.
+    # Con program_id, el programa debe estar dentro del alcance del llamador.
     if program_id:
         try:
             program_id = int(program_id)
@@ -1210,7 +1243,7 @@ def api_transition_execute():
         denied = guard_program_scope(program_id)
         if denied:
             return denied
-    elif not scope_service.is_global_scope(current_user):
+    elif not _may_run_global_transition(current_user):
         return _deny_global_transition()
 
     try:

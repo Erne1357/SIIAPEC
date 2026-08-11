@@ -1,20 +1,44 @@
 # app/routes/api/interviews_api.py
-from app import db
-from flask import Blueprint, current_app, request, jsonify
+"""
+Interview eligibility endpoints.
+
+Permiso ≠ alcance. `interviews.api.check_eligibility`, `list_eligible` and
+`manage` are ROLE grants — every program_admin holds them institution-wide —
+so they only answer "may this account work on interviews at all". Every route
+below that names a concrete program or applicant must ALSO declare the scope
+with `@program_scope_required(...)`; the payloads carry per-document
+compliance detail and one of them writes a state that feeds eligibility.
+"""
+
+from flask import Blueprint, current_app, jsonify
 from flask_login import login_required, current_user
-from sqlalchemy import select
-from app.utils.permissions import permission_required
+
+from app.utils.permissions import (
+    permission_required,
+    program_scope_required,
+    current_accessible_program_ids,
+)
 from app.services.interview_service import InterviewEligibilityService
-from app.services.user_history_service import UserHistoryService
 
 api_interviews = Blueprint('api_interviews', __name__, url_prefix='/api/v1/interviews')
+
+_SERVER_ERROR_MESSAGE = 'Ocurrió un error al procesar la solicitud'
+
 
 @api_interviews.route('/eligibility/<int:student_id>/<int:program_id>', methods=['GET'])
 @login_required
 @permission_required('interviews.api.check_eligibility')
+@program_scope_required(program_id_kwarg='program_id', user_id_kwarg='student_id')
 def check_eligibility(student_id: int, program_id: int):
     """
     Verifica si un estudiante específico es elegible para entrevista.
+
+    Both ids arrive from the URL and are attacker-controlled, and the payload
+    carries per-document detail (archive names, submission status, missing
+    items), so BOTH are scoped: the program must be one of the caller's and the
+    applicant must belong to one of the caller's programs. That also closes the
+    enumeration oracle — an unknown student_id and an out-of-scope one both
+    answer 403, so ids are no longer walkable 1..N.
     """
     try:
         eligibility = InterviewEligibilityService.check_student_eligibility(student_id, program_id)
@@ -24,132 +48,145 @@ def check_eligibility(student_id: int, program_id: int):
             "program_id": program_id,
             "eligibility": eligibility
         }), 200
-    except Exception as e:
+    except Exception:
+        current_app.logger.exception(
+            "Error verificando elegibilidad (student_id=%s, program_id=%s)",
+            student_id, program_id
+        )
         return jsonify({
             "ok": False,
-            "error": str(e)
+            "error": _SERVER_ERROR_MESSAGE
         }), 500
+
 
 @api_interviews.route('/eligible-students/<int:program_id>', methods=['GET'])
 @login_required
 @permission_required('interviews.api.list_eligible')
+@program_scope_required(program_id_kwarg='program_id')
 def list_eligible_students(program_id: int):
     """
     Lista todos los estudiantes elegibles para entrevista en un programa.
     """
-    # Verificar que el usuario tiene acceso al programa
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is not None and program_id not in accessible_pids:
-        return jsonify({
-            "ok": False,
-            "error": "No tienes permiso para gestionar este programa"
-        }), 403
-
     try:
         eligible_students = InterviewEligibilityService.get_eligible_students(program_id)
-        current_app.logger.info(f"Usuario {current_user.id} listó estudiantes elegibles para programa {program_id} - Total: {len(eligible_students)} estudiantes elegibles encontrados {eligible_students}")
+        # Only the count is logged. The list carries names, e-mails and
+        # per-applicant document compliance; the application log is not a
+        # place for applicant PII.
+        current_app.logger.info(
+            "Usuario %s listó estudiantes elegibles del programa %s - Total: %s",
+            current_user.id, program_id, len(eligible_students)
+        )
         return jsonify({
             "ok": True,
             "program_id": program_id,
             "eligible_students": eligible_students,
             "count": len(eligible_students)
         }), 200
-    except Exception as e:
+    except Exception:
+        current_app.logger.exception(
+            "Error listando estudiantes elegibles del programa %s", program_id
+        )
         return jsonify({
             "ok": False,
-            "error": str(e)
+            "error": _SERVER_ERROR_MESSAGE
         }), 500
+
 
 @api_interviews.route('/eligible-students', methods=['GET'])
 @login_required
 @permission_required('interviews.api.list_eligible')
 def list_all_eligible_students():
     """
-    Lista todos los estudiantes elegibles para entrevista en todos los programas.
-    Si es coordinador (program_admin), solo muestra sus programas.
-    Si es admin de posgrado (postgraduate_admin), muestra todos los programas.
+    Lista los estudiantes elegibles para entrevista en los programas del usuario.
+
+    No `@program_scope_required` here because there is no target id in the
+    request: the route derives the program set FROM the caller's scope, which
+    is the strongest form of the guard.
     """
     try:
-        from app.models.program import Program
+        scope = current_accessible_program_ids()
 
-        accessible_pids = current_user.get_accessible_program_ids()
-        if accessible_pids is None:
-            # Acceso global (postgraduate_admin u otros con academic_periods.api.create)
-            managed_programs = db.session.execute(select(Program)).scalars().all()
-        elif not accessible_pids:
+        if scope is None:
+            # Alcance global (jefe de posgrado): se expande aquí, de forma
+            # explícita, para que el servicio nunca reciba un valor que
+            # signifique "todos los programas".
+            program_ids = InterviewEligibilityService.all_program_ids()
+        elif not scope:
+            # Conjunto vacío = SIN alcance. Nunca "todos".
             return jsonify({
                 "ok": True,
                 "programs": [],
+                "total_programs": 0,
                 "total_eligible_students": 0,
                 "message": "No tienes programas asignados"
             }), 200
         else:
-            managed_programs = db.session.execute(
-                select(Program).where(Program.id.in_(accessible_pids))
-            ).scalars().all()
+            program_ids = sorted(scope)
 
-        # Obtener estudiantes elegibles por programa
-        programs_data = []
-        total_eligible = 0
-        
-        for program in managed_programs:
-            eligible_students = InterviewEligibilityService.get_eligible_students(program.id)
-            
-            programs_data.append({
-                "program_id": program.id,
-                "program_name": program.name,
-                "program_slug": program.slug,
-                "eligible_students": eligible_students,
-                "eligible_count": len(eligible_students)
-            })
-            
-            total_eligible += len(eligible_students)
+        programs_data = InterviewEligibilityService.get_eligible_students_by_programs(program_ids)
+        total_eligible = sum(p["eligible_count"] for p in programs_data)
 
-        current_app.logger.info(f"Usuario {current_user.id} listó estudiantes elegibles de todos sus programas - Total: {total_eligible} estudiantes elegibles")
-        
+        current_app.logger.info(
+            "Usuario %s listó estudiantes elegibles de %s programas - Total: %s",
+            current_user.id, len(programs_data), total_eligible
+        )
+
         return jsonify({
             "ok": True,
             "programs": programs_data,
-            "total_programs": len(managed_programs),
+            "total_programs": len(programs_data),
             "total_eligible_students": total_eligible,
             "user_role": current_user.role.name
         }), 200
-        
-    except Exception as e:
-        current_app.logger.error(f"Error obteniendo estudiantes elegibles para todos los programas: {str(e)}")
+
+    except Exception:
+        current_app.logger.exception(
+            "Error obteniendo estudiantes elegibles para todos los programas"
+        )
         return jsonify({
             "ok": False,
-            "error": str(e)
+            "error": _SERVER_ERROR_MESSAGE
         }), 500
+
 
 @api_interviews.route('/mark-profile-complete/<int:user_id>', methods=['POST'])
 @login_required
 @permission_required('interviews.api.manage')
+@program_scope_required(user_id_kwarg='user_id', allow_self=False)
 def mark_profile_complete(user_id: int):
     """
     Marca el perfil de un usuario como completo (uso administrativo).
+
+    `profile_completed` is criterion #1 of interview eligibility, so this is a
+    program-scoped WRITE: the target applicant must belong to one of the
+    caller's programs. `allow_self=False` because no holder of
+    `interviews.api.manage` is their own applicant.
     """
     try:
-        success = InterviewEligibilityService.mark_profile_complete(user_id)
-        if success:
-            # Registrar en el historial
-            try:
-                UserHistoryService.log_profile_completion(user_id=user_id)
-                db.session.commit()
-            except Exception as e:
-                current_app.logger.error(f"Error al registrar completado de perfil en historial: {e}")
-            
-            return jsonify({
-                "ok": True,
-                "message": "Perfil marcado como completo"
-            }), 200
-        else:
-            return jsonify({
-                "ok": False,
-                "error": "No se pudo completar el perfil - faltan campos requeridos"
-            }), 400
-    except Exception as e:
+        result = InterviewEligibilityService.mark_profile_complete(
+            user_id=user_id,
+            admin_id=current_user.id,
+        )
+    except Exception:
+        current_app.logger.exception(
+            "Error marcando perfil como completo (user_id=%s)", user_id
+        )
         return jsonify({
             "ok": False,
-            "error": str(e)
+            "error": _SERVER_ERROR_MESSAGE
         }), 500
+
+    status = result["status"]
+    if status in ('ok', 'already_complete'):
+        return jsonify({
+            "ok": True,
+            "status": status,
+            "message": result["message"]
+        }), 200
+
+    http_status = 404 if status == 'not_found' else 400
+    return jsonify({
+        "ok": False,
+        "status": status,
+        "error": result["message"]
+    }), http_status

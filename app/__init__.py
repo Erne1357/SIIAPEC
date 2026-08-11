@@ -353,20 +353,23 @@ def create_app(test_config=None):
 
     @app.context_processor
     def inject_tokens_and_version():
-        def has_perm(codename, program_id=None):
+        def has_perm(codename):
             """
             Helper de Jinja2 para comprobar permisos en templates.
 
             Uso en plantillas:
                 {% if has_perm('coordinator.page.view') %}
-                {% if has_perm('acceptance.api.upload_doc', program_id) %}
+
+            Responde SÓLO "¿qué puede hacer?" — nunca "¿sobre qué programa?".
+            Una plantilla no debe decidir alcance: eso lo resuelve la ruta con
+            `program_scope_required` antes de renderizar.
             """
             # Fuera de una petición (p. ej. una plantilla de correo renderizada
             # desde una tarea de Celery) current_user resuelve a None y
             # .is_authenticated revienta con AttributeError.
             if not _viewer_is_authenticated():
                 return False
-            return current_user.has_permission(codename, program_id=program_id)
+            return current_user.has_permission(codename)
 
         def _role_info():
             """
@@ -375,7 +378,7 @@ def create_app(test_config=None):
             """
             if not _viewer_is_authenticated():
                 return (None, None)
-            if current_user.has_permission('academic_periods.api.create'):
+            if current_user.has_global_program_scope():
                 return ('Admin. Posgrado', 'bg-danger')
             if current_user.has_permission('coordinator.page.view'):
                 return ('Admin. Programa', 'bg-success')

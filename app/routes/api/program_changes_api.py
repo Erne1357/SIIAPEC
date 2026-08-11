@@ -21,6 +21,7 @@ solicitud en `executed`, que es lo que de verdad ocurrió.
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
+from app.models.program_change_request import PENDING
 from app.services.program_changes_service import ProgramChangesService
 from app.services.program_transfer_service import (
     ProgramTransferService,
@@ -30,7 +31,6 @@ from app.services.program_transfer_service import (
 from app.services.user_history_service import UserHistoryService
 from app.services import program_scope_service as scope_service
 from app import db
-from app.utils.datetime_utils import now_local
 
 api_program_changes = Blueprint('api_program_changes', __name__, url_prefix='/api/v1/program-changes')
 
@@ -156,7 +156,7 @@ def decide(req_id: int):
     if {req.from_program_id, req.to_program_id} - in_scope:
         return jsonify({"ok": False, "error": "La solicitud de cambio no existe."}), 404
 
-    if req.status != 'pending':
+    if req.status != PENDING:
         return jsonify({
             "ok": False,
             "error": "Esta solicitud ya fue resuelta y no puede volver a decidirse."
@@ -258,17 +258,15 @@ def execute_transfer():
             change_request_id=change_request.id
         )
     except ProgramTransferError as e:
-        change_request.status = 'cancelled'
-        db.session.commit()
+        ProgramChangesService.mark_cancelled(change_request.id)
         return _transfer_denied(e)
 
     if result['success']:
         # El cambio lo ejecutó el propio aspirante bajo las reglas del
         # autoservicio: NADIE lo aprobó. Marcarlo 'approved' con
-        # decided_by = el propio solicitante era una firma falsa.
-        change_request.status = 'executed'
-        change_request.decided_at = now_local()
-        db.session.commit()
+        # decided_by = el propio solicitante era una firma falsa. 'executed'
+        # es un estado de pleno derecho — ver ProgramChangeRequest.
+        ProgramChangesService.mark_executed(change_request.id)
 
         # Registrar transferencia ejecutada en el historial
         try:
@@ -296,8 +294,7 @@ def execute_transfer():
             f"Fallo al ejecutar cambio de programa {from_id}->{to_id} "
             f"del usuario {current_user.id}: {result.get('error')}"
         )
-        change_request.status = 'cancelled'
-        db.session.commit()
+        ProgramChangesService.mark_cancelled(change_request.id)
         return jsonify({
             "ok": False,
             "error": "No se pudo completar el cambio de programa."

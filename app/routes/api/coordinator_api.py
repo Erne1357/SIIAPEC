@@ -135,9 +135,17 @@ def _restricted_details_payload(student, program, admission_state) -> dict:
     """
     Respuesta de `/details` para un estudiante de otro programa.
 
-    Mismas claves de siempre, pero sin `profile_data` (CURP, RFC, NSS,
-    domicilio, fecha y lugar de nacimiento, contacto de emergencia), sin foto,
-    sin documentos ni sus URLs y sin elegibilidad de entrevista.
+    Mismas claves de siempre, pero cada dato prohibido sale en `None`: los
+    personales (CURP, RFC, NSS, domicilio, fecha y lugar de nacimiento, contacto
+    de emergencia), la foto, los documentos con sus URLs y la elegibilidad de
+    entrevista.
+
+    `profile_data` conserva su FORMA con los valores en `None` en lugar de venir
+    como `None` entero. El modal del coordinador la recorre campo por campo, y
+    un `null` en la raíz reventaba el render con un TypeError que se pintaba
+    como «Error al cargar información», dejando inalcanzable el nivel reducido
+    que esta función existe para servir. Vaciar los valores comunica lo mismo
+    —no hay dato disponible— sin romper al consumidor.
     """
     s = _summary_of(student, program, admission_state=admission_state)
     return {
@@ -155,7 +163,21 @@ def _restricted_details_payload(student, program, admission_state) -> dict:
                 "name": s.get('program_name'),
                 "slug": s.get('program_slug'),
             },
-            "profile_data": None,
+            "profile_data": {
+                "phone": None,
+                "mobile_phone": None,
+                "address": None,
+                "curp": None,
+                "rfc": None,
+                "birth_date": None,
+                "birth_place": None,
+                "nss": None,
+                "emergency_contact": {
+                    "name": None,
+                    "phone": None,
+                    "relationship": None,
+                },
+            },
         },
         "documents": [],
         "interview": {

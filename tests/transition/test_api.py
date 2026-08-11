@@ -79,6 +79,94 @@ def test_preview_endpoint_global(app, client, periods, permissions, postgrad_adm
 
 
 # ---------------------------------------------------------------------------
+# Contrato de permisos de la transición
+#
+#   permanence.api.advance_bulk    → puedo correr una transición
+#   permanence.api.transition_all  → puedo correrla sobre TODOS los programas
+#
+# Ninguna de las dos cosas se deduce de `academic_periods.api.create`: quien
+# tiene `advance_bulk` delegado corre el cambio de semestre de su programa sin
+# necesitar un permiso de otro recurso.
+# ---------------------------------------------------------------------------
+
+def test_preview_own_program_needs_only_advance_bulk(app, client, periods,
+                                                     coordinator_advance_bulk,
+                                                     coordinator, program):
+    """`advance_bulk` + alcance sobre el programa basta: no hace falta nada más."""
+    _login(client, coordinator)
+    resp = client.get(
+        f'/api/v1/permanence/transition/preview'
+        f'?program_id={program.id}'
+        f'&source_period_id={periods["20263"].id}'
+        f'&target_period_id={periods["20271"].id}'
+    )
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:300]
+
+
+def test_preview_global_requires_transition_all(app, client, periods,
+                                                coordinator_advance_bulk,
+                                                coordinator, program):
+    """
+    Sin `transition_all`, el modo global se deniega — y el mensaje nombra el
+    permiso que falta, para que el 403 sea diagnosticable desde el catálogo.
+    """
+    _login(client, coordinator)
+    resp = client.get(
+        f'/api/v1/permanence/transition/preview'
+        f'?source_period_id={periods["20263"].id}'
+        f'&target_period_id={periods["20271"].id}'
+    )
+    assert resp.status_code == 403
+    assert 'permanence.api.transition_all' in resp.get_json()['error']['message']
+
+
+def test_preview_foreign_program_is_denied(app, client, periods,
+                                           coordinator_advance_bulk,
+                                           coordinator, program, foreign_program):
+    """`advance_bulk` es capacidad, no alcance: el programa ajeno sigue cerrado."""
+    _login(client, coordinator)
+    resp = client.get(
+        f'/api/v1/permanence/transition/preview'
+        f'?program_id={foreign_program.id}'
+        f'&source_period_id={periods["20263"].id}'
+        f'&target_period_id={periods["20271"].id}'
+    )
+    assert resp.status_code == 403
+
+
+def test_execute_own_program_needs_only_advance_bulk(app, client, periods,
+                                                     coordinator_advance_bulk,
+                                                     coordinator, program):
+    token = _login(client, coordinator)
+    resp = client.post(
+        '/api/v1/permanence/transition/execute',
+        json={
+            'program_id': program.id,
+            'source_period_id': periods['20263'].id,
+            'target_period_id': periods['20271'].id,
+        },
+        headers=_csrf(token),
+    )
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:300]
+
+
+def test_execute_global_requires_transition_all(app, client, periods,
+                                                coordinator_advance_bulk,
+                                                coordinator, program):
+    token = _login(client, coordinator)
+    resp = client.post(
+        '/api/v1/permanence/transition/execute',
+        json={
+            'source_period_id': periods['20263'].id,
+            'target_period_id': periods['20271'].id,
+        },
+        headers=_csrf(token),
+    )
+    assert resp.status_code == 403
+    assert 'permanence.api.transition_all' in resp.get_json()['error']['message']
+
+
+# ---------------------------------------------------------------------------
 # /transition/execute
 # ---------------------------------------------------------------------------
 

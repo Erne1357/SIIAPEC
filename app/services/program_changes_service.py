@@ -1,7 +1,14 @@
 from datetime import datetime, timezone
 from app.utils.datetime_utils import now_local
 from app import db
-from app.models.program_change_request import ProgramChangeRequest
+from app.models.program_change_request import (
+    ProgramChangeRequest,
+    DECISION_STATUSES,
+    CANCELLED,
+    EXECUTED,
+    PENDING,
+    APPROVED,
+)
 from app.models.document_mapping import DocumentMapping
 from app.models.submission import Submission
 from app.models.archive import Archive
@@ -16,7 +23,7 @@ class ProgramChangesService:
             from_program_id=from_program_id,
             to_program_id=to_program_id,
             reason=reason,
-            status='pending',
+            status=PENDING,
             created_at=now_local()
         )
         db.session.add(req)
@@ -25,7 +32,13 @@ class ProgramChangesService:
 
     @staticmethod
     def decide_request(request_id:int, status:str, decided_by:int):
-        if status not in ('approved','rejected','cancelled'):
+        """
+        Decisión de un coordinador: aprobar, rechazar o cancelar.
+
+        `executed` no se acepta aquí: no es una decisión sino el resultado del
+        autoservicio del aspirante — lo fija `mark_executed`, sin `decided_by`.
+        """
+        if status not in DECISION_STATUSES:
             raise ValueError("status inválido")
 
         req = db.session.get(ProgramChangeRequest, request_id)
@@ -36,9 +49,41 @@ class ProgramChangesService:
         req.decided_by = decided_by
         req.decided_at = now_local()
 
-        if status == 'approved':
+        if status == APPROVED:
             ProgramChangesService._apply_change(req)
 
+        db.session.commit()
+        return req
+
+    @staticmethod
+    def mark_executed(request_id: int) -> ProgramChangeRequest:
+        """
+        Marca la solicitud como consumada por AUTOSERVICIO del aspirante.
+
+        Deja `decided_by` en NULL a propósito: el cambio lo ejecutó el propio
+        solicitante bajo las reglas de `ProgramTransferService`, nadie lo
+        aprobó, y firmarlo como aprobado por él mismo sería una firma falsa.
+        """
+        req = db.session.get(ProgramChangeRequest, request_id)
+        if not req:
+            raise ValueError("ProgramChangeRequest no encontrado")
+
+        req.status = EXECUTED
+        req.decided_at = now_local()
+        db.session.commit()
+        return req
+
+    @staticmethod
+    def mark_cancelled(request_id: int) -> ProgramChangeRequest:
+        """
+        Cancela la solicitud sin decisor: el autoservicio abortó antes o
+        durante la transferencia y la fila queda como rastro de auditoría.
+        """
+        req = db.session.get(ProgramChangeRequest, request_id)
+        if not req:
+            raise ValueError("ProgramChangeRequest no encontrado")
+
+        req.status = CANCELLED
         db.session.commit()
         return req
 

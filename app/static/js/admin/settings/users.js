@@ -25,7 +25,29 @@
         const el = document.querySelector('meta[name="csrf-token"]');
         return el ? el.getAttribute('content') : '';
     };
-    
+
+    // Silueta genérica. Nunca dejar `src=""`: el navegador lo resuelve contra la
+    // URL de la página, vuelve a descargarla como imagen y pinta un icono roto.
+    const DEFAULT_AVATAR = '/static/assets/images/default.jpg';
+
+    /**
+     * ¿Esta fila viene recortada al nivel reducido entre programas?
+     *
+     * El backend marca la fila con `restricted: true` cuando el usuario queda
+     * fuera del alcance del llamador; el payload conserva sólo id, nombre y
+     * correo (ver `program_scope_service.CROSS_PROGRAM_SUMMARY_FIELDS`).
+     *
+     * La comprobación estructural es la red de seguridad: `role` y `username`
+     * viajan en TODA fila completa y nunca están en la lista blanca, así que su
+     * ausencia identifica una fila recortada aunque la marca no llegue. Importa
+     * porque el fallo silencioso es afirmativo: sin esto, `user.is_active`
+     * indefinido se pintaba como «Inactivo» —un dato falso— en la misma fila
+     * desde la que un coordinador decide si actuar.
+     */
+    const isRestrictedRow = (user) =>
+        !user || user.restricted === true ||
+        user.role === undefined || user.username === undefined;
+
     // Cargar lista de usuarios
     async function loadUsers(page = 1) {
         const loadingIndicator = document.getElementById('loadingIndicator');
@@ -80,11 +102,59 @@
         }
     }
     
+    // Celda sin dato POR FALTA DE PERMISO. No es un valor vacío: es una
+    // pregunta que esta cuenta no tiene derecho a hacer, y así se dice.
+    const unavailableCell = () => `
+        <span class="text-muted small">
+            <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>No disponible
+        </span>`;
+
+    /**
+     * Fila del nivel reducido: nombre y correo reales, todo lo demás declarado
+     * como no disponible y sin una sola acción que vaya a devolver 403.
+     */
+    function renderRestrictedRow(user) {
+        const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+        const idAttr = escapeAttr(user.id);
+
+        return `
+            <tr class="user-row table-secondary">
+                <th scope="row" class="fw-normal">
+                    <div class="d-flex align-items-center">
+                        <img src="${escapeAttr(DEFAULT_AVATAR)}" class="rounded-circle avatar-sm me-2" alt="">
+                        <div>
+                            <button type="button" class="user-row__trigger"
+                                    data-action="show-detail" data-user-id="${idAttr}">
+                                ${escapeHtml(fullName)}
+                            </button>
+                            <small class="text-muted d-block">${escapeHtml(user.email)}</small>
+                            <small class="text-muted d-block">
+                                <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Pertenece a otro programa
+                            </small>
+                        </div>
+                    </div>
+                </th>
+                <td>${unavailableCell()}</td>
+                <td>${unavailableCell()}</td>
+                <td>${unavailableCell()}</td>
+                <td>${unavailableCell()}</td>
+                <td class="text-end">
+                    <i class="bi bi-lock text-muted" aria-hidden="true"></i>
+                    <span class="visually-hidden">
+                        Sin acciones disponibles: esta cuenta pertenece a un programa que no gestionas.
+                    </span>
+                </td>
+            </tr>
+        `;
+    }
+
     // Renderizar tabla de usuarios
     function renderUsersTable(users) {
         const tbody = document.getElementById('usersTableBody');
-        
+
         tbody.innerHTML = users.map(user => {
+            if (isRestrictedRow(user)) return renderRestrictedRow(user);
+
             // Mismo texto que antes; se escapa una sola vez por contexto.
             const fullName = `${user.first_name} ${user.last_name}`;
             const nameText = escapeHtml(fullName);
@@ -98,7 +168,7 @@
             <tr class="user-row">
                 <th scope="row" class="fw-normal">
                     <div class="d-flex align-items-center">
-                        <img src="${escapeAttr(user.avatar_url)}" class="rounded-circle avatar-sm me-2" alt="">
+                        <img src="${escapeAttr(user.avatar_url || DEFAULT_AVATAR)}" class="rounded-circle avatar-sm me-2" alt="">
                         <div>
                             <button type="button" class="user-row__trigger"
                                     data-action="show-detail" data-user-id="${idAttr}">
@@ -265,6 +335,43 @@
         document.getElementById('totalUsersCount').textContent = `${total} usuario${total !== 1 ? 's' : ''}`;
     }
     
+    /**
+     * Detalle del nivel reducido.
+     *
+     * El endpoint responde 200 con nombre y correo, sin historial, sin foto,
+     * sin rol y sin estado de la cuenta. Se dice qué falta y por qué, en vez de
+     * imprimir «No registrado» —que afirmaría que el dato no existe— o
+     * «Inactivo» —que afirmaría algo directamente falso—.
+     */
+    function renderRestrictedDetail(user) {
+        const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+        return `
+            <div class="alert alert-info d-flex align-items-start gap-2">
+                <i class="bi bi-shield-lock-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+                <div>
+                    <strong>Información limitada.</strong>
+                    Esta cuenta pertenece a un programa que no gestionas. Solo
+                    puedes consultar su nombre y su correo; el rol, el estado de
+                    la cuenta, el número de control, la foto y el historial
+                    corresponden a su programa.
+                </div>
+            </div>
+            <h3 class="h6">Información básica</h3>
+            <dl class="row mb-0">
+                <dt class="col-5">Nombre</dt>
+                <dd class="col-7">${escapeHtml(fullName)}</dd>
+                <dt class="col-5">Correo</dt>
+                <dd class="col-7">${escapeHtml(user.email)}</dd>
+                <dt class="col-5">Rol</dt>
+                <dd class="col-7">${unavailableCell()}</dd>
+                <dt class="col-5">Estado de la cuenta</dt>
+                <dd class="col-7">${unavailableCell()}</dd>
+                <dt class="col-5">Historial</dt>
+                <dd class="col-7">${unavailableCell()}</dd>
+            </dl>
+        `;
+    }
+
     // Ver detalles de usuario
     async function showUserDetail(userId) {
         const modal = new bootstrap.Modal(document.getElementById('userDetailModal'));
@@ -286,10 +393,15 @@
             const program = json.data.user.program;
             const history = json.data.history || [];
 
+            if (isRestrictedRow(user)) {
+                content.innerHTML = renderRestrictedDetail(user);
+                return;
+            }
+
             content.innerHTML = `
                 <div class="row">
                     <div class="col-md-4 text-center">
-                        <img src="${escapeAttr(user.avatar_url)}" alt="" loading="lazy" class="rounded-circle avatar-xl">
+                        <img src="${escapeAttr(user.avatar_url || DEFAULT_AVATAR)}" alt="" loading="lazy" class="rounded-circle avatar-xl">
                         <h5 class="mt-3">${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)}</h5>
                         <span class="badge ${getRoleBadgeClass(user.role)}">${escapeHtml(getRoleLabel(user.role))}</span>
                         <br>
@@ -609,8 +721,56 @@
     // ========================================================================
 
     const PERMISSIONS_API = `${window.location.origin}/api/v1/permissions`;
+    const SCOPE_PROGRAMS_API = `${window.location.origin}/api/v1/coordinator/programs`;
 
     let delegatableCache = null;
+    let scopeProgramsCache = null;
+
+    /**
+     * Programas que el creador alcanza realmente (coordinados + delegados).
+     * Para el jefe de posgrado son todos. El endpoint ya aplica el alcance, así
+     * que aquí no hay que reconstruirlo.
+     */
+    async function loadScopePrograms() {
+        if (scopeProgramsCache) return scopeProgramsCache;
+        const res = await fetch(SCOPE_PROGRAMS_API);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error?.message || 'No se pudieron cargar los programas');
+        scopeProgramsCache = json.programs || [];
+        return scopeProgramsCache;
+    }
+
+    /**
+     * Selector de programas de la cuenta de servicio social.
+     *
+     * Es obligatorio para un creador con alcance global. Antes el modal no lo
+     * tenía: el JS enviaba `program_ids: null`, cada delegación se guardaba con
+     * `program_id = NULL` y `get_accessible_program_ids()` descarta esas filas,
+     * de modo que la cuenta nacía sin alcance alguno. La persona activaba su
+     * contraseña, entraba y encontraba la revisión vacía y cada endpoint en 403,
+     * mientras el coordinador veía sus delegaciones «activas».
+     */
+    function renderProgramSelector(programs) {
+        const list = document.getElementById('ss_programs_list');
+        if (!programs.length) {
+            list.innerHTML = `
+                <div class="alert alert-warning mb-0">
+                    No hay programas dentro de tu alcance, así que no puedes crear
+                    una cuenta de servicio social.
+                </div>`;
+            return;
+        }
+
+        list.innerHTML = programs.map(p => `
+            <div class="form-check">
+                <input class="form-check-input ss-program-check" type="checkbox"
+                       id="ss_program_${escapeAttr(p.id)}" value="${escapeAttr(p.id)}">
+                <label class="form-check-label" for="ss_program_${escapeAttr(p.id)}">
+                    ${escapeHtml(p.name)}
+                </label>
+            </div>
+        `).join('');
+    }
 
     async function openCreateSocialService() {
         const ctx = window.SIIAP_USERS_CTX || {};
@@ -618,12 +778,17 @@
         if (form) form.reset();
 
         const scopeInfo = document.getElementById('ss_scope_info');
+        const programsBlock = document.getElementById('ss_programs_block');
+        const programsList = document.getElementById('ss_programs_list');
+
+        scopeInfo.classList.add('d-none');
+        programsBlock.classList.toggle('d-none', !ctx.canDelegateGlobal);
         if (ctx.canDelegateGlobal) {
-            scopeInfo.classList.add('d-none');
-        } else {
-            const progs = (ctx.coordinatedProgramNames || []).join(', ') || '(sin programas)';
-            scopeInfo.innerHTML = `<i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Ámbito de delegación: <strong>${escapeHtml(progs)}</strong>. Los permisos se aplicarán a cada uno de tus programas coordinados.`;
-            scopeInfo.classList.remove('d-none');
+            programsList.innerHTML = `
+                <div class="text-center py-2">
+                    <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+                    <span class="ms-2">Cargando programas…</span>
+                </div>`;
         }
 
         const list = document.getElementById('ss_permissions_list');
@@ -633,6 +798,25 @@
 
         const modal = new bootstrap.Modal(document.getElementById('createSocialServiceModal'));
         modal.show();
+
+        // Alcance: selector obligatorio para el jefe de posgrado, informativo
+        // (y con el alcance REAL, no sólo lo coordinado) para un coordinador.
+        try {
+            const programs = await loadScopePrograms();
+            if (ctx.canDelegateGlobal) {
+                renderProgramSelector(programs);
+            } else {
+                const names = programs.map(p => p.name).join(', ')
+                    || (ctx.coordinatedProgramNames || []).join(', ')
+                    || '(sin programas)';
+                scopeInfo.innerHTML = `<i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Ámbito de delegación: <strong>${escapeHtml(names)}</strong>. Los permisos se aplicarán a cada uno de los programas a tu alcance.`;
+                scopeInfo.classList.remove('d-none');
+            }
+        } catch (error) {
+            if (ctx.canDelegateGlobal) {
+                programsList.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(error.message)}</div>`;
+            }
+        }
 
         try {
             if (!delegatableCache) {
@@ -729,6 +913,20 @@
         }
 
         const ctx = window.SIIAP_USERS_CTX || {};
+
+        // Sin programa la cuenta nace sin alcance y no puede trabajar. El
+        // backend también lo rechaza; aquí se avisa antes de enviar nada.
+        let programIds = null;
+        if (ctx.canDelegateGlobal) {
+            programIds = Array.from(document.querySelectorAll('.ss-program-check:checked'))
+                .map(cb => Number(cb.value));
+            if (!programIds.length) {
+                showFlash('warning', 'Selecciona al menos un programa para la cuenta.');
+                document.getElementById('ss_programs_list')?.scrollIntoView({ block: 'nearest' });
+                return;
+            }
+        }
+
         const expiresDate = document.getElementById('ss_expires_at').value;
         let expires_at = null;
         if (expiresDate) {
@@ -744,12 +942,12 @@
             expires_at:       expires_at,
         };
 
-        if (ctx.canDelegateGlobal) {
-            payload.program_ids = null;
+        if (programIds) {
+            payload.program_ids = programIds;
         }
 
         const btn = event.submitter;
-        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Creando...'; }
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Creando…'; }
 
         try {
             const res = await fetch(`${API_BASE}/social-service`, {
@@ -773,7 +971,7 @@
         } catch (error) {
             showFlash('danger', error.message);
         } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Crear y Delegar'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1" aria-hidden="true"></i>Crear y delegar'; }
         }
     }
 

@@ -85,7 +85,14 @@ def _grant(role, codename):
 
 @pytest.fixture
 def permissions(app, roles):
-    """Mapea permisos del módulo a roles correctos."""
+    """
+    Mapea permisos del módulo a roles correctos.
+
+    `social_service` sigue recibiendo los permisos AQUÍ aunque la semilla real
+    ya no se los dé: así los tests pueden comprobar la capa de alcance por sí
+    sola (tiene el permiso y aun así se le niega por no administrar ningún
+    programa), en vez de que el 403 lo produzca `permission_required`.
+    """
     for code in ('student_bulk.page.view',
                  'student_bulk.api.create_one',
                  'student_bulk.api.csv_preview',
@@ -93,6 +100,11 @@ def permissions(app, roles):
         _grant(roles['postgraduate_admin'], code)
         _grant(roles['program_admin'], code)
         _grant(roles['social_service'], code)
+
+    # El jefe de posgrado es global porque tiene este permiso: es la definición
+    # que usa User.get_accessible_program_ids(). Sin él, el fixture
+    # postgrad_admin no tendría alcance sobre ningún programa.
+    _grant(roles['postgraduate_admin'], 'academic_periods.api.create')
     return True
 
 
@@ -187,6 +199,35 @@ def program(app, coordinator):
         slug='maestria-test',
         is_active=True,
         duration_semesters=4,
+    )
+    db.session.add(p)
+    db.session.flush()
+    return p
+
+
+@pytest.fixture
+def other_coordinator(app, roles):
+    """Coordinador de OTRO programa — el vecino cuyo padrón no debe tocarse."""
+    u = User(
+        first_name='Otro', last_name='Coord', mother_last_name='',
+        username='coord_other', password='Test1234!',
+        email='coordother@test.local', is_internal=True,
+        role_id=roles['program_admin'].id, must_change_password=False,
+    )
+    db.session.add(u)
+    db.session.flush()
+    return u
+
+
+@pytest.fixture
+def other_program(app, other_coordinator):
+    p = Program(
+        name='Doctorado Ajeno',
+        description='Test',
+        coordinator_id=other_coordinator.id,
+        slug='doctorado-ajeno',
+        is_active=True,
+        duration_semesters=6,
     )
     db.session.add(p)
     db.session.flush()

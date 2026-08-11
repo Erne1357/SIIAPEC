@@ -20,6 +20,7 @@ from app import create_app, db
 from app.models.user import User
 from app.models.role import Role
 from app.models.permission import Permission
+from app.models.program import Program
 from app.models.role_permission import RolePermission, RolePermissionOverride
 from app.models.user_permission import UserPermission
 from app.utils.datetime_utils import now_local
@@ -130,6 +131,16 @@ class IntegrationBase(unittest.TestCase):
         self.social      = _user(self.r_social,     username='social1')
         self.applicant   = _user(self.r_applicant,  username='applicant1')
 
+        # A delegation now needs a concrete program the granter can reach:
+        # `program_id=None` (all programs) is reserved for the jefe de posgrado.
+        self.program = Program(
+            name='Maestria Test',
+            description='Programa de prueba',
+            coordinator_id=self.admin.id,
+            slug='maestria-test',
+        )
+        db.session.add(self.program)
+
         db.session.commit()
 
     def tearDown(self):
@@ -163,6 +174,7 @@ class DelegationServiceTest(IntegrationBase):
                 granter_id=self.admin.id,
                 grantee_id=self.social.id,
                 codename='acceptance.api.upload_doc',
+                program_id=self.program.id,
             )
         self.assertIsNotNone(up.id)
         self.assertTrue(up.is_active)
@@ -175,6 +187,7 @@ class DelegationServiceTest(IntegrationBase):
                 granter_id=self.admin.id,
                 grantee_id=self.social.id,
                 codename='acceptance.api.upload_doc',
+                program_id=self.program.id,
             )
         with self.app.test_request_context('/'):
             self.assertTrue(
@@ -209,6 +222,7 @@ class DelegationServiceTest(IntegrationBase):
                 granter_id=self.admin.id,
                 grantee_id=self.social.id,
                 codename='acceptance.api.upload_doc',
+                program_id=self.program.id,
             )
             with self.assertRaises(perm_svc.PermissionError):
                 perm_svc.delegate_permission(
@@ -224,6 +238,7 @@ class DelegationServiceTest(IntegrationBase):
                 granter_id=self.admin.id,
                 grantee_id=self.social.id,
                 codename='acceptance.api.upload_doc',
+                program_id=self.program.id,
             )
             perm_svc.revoke_delegation(
                 revoker_id=self.admin.id,
@@ -241,6 +256,7 @@ class DelegationServiceTest(IntegrationBase):
                 granter_id=self.admin.id,
                 grantee_id=self.social.id,
                 codename='acceptance.api.upload_doc',
+                program_id=self.program.id,
             )
             perm_svc.revoke_delegation(self.admin.id, up.id)
             with self.assertRaises(perm_svc.PermissionError):
@@ -256,6 +272,7 @@ class DelegationServiceTest(IntegrationBase):
                 granter_id=self.admin.id,
                 grantee_id=self.social.id,
                 codename='acceptance.api.upload_doc',
+                program_id=self.program.id,
                 expires_at=future,
             )
             up_id = up_future.id
@@ -462,6 +479,7 @@ class DelegationHttpTest(IntegrationBase):
                 granter_id=self.admin.id,
                 grantee_id=self.social.id,
                 codename='acceptance.api.upload_doc',
+                program_id=self.program.id,
                 note='Temporal para proceso de admisión',
             )
 
@@ -578,6 +596,200 @@ class PermissionCatalogTest(IntegrationBase):
         perms = perm_svc.list_all_permissions(perm_type='api')
         for p in perms:
             self.assertEqual(p.perm_type, 'api')
+
+
+# ---------------------------------------------------------------------------
+# 6. Delegación: alcance del otorgante, autodelegación y marcador global
+# ---------------------------------------------------------------------------
+
+class DelegationScopeTest(IntegrationBase):
+    """
+    Una delegación reparte ALCANCE, no sólo capacidad. Estas pruebas fijan los
+    límites de quién puede repartirlo y sobre qué.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Segundo coordinador con su propio programa: territorio ajeno.
+        self.admin2 = _user(self.r_prog_admin, username='admin2')
+        self.p_global = _perm('academic_periods.api.create')
+        self.p_self   = _perm('users.api.me')
+        _grant_role_perm(self.r_prog_admin, self.p_self)
+        db.session.flush()
+
+        self.program_b = Program(
+            name='Maestria Ajena',
+            description='Programa de otro coordinador',
+            coordinator_id=self.admin2.id,
+            slug='maestria-ajena',
+        )
+        db.session.add(self.program_b)
+        db.session.commit()
+
+    def test_self_delegation_is_refused(self):
+        """
+        Autodelegarse era la escalada completa: el coordinador de A se otorgaba
+        cualquier codename sobre B y heredaba todo el programa B.
+        """
+        with self.app.test_request_context('/'):
+            with self.assertRaises(perm_svc.PermissionError):
+                perm_svc.delegate_permission(
+                    granter_id=self.admin.id,
+                    grantee_id=self.admin.id,
+                    codename='acceptance.api.upload_doc',
+                    program_id=self.program.id,
+                )
+
+    def test_cannot_delegate_over_a_program_outside_own_scope(self):
+        """Nadie reparte acceso a un programa que no controla."""
+        with self.app.test_request_context('/'):
+            with self.assertRaises(perm_svc.PermissionError):
+                perm_svc.delegate_permission(
+                    granter_id=self.admin.id,
+                    grantee_id=self.social.id,
+                    codename='acceptance.api.upload_doc',
+                    program_id=self.program_b.id,
+                )
+
+    def test_program_admin_cannot_delegate_globally(self):
+        """program_id=None ('todos los programas') es sólo del jefe de posgrado."""
+        with self.app.test_request_context('/'):
+            with self.assertRaises(perm_svc.PermissionError):
+                perm_svc.delegate_permission(
+                    granter_id=self.admin.id,
+                    grantee_id=self.social.id,
+                    codename='acceptance.api.upload_doc',
+                    program_id=None,
+                )
+
+    def test_self_service_permission_is_not_delegatable(self):
+        """'users.api.me' no describe trabajo sobre un programa: se rechaza."""
+        with self.app.test_request_context('/'):
+            with self.assertRaises(perm_svc.PermissionError):
+                perm_svc.delegate_permission(
+                    granter_id=self.admin.id,
+                    grantee_id=self.social.id,
+                    codename='users.api.me',
+                    program_id=self.program.id,
+                )
+
+    def test_self_service_delegation_row_grants_no_scope(self):
+        """
+        Aunque la fila exista (creada fuera del servicio, o heredada de datos
+        antiguos), un permiso de cuenta propia no aporta alcance.
+        """
+        up = UserPermission(
+            user_id=self.social.id,
+            permission_id=self.p_self.id,
+            granted_by=self.admin.id,
+            program_id=self.program.id,
+        )
+        db.session.add(up)
+        db.session.commit()
+
+        with self.app.test_request_context('/'):
+            self.assertEqual(self.social.get_accessible_program_ids(), set())
+
+    def test_scoped_delegation_of_global_marker_is_not_global_scope(self):
+        """
+        'academic_periods.api.create' delegado sobre UN programa no convierte a
+        nadie en jefe de posgrado: el alcance global es un hecho del ROL.
+        """
+        up = UserPermission(
+            user_id=self.social.id,
+            permission_id=self.p_global.id,
+            granted_by=self.admin.id,
+            program_id=self.program.id,
+        )
+        db.session.add(up)
+        db.session.commit()
+
+        with self.app.test_request_context('/'):
+            self.assertTrue(self.social.has_permission('academic_periods.api.create'))
+            self.assertFalse(self.social.has_global_program_scope())
+            self.assertEqual(self.social.get_accessible_program_ids(), {self.program.id})
+
+    def test_role_grant_of_global_marker_is_global_scope(self):
+        """El jefe de posgrado (permiso por rol) conserva alcance global."""
+        _grant_role_perm(self.r_prog_admin, self.p_global)
+        db.session.commit()
+
+        with self.app.test_request_context('/'):
+            self.assertTrue(self.admin.has_global_program_scope())
+            self.assertIsNone(self.admin.get_accessible_program_ids())
+
+
+# ---------------------------------------------------------------------------
+# 7. Revocación y lectura de delegaciones ajenas
+# ---------------------------------------------------------------------------
+
+class DelegationVisibilityTest(IntegrationBase):
+    """
+    El id de una delegación es enumerable: revocarla y leerla deben estar
+    limitadas al alcance de quien lo pide.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.admin2 = _user(self.r_prog_admin, username='admin2')
+        db.session.flush()
+        self.program_b = Program(
+            name='Maestria Ajena',
+            description='Programa de otro coordinador',
+            coordinator_id=self.admin2.id,
+            slug='maestria-ajena',
+        )
+        db.session.add(self.program_b)
+        db.session.commit()
+
+        with self.app.test_request_context('/'):
+            self.up = perm_svc.delegate_permission(
+                granter_id=self.admin.id,
+                grantee_id=self.social.id,
+                codename='acceptance.api.upload_doc',
+                program_id=self.program.id,
+            )
+        self.up_id = self.up.id
+
+    def test_foreign_coordinator_cannot_revoke(self):
+        """
+        admin2 tiene 'permissions.api.revoke_delegation' por rol, pero la
+        delegación vive en un programa que no alcanza.
+        """
+        with self.app.test_request_context('/'):
+            with self.assertRaises(perm_svc.PermissionError):
+                perm_svc.revoke_delegation(
+                    revoker_id=self.admin2.id,
+                    user_permission_id=self.up_id,
+                )
+
+    def test_granter_can_revoke_own_delegation(self):
+        with self.app.test_request_context('/'):
+            up = perm_svc.revoke_delegation(
+                revoker_id=self.admin.id,
+                user_permission_id=self.up_id,
+            )
+        self.assertFalse(up.is_active)
+
+    def test_listing_hides_delegations_outside_viewer_scope(self):
+        """admin2 no ve la delegación de un programa ajeno; admin sí la ve."""
+        with self.app.test_request_context('/'):
+            visible_foreign = perm_svc.get_user_delegations_for_viewer(
+                self.admin2, self.social.id
+            )
+            visible_owner = perm_svc.get_user_delegations_for_viewer(
+                self.admin, self.social.id
+            )
+
+        self.assertEqual(visible_foreign, [])
+        self.assertEqual([u.id for u in visible_owner], [self.up_id])
+
+    def test_target_sees_their_own_delegations(self):
+        with self.app.test_request_context('/'):
+            visible = perm_svc.get_user_delegations_for_viewer(
+                self.social, self.social.id
+            )
+        self.assertEqual([u.id for u in visible], [self.up_id])
 
 
 if __name__ == '__main__':

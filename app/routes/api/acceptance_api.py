@@ -41,7 +41,7 @@ def _not_found(message: str):
 
 @api_acceptance.get('/program/<int:program_id>/applicants')
 @login_required
-@permission_required('acceptance.api.list_applicants', program_id_kwarg='program_id')
+@permission_required('acceptance.api.list_applicants')
 @program_scope_required(program_id_kwarg='program_id')
 def api_get_accepted_applicants(program_id):
     """Obtiene aspirantes aceptados con estado de sus documentos."""
@@ -63,7 +63,7 @@ def api_get_accepted_applicants(program_id):
 
 @api_acceptance.get('/program/<int:program_id>/stats')
 @login_required
-@permission_required('acceptance.api.list_applicants', program_id_kwarg='program_id')
+@permission_required('acceptance.api.list_applicants')
 @program_scope_required(program_id_kwarg='program_id')
 def api_get_acceptance_stats(program_id):
     """Obtiene estadisticas de documentos de aceptacion para un programa."""
@@ -129,7 +129,7 @@ def api_get_acceptance_status(user_id, program_id):
 
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/upload-doc')
 @login_required
-@permission_required('acceptance.api.upload_doc', program_id_kwarg='program_id')
+@permission_required('acceptance.api.upload_doc')
 @program_scope_required(program_id_kwarg='program_id')
 def api_upload_coordinator_doc(user_id, program_id):
     """El coordinador sube carta de aceptacion o tira de materias."""
@@ -334,7 +334,7 @@ def api_review_enrollment_receipt(doc_id):
 
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/assign-control-number')
 @login_required
-@permission_required('acceptance.api.assign_control_number', program_id_kwarg='program_id')
+@permission_required('acceptance.api.assign_control_number')
 @program_scope_required(program_id_kwarg='program_id')
 def api_assign_control_number(user_id, program_id):
     """El coordinador asigna el número de control al aspirante aceptado."""
@@ -452,7 +452,7 @@ def api_delete_coordinator_doc(doc_id):
 
 @api_acceptance.get('/program/<int:program_id>/deferred')
 @login_required
-@permission_required('acceptance.api.list_applicants', program_id_kwarg='program_id')
+@permission_required('acceptance.api.list_applicants')
 @program_scope_required(program_id_kwarg='program_id')
 def api_get_deferred_applicants(program_id):
     """Obtiene todos los aspirantes diferidos de un programa."""
@@ -475,7 +475,7 @@ def api_get_deferred_applicants(program_id):
 
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/defer')
 @login_required
-@permission_required('acceptance.api.defer_applicant', program_id_kwarg='program_id')
+@permission_required('acceptance.api.defer_applicant')
 @program_scope_required(program_id_kwarg='program_id')
 def api_defer_applicant(user_id, program_id):
     """El coordinador difiere directamente la inscripción de un aspirante aceptado."""
@@ -688,7 +688,7 @@ def api_reject_deferral(deferral_id):
 
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/reactivate')
 @login_required
-@permission_required('acceptance.api.defer_applicant', program_id_kwarg='program_id')
+@permission_required('acceptance.api.defer_applicant')
 @program_scope_required(program_id_kwarg='program_id')
 def api_reactivate_deferred(user_id, program_id):
     """

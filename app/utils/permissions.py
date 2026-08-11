@@ -7,11 +7,6 @@ Uso en rutas API:
     def list_applicants(program_id):
         ...
 
-    # Con scope de programa extraído del URL:
-    @permission_required('acceptance.api.list_applicants', program_id_kwarg='program_id')
-    def list_applicants(program_id):
-        ...
-
     # Si basta con tener al menos uno de varios permisos:
     @any_permission_required('acceptance.api.list_applicants', 'acceptance.api.view_stats')
     def vista():
@@ -27,6 +22,13 @@ IMPORTANTE — permiso ≠ alcance:
 
     La lógica vive en `app/services/program_scope_service.py`; aquí sólo está
     la capa Flask (current_user + respuesta 403).
+
+    `permission_required` ya NO acepta `program_id_kwarg`. Aceptaba ese
+    argumento y no hacía nada útil con él: los permisos de rol (de donde
+    program_admin saca TODOS los suyos) no llevan programa, así que el permiso
+    se concedía para cualquier program_id del URL. Parecía una garantía de
+    alcance y no lo era. Pasarlo hoy es un TypeError en tiempo de import — a
+    propósito: la ruta debe declarar `@program_scope_required(...)`.
 """
 
 from functools import wraps
@@ -53,15 +55,17 @@ def _abort_403():
     abort(403)
 
 
-def permission_required(codename, program_id_kwarg=None):
+def permission_required(codename):
     """
     Decorador que protege una vista exigiendo un permiso específico.
 
+    Responde SOLO "¿qué puede hacer este usuario?". Si la vista toca un
+    programa, estudiante, documento o decisión concretos hay que añadir
+    `@program_scope_required(...)` debajo; este decorador no da ninguna
+    garantía de alcance y no acepta `program_id_kwarg`.
+
     Args:
         codename (str): Codename del permiso requerido. Ej: 'acceptance.api.upload_doc'
-        program_id_kwarg (str | None): Nombre del argumento de URL que contiene el
-            program_id. Si se indica, el permiso se evalúa con ese scope de programa.
-            Ej: program_id_kwarg='program_id' extrae kwargs['program_id'].
 
     Comportamiento:
         - 401 si el usuario no está autenticado.
@@ -73,14 +77,7 @@ def permission_required(codename, program_id_kwarg=None):
             if not current_user.is_authenticated:
                 abort(401)
 
-            program_id = None
-            if program_id_kwarg:
-                try:
-                    program_id = int(kwargs.get(program_id_kwarg))
-                except (TypeError, ValueError):
-                    program_id = None
-
-            if not current_user.has_permission(codename, program_id=program_id):
+            if not current_user.has_permission(codename):
                 return _abort_403()
 
             return view(*args, **kwargs)
@@ -236,7 +233,7 @@ def program_scope_required(program_id_kwarg=None, user_id_kwarg=None, allow_self
 
         @api_x.route('/programs/<int:program_id>/applicants')
         @login_required
-        @permission_required('acceptance.api.list_applicants', program_id_kwarg='program_id')
+        @permission_required('acceptance.api.list_applicants')
         @program_scope_required(program_id_kwarg='program_id')
         def applicants(program_id):
             ...

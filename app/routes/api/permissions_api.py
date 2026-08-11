@@ -46,9 +46,21 @@ def delegatable_permissions():
 @login_required
 @permission_required('permissions.api.list_user_permissions')
 def user_permissions(user_id):
-    """Retorna las delegaciones activas e inactivas de un usuario."""
-    delegations = svc.get_user_delegations(user_id)
-    return jsonify({'data': [d.to_dict() for d in delegations]})
+    """
+    Delegaciones (activas e inactivas) de un usuario, recortadas al alcance
+    del solicitante.
+
+    Sin recorte, este endpoint dice de CUALQUIER cuenta qué permisos tiene y
+    sobre qué programas: es el paso previo a elegir una delegación que revocar
+    o a diseñar una escalada. El jefe de posgrado ve todo; un coordinador ve
+    sólo lo que otorgó él y lo que cae en sus programas.
+    """
+    delegations = svc.get_user_delegations_for_viewer(current_user, user_id)
+    return jsonify({
+        'data': [d.to_dict() for d in delegations],
+        'error': None,
+        'meta': {'count': len(delegations)},
+    })
 
 
 # ===========================================================================

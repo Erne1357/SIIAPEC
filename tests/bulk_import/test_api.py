@@ -86,17 +86,96 @@ def test_create_endpoint_validation_error_400(app, client, periods, program, per
     assert resp.status_code == 400
 
 
-def test_create_endpoint_social_service_with_perm_ok(app, client, periods, program,
-                                                     permissions, social_user,
-                                                     valid_payload):
-    """social_service con permiso de rol asignado puede crear."""
+def test_create_endpoint_social_service_without_scope_403(app, client, periods, program,
+                                                          permissions, social_user,
+                                                          valid_payload):
+    """
+    social_service CON el permiso pero sin ningún programa delegado → 403.
+
+    Permiso ≠ alcance: tener `student_bulk.api.create_one` no dice en qué
+    programa. Sin delegación no administra ninguno, así que no puede crear.
+    """
+    from app.models.user import User
     token = _login(client, social_user)
     resp = client.post(
         '/api/v1/student-bulk/create',
         json=valid_payload,
         headers=_csrf(token),
     )
+    assert resp.status_code == 403
+    body = resp.get_json()
+    assert body['error']['code'] == 'FORBIDDEN'
+    assert User.query.filter_by(email=valid_payload['email']).first() is None
+
+
+def test_create_endpoint_coordinator_own_program_ok(app, client, periods, program,
+                                                    permissions, coordinator,
+                                                    valid_payload):
+    """El coordinador sí puede dar de alta en el programa que coordina."""
+    from app.models.user import User
+    token = _login(client, coordinator)
+    resp = client.post(
+        '/api/v1/student-bulk/create',
+        json=valid_payload,
+        headers=_csrf(token),
+    )
     assert resp.status_code in (200, 201)
+    assert User.query.filter_by(email=valid_payload['email']).first() is not None
+
+
+def test_create_endpoint_coordinator_other_program_403(app, client, periods, program,
+                                                       other_program, permissions,
+                                                       coordinator, valid_payload):
+    """
+    El coordinador NO puede fabricar estudiantes en el programa de otro
+    coordinador: 403 con el envoltorio estándar y ninguna cuenta creada.
+    """
+    from app.models.user import User
+    valid_payload['program_slug'] = other_program.slug
+    token = _login(client, coordinator)
+    resp = client.post(
+        '/api/v1/student-bulk/create',
+        json=valid_payload,
+        headers=_csrf(token),
+    )
+    assert resp.status_code == 403
+    body = resp.get_json()
+    assert body['data'] is None
+    assert body['error']['code'] == 'FORBIDDEN'
+    assert User.query.filter_by(email=valid_payload['email']).first() is None
+
+
+def test_csv_execute_forged_valid_row_other_program_fails(app, client, periods, program,
+                                                          other_program, permissions,
+                                                          coordinator):
+    """
+    Las filas de /csv/execute llegan del cliente: aunque vengan con valid=True
+    y apunten a otro programa, el servicio revalida el alcance y la fila cae en
+    `failed` sin crear la cuenta.
+    """
+    from app.models.user import User
+    forged = [{
+        'index': 1,
+        'valid': True,
+        'errors': [],
+        'data': {
+            'first_name': 'Mal', 'last_name': 'Actor', 'mother_last_name': '',
+            'email': 'mal.actor@test.local', 'control_number': 'M22119999',
+            'program_slug': other_program.slug, 'current_semester': 2,
+            'admission_period_code': '20223', 'has_conacyt': False,
+        },
+    }]
+    token = _login(client, coordinator)
+    resp = client.post(
+        '/api/v1/student-bulk/csv/execute',
+        json={'rows': forged},
+        headers=_csrf(token),
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()['data']
+    assert data['created'] == 0
+    assert len(data['failed']) == 1
+    assert User.query.filter_by(email='mal.actor@test.local').first() is None
 
 
 # ---------------------------------------------------------------------------

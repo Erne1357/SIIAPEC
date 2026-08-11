@@ -16,7 +16,7 @@ def home():
     """Página principal del panel de administración"""
     # Para program_admin, obtener su programa coordinado
     program = None
-    if not current_user.has_permission('academic_periods.api.create') and current_user.coordinated_programs:
+    if not current_user.has_global_program_scope() and current_user.coordinated_programs:
         program = current_user.coordinated_programs[0]
     
     # Aquí podrías agregar métricas y datos según el rol

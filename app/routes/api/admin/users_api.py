@@ -127,7 +127,15 @@ def list_users():
         elif may_summarize:
             # Proyección sobre la lista blanca: caen foto, historial, número de
             # control, rol, estado y cualquier campo que se añada más adelante.
-            users_data.append(scope_service.to_cross_program_summary(user.to_dict()))
+            #
+            # `restricted` va DENTRO de la fila, no sólo en meta: la consola
+            # pinta fila por fila y necesita saber, en cada una, si la ausencia
+            # de `is_active` significa "cuenta desactivada" o "no tienes derecho
+            # a saberlo". Sin la marca, el JS leía la ausencia como `false` y
+            # etiquetaba de «Inactivo» a cuentas activas de otros programas.
+            row = scope_service.to_cross_program_summary(user.to_dict())
+            row['restricted'] = True
+            users_data.append(row)
             restricted += 1
         else:
             restricted += 1
@@ -181,9 +189,14 @@ def get_user(user_id):
                 "meta": {}
             }), 403
 
+        # La marca viaja también dentro de `user` para que el modal de detalle
+        # aplique la misma prueba que la tabla y no invente valores por omisión.
+        restricted_user = scope_service.to_cross_program_summary(user.to_dict())
+        restricted_user['restricted'] = True
+
         return jsonify({
             "data": {
-                "user": scope_service.to_cross_program_summary(user.to_dict()),
+                "user": restricted_user,
                 "program": None,
                 "history": []
             },
