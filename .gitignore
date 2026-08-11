@@ -72,7 +72,17 @@ instance/
 tests/prueba.py
 
 #database
-database/
+# Se ignora todo salvo los parches de datos: `flask apply-patches` los ejecuta
+# en produccion, asi que tienen que viajar en el repo. Con `database/` a secas
+# git ni siquiera entraba en la carpeta y la negacion no surtia efecto: hay que
+# re-incluir cada nivel.
+# `database/DML/pruebas/` estuvo versionado por accidente (11 archivos, entraron
+# antes de esta regla). Se saco del indice con `git rm --cached`; sigue en disco
+# porque `flask seed-test-data` lo lee. No se reescribio el historial: no hay
+# credenciales ni datos privilegiados ahi, y un rebase no compensaba el riesgo.
+database/*
+!database/DML/
+database/DML/*
 
 #Variables de entorno
 .env
@@ -82,7 +92,9 @@ docker/.env.dev
 
 #claude local
 .claude/
+.impeccable/
 CLAUDE.md
+docs/contexto/
 
 # Archivos de notas/documentación local
 MEJORAS_BACKEND.md
