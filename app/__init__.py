@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, session, flash, redirect, url_for, render_template
-from flask import request
+from flask import request, has_request_context
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import current_user, logout_user, LoginManager
 from flask_migrate import Migrate
@@ -274,6 +274,19 @@ def create_app(test_config=None):
 
         return None
 
+    def _viewer_is_authenticated():
+        """
+        True only when there is a real logged-in viewer.
+
+        This context processor runs on EVERY render_template, including the
+        email templates that Celery tasks render with no request context. There
+        current_user resolves to None, so touching .is_authenticated raised
+        AttributeError and killed the render.
+        """
+        if not has_request_context():
+            return False
+        return bool(current_user and current_user.is_authenticated)
+
     @app.context_processor
     def inject_tokens_and_version():
         def has_perm(codename, program_id=None):
@@ -284,7 +297,10 @@ def create_app(test_config=None):
                 {% if has_perm('coordinator.page.view') %}
                 {% if has_perm('acceptance.api.upload_doc', program_id) %}
             """
-            if not current_user.is_authenticated:
+            # Fuera de una petición (p. ej. una plantilla de correo renderizada
+            # desde una tarea de Celery) current_user resuelve a None y
+            # .is_authenticated revienta con AttributeError.
+            if not _viewer_is_authenticated():
                 return False
             return current_user.has_permission(codename, program_id=program_id)
 
@@ -293,7 +309,7 @@ def create_app(test_config=None):
             (label, badge_class) para el rol visible del usuario.
             Centraliza la lógica que antes vivía duplicada en base.html, profile.html, dashboard.html.
             """
-            if not current_user.is_authenticated:
+            if not _viewer_is_authenticated():
                 return (None, None)
             if current_user.has_permission('academic_periods.api.create'):
                 return ('Admin. Posgrado', 'bg-danger')
