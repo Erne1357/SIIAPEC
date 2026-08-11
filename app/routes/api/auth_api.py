@@ -18,8 +18,12 @@ import re
 
 api_auth_bp = Blueprint("api_auth", __name__, url_prefix="/api/v1/auth")
 
-# Contraseña por defecto del sistema
-DEFAULT_PASSWORD = "tecno#2K"
+# There is no shared default password in SIIAP. Provisioning and administrative
+# resets store an unguessable random secret and mail a single-use link
+# (app/services/password_reset_service.py), so there is no literal to blocklist
+# here — validate_password_strength() below is the only gate a new password
+# has to pass.
+
 
 def validate_password_strength(password):
     """
@@ -273,22 +277,7 @@ def change_password():
             "meta": {}
         }), 401
     
-    # Validación 3: Nueva contraseña no puede ser la contraseña por defecto
-    if new_password == DEFAULT_PASSWORD:
-        return jsonify({
-            "data": None,
-            "flash": [{
-                "level": "danger",
-                "message": "No puedes usar la contraseña por defecto del sistema"
-            }],
-            "error": {
-                "code": "INVALID_PASSWORD",
-                "message": "Contraseña no permitida"
-            },
-            "meta": {}
-        }), 400
-    
-    # Validación 4: Nueva contraseña y confirmación coinciden
+    # Validación 3: Nueva contraseña y confirmación coinciden
     if new_password != confirm_password:
         return jsonify({
             "data": None,
@@ -303,7 +292,7 @@ def change_password():
             "meta": {}
         }), 400
     
-    # Validación 5: Fortaleza de la contraseña
+    # Validación 4: Fortaleza de la contraseña
     is_valid, message = validate_password_strength(new_password)
     if not is_valid:
         return jsonify({
@@ -319,7 +308,7 @@ def change_password():
             "meta": {}
         }), 400
     
-    # Validación 6: Nueva contraseña diferente a la actual
+    # Validación 5: Nueva contraseña diferente a la actual
     if check_password_hash(current_user.password, new_password):
         return jsonify({
             "data": None,
@@ -511,14 +500,8 @@ def api_reset_password(token):
             "meta": {}
         }), 400
 
-    if new_password == DEFAULT_PASSWORD:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "No puedes usar la contraseña por defecto del sistema."}],
-            "error": {"code": "INVALID_PASSWORD", "message": "Contraseña no permitida"},
-            "meta": {}
-        }), 400
-
+    # La fortaleza la impone prs.consume_token() -> WeakPassword, que se traduce
+    # abajo. No hay contraseña por defecto que bloquear.
     try:
         user = prs.consume_token(token, new_password)
         db.session.commit()

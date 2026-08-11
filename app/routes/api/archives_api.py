@@ -18,6 +18,7 @@ from app.models.phase import Phase
 from app.models.program import Program
 from app.models.program_step import ProgramStep
 from app.models.submission import Submission
+from app.services import program_scope_service as scope_service
 from app.services.user_history_service import UserHistoryService
 
 import shutil
@@ -32,11 +33,28 @@ def _instance_path() -> str:
 def _templates_dir_for(archive_id: int) -> str:
     return os.path.join(_instance_path(), "uploads", "templates", "archives", str(archive_id))
 
+def _allowed_template_ext() -> Set[str]:
+    """Extensiones aceptadas para una plantilla (mismas que los documentos)."""
+    return set(current_app.config.get('ALLOWED_DOC_EXT', {'pdf', 'doc', 'docx'}))
+
+
 def _store_template(archive: Archive, file_storage) -> tuple[str, str]:
     """Guarda un archivo de plantilla en el disco."""
-    if '.' not in file_storage.filename:
+    filename = file_storage.filename or ''
+    if '.' not in filename:
         raise ValueError("El archivo no tiene extensión.")
-    ext = file_storage.filename.rsplit('.', 1)[1].lower()
+    ext = filename.rsplit('.', 1)[1].lower()
+
+    # Lista blanca obligatoria: sin esto se podía escribir cualquier extensión
+    # dentro de instance/uploads/templates.
+    allowed = _allowed_template_ext()
+    if ext not in allowed:
+        raise ValueError(
+            "Extensión no permitida. Solo se aceptan: "
+            + ", ".join(sorted(allowed))
+            + "."
+        )
+
     templates_dir = _templates_dir_for(archive.id)
     os.makedirs(templates_dir, exist_ok=True)
     base_name = secure_filename(archive.name)
@@ -69,6 +87,58 @@ def _permitted_step_ids_for_user() -> Set[int]:
         select(ProgramStep.step_id).where(ProgramStep.program_id.in_(accessible_pids))
     ).scalars().all()
     return set(step_ids)
+
+def _visible_step_ids_for_user() -> Set[int] | None:
+    """Steps que el usuario puede CONSULTAR (descargar plantillas).
+
+    Más amplio que `_permitted_step_ids_for_user`, que es para administrar:
+    aquí entran también los steps de los programas en los que el usuario está
+    inscrito, porque un aspirante debe poder bajar las plantillas de su propio
+    proceso.
+
+    Returns:
+        None si el usuario tiene acceso global; si no, el conjunto de step_ids.
+    """
+    if current_user.get_accessible_program_ids() is None:
+        return None
+
+    pids = set(current_user.get_accessible_program_ids() or set())
+    pids |= scope_service.program_ids_of_user(current_user.id)
+    if not pids:
+        return set()
+
+    step_ids = db.session.execute(
+        select(ProgramStep.step_id).where(ProgramStep.program_id.in_(pids))
+    ).scalars().all()
+    return set(step_ids)
+
+
+def _deny(code: str, message: str, status: int):
+    """Denegación con el envelope del proyecto y mensaje en español."""
+    return jsonify({
+        "ok": False,
+        "data": None,
+        "flash": [{"level": "danger", "message": message}],
+        "error": {"code": code, "message": message},
+        "meta": {}
+    }), status
+
+
+def _archive_step_denied(archive: Archive):
+    """
+    Verifica que el step del archivo esté dentro del alcance ADMINISTRATIVO
+    del usuario. Devuelve la respuesta 403 o None.
+    """
+    if current_user.get_accessible_program_ids() is None:
+        return None
+    if archive.step_id in _permitted_step_ids_for_user():
+        return None
+    return _deny(
+        "FORBIDDEN",
+        "Este archivo pertenece a una etapa fuera de tus programas.",
+        403,
+    )
+
 
 def _delete_archive_files(archive_id: int):
     """Borra el directorio de plantillas y los archivos de entrega (submissions) de un archivo."""
@@ -215,6 +285,11 @@ def create_archive():
     if not name or not step_id:
         return jsonify({"ok": False, "error": "name y step_id son requeridos"}), 400
 
+    try:
+        step_id = int(step_id)
+    except (TypeError, ValueError):
+        return _deny("VALIDATION_ERROR", "step_id inválido.", 400)
+
     # permiso por step: usuarios scoped sólo pueden crear en sus steps permitidos
     if current_user.get_accessible_program_ids() is not None:
         permitted = _permitted_step_ids_for_user()
@@ -270,8 +345,13 @@ def update_archive(archive_id: int):
         permitted = _permitted_step_ids_for_user()
         if a.step_id not in permitted:
             return jsonify({"ok": False, "error": "No puedes modificar este archivo"}), 403
-        if "step_id" in data and data["step_id"] not in permitted:
-            return jsonify({"ok": False, "error": "No puedes mover a ese step"}), 403
+        if "step_id" in data and data["step_id"]:
+            try:
+                target_step_id = int(data["step_id"])
+            except (TypeError, ValueError):
+                return _deny("VALIDATION_ERROR", "step_id inválido.", 400)
+            if target_step_id not in permitted:
+                return jsonify({"ok": False, "error": "No puedes mover a ese step"}), 403
 
     try:
         # Capturar cambios para el historial
@@ -358,7 +438,11 @@ def delete_archive(archive_id: int):
     if not a:
         return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
 
-    # ... (código de permisos existente) ...
+    # Alcance por step (faltaba por completo: el borrado se aplicaba a
+    # cualquier archivo del catálogo, incluidas sus entregas).
+    denied = _archive_step_denied(a)
+    if denied:
+        return denied
 
     cnt = db.session.execute(
         select(func.count(Submission.id)).where(Submission.archive_id == archive_id)
@@ -408,6 +492,13 @@ def upload_template(archive_id: int):
     a = db.session.get(Archive, archive_id)
     if not a:
         return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
+
+    # Alcance por step: sin esto un coordinador sobrescribía la plantilla
+    # oficial que descargan los aspirantes de otro programa.
+    denied = _archive_step_denied(a)
+    if denied:
+        return denied
+
     if "file" not in request.files:
         return jsonify({"ok": False, "error": "Archivo no provisto"}), 400
     fs = request.files["file"]
@@ -440,6 +531,19 @@ def download_template(archive_id: int):
     a = db.session.get(Archive, archive_id)
     if not a or not a.file_path:
         return jsonify({"ok": False, "error": "Plantilla no disponible"}), 404
+
+    # `is_downloadable` marca las plantillas publicadas: son formatos en
+    # blanco que la página del programa ofrece a cualquier interesado, así que
+    # siguen abiertas a cualquier usuario autenticado.
+    #
+    # Las que NO son descargables son material interno: sólo las ve quien
+    # administra ese step o quien cursa un programa que lo incluye.
+    # 404 deliberado: quien no ve el step tampoco debe confirmar que existe.
+    if not a.is_downloadable:
+        visible = _visible_step_ids_for_user()
+        if visible is not None and a.step_id not in visible:
+            return jsonify({"ok": False, "error": "Plantilla no disponible"}), 404
+
     abs_path, fname = _abs_path_from_archive(a)
     if not abs_path or not os.path.exists(abs_path):
         return jsonify({"ok": False, "error": "Archivo no encontrado en el servidor"}), 404

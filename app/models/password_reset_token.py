@@ -1,6 +1,6 @@
 # app/models/password_reset_token.py
 from app import db
-from app.utils.datetime_utils import now_local
+from app.utils.datetime_utils import now_local, to_local_timezone
 
 
 class PasswordResetToken(db.Model):
@@ -71,8 +71,17 @@ class PasswordResetToken(db.Model):
 
     @property
     def is_expired(self) -> bool:
-        """True when the current time is past expires_at."""
-        return now_local() > self.expires_at
+        """
+        True when the current time is past expires_at.
+
+        `expires_at` is a naive `DATETIME` column, so a row read back from
+        Postgres carries no tzinfo while `now_local()` is always aware —
+        comparing them directly raises TypeError. It was written aware and in
+        local time, so re-attaching LOCAL_TZ restores the original instant.
+        Without this, every `get_token()` on a persisted row blew up with a 500
+        and no account could ever set its password.
+        """
+        return now_local() > to_local_timezone(self.expires_at)
 
     @property
     def is_used(self) -> bool:

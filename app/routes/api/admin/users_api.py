@@ -7,14 +7,14 @@ from app.models.user_history import UserHistory
 from app.models.program import Program
 from app.models.user_program import UserProgram
 from app.services.user_history_service import UserHistoryService
-from app.utils.permissions import permission_required
+from app.services import program_scope_service as scope_service
+from app.utils.permissions import permission_required, program_scope_required
 from app.utils.validators import (
     EMAIL_MAX_LENGTH,
     InputValidationError,
     validate_person_name,
     validate_short_text,
 )
-from werkzeug.security import generate_password_hash
 from app.utils.datetime_utils import now_local
 import json
 import re
@@ -56,7 +56,14 @@ def _validation_error_response(message: str):
 @login_required
 @permission_required('admin_users.api.list')
 def list_users():
-    """Lista usuarios con filtros opcionales"""
+    """
+    Lista usuarios con filtros opcionales.
+
+    Alcance: el registro completo (`include_sensitive`: número de control,
+    programa, historial, estado) sólo sale para usuarios dentro de los
+    programas del llamador. El resto se proyecta al nivel reducido
+    (nombre y correo) y, si el llamador ni siquiera tiene ese nivel, se omite.
+    """
     # Parámetros de paginación
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 20, type=int), 100)
@@ -106,7 +113,24 @@ def list_users():
         error_out=False
     )
 
-    users_data = [user.to_dict(include_sensitive=True) for user in pagination.items]
+    # Una sola consulta de alcance para toda la página.
+    in_scope = scope_service.users_in_scope(
+        current_user, [u.id for u in pagination.items]
+    )
+    may_summarize = scope_service.may_view_cross_program_summary(current_user)
+
+    users_data = []
+    restricted = 0
+    for user in pagination.items:
+        if user.id in in_scope:
+            users_data.append(user.to_dict(include_sensitive=True))
+        elif may_summarize:
+            # Proyección sobre la lista blanca: caen foto, historial, número de
+            # control, rol, estado y cualquier campo que se añada más adelante.
+            users_data.append(scope_service.to_cross_program_summary(user.to_dict()))
+            restricted += 1
+        else:
+            restricted += 1
 
     return jsonify({
         "data": {
@@ -121,7 +145,7 @@ def list_users():
             }
         },
         "error": None,
-        "meta": {}
+        "meta": {"restricted_count": restricted}
     }), 200
 
 
@@ -129,7 +153,13 @@ def list_users():
 @login_required
 @permission_required('admin_users.api.list')
 def get_user(user_id):
-    """Obtiene información detallada de un usuario específico"""
+    """
+    Obtiene información detallada de un usuario específico.
+
+    Fuera del alcance del llamador se devuelve el nivel reducido: nombre y
+    correo, sin historial (prohibido entre programas), sin número de control y
+    sin foto.
+    """
     user = User.query.get(user_id)
     if not user:
         return jsonify({
@@ -138,13 +168,32 @@ def get_user(user_id):
             "error": {"code": "NOT_FOUND", "message": "Usuario no existe"},
             "meta": {}
         }), 404
-    
-    # Obtener historial
-    history_entries = UserHistoryService.get_user_history(user_id=user_id, limit=50)
-    
+
     # Obtener programa
     user_program = UserProgram.query.filter_by(user_id=user_id).first()
-    
+
+    if not scope_service.user_in_scope(current_user, user):
+        if not scope_service.may_view_cross_program_summary(current_user):
+            return jsonify({
+                "data": None,
+                "flash": [{"level": "danger", "message": "No tienes acceso a este usuario."}],
+                "error": {"code": "FORBIDDEN", "message": "Usuario fuera de tu alcance"},
+                "meta": {}
+            }), 403
+
+        return jsonify({
+            "data": {
+                "user": scope_service.to_cross_program_summary(user.to_dict()),
+                "program": None,
+                "history": []
+            },
+            "error": None,
+            "meta": {"restricted": True}
+        }), 200
+
+    # Obtener historial
+    history_entries = UserHistoryService.get_user_history(user_id=user_id, limit=50)
+
     return jsonify({
         "data": {
             "user": user.to_dict(include_sensitive=True),
@@ -163,6 +212,7 @@ def get_user(user_id):
 @api_admin_users.patch("/<int:user_id>")
 @login_required
 @permission_required('admin_users.api.update')
+@program_scope_required(user_id_kwarg='user_id')
 def update_user(user_id):
     """Actualiza información básica del usuario"""
     user = User.query.get(user_id)
@@ -282,17 +332,19 @@ def update_user(user_id):
 @api_admin_users.post("/<int:user_id>/reset-password")
 @login_required
 @permission_required('admin_users.api.reset_password')
+# allow_self=True a propósito: la acción sobre uno mismo la rechaza el cuerpo de
+# la vista con un mensaje específico, no con el 403 genérico de alcance.
+@program_scope_required(user_id_kwarg='user_id')
 def reset_password(user_id):
-    """Resetea la contraseña del usuario a 'tecno#2K'"""
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Usuario no encontrado."}],
-            "error": {"code": "NOT_FOUND", "message": "Usuario no existe"},
-            "meta": {}
-        }), 404
-    
+    """
+    Invalida la contraseña del usuario y le envía por correo un enlace de un
+    solo uso para que defina una nueva.
+
+    El administrador nunca ve ni dicta una contraseña: no existe contraseña
+    por defecto en el sistema.
+    """
+    from app.services import password_reset_service as prs
+
     # No permitir resetear la propia contraseña
     if user_id == current_user.id:
         return jsonify({
@@ -301,19 +353,40 @@ def reset_password(user_id):
             "error": {"code": "FORBIDDEN", "message": "Acción no permitida"},
             "meta": {}
         }), 403
-    
-    # Resetear contraseña
-    user.password = generate_password_hash('tecno#2K')
-    user.must_change_password = True
-    
-    # Registrar en historial
-    UserHistoryService.log_password_reset(user_id=user_id)
-    
+
+    try:
+        result = prs.issue_admin_reset(user_id=user_id, admin_id=current_user.id)
+    except prs.TokenNotFound as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Usuario no encontrado."}],
+            "error": {"code": "NOT_FOUND", "message": str(e)},
+            "meta": {}
+        }), 404
+    except prs.MissingEmail as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": str(e)}],
+            "error": {"code": "BUSINESS_ERROR", "message": str(e)},
+            "meta": {}
+        }), 400
+
     db.session.commit()
-    
+
+    user = result['user']
     return jsonify({
-        "data": None,
-        "flash": [{"level": "success", "message": f"Contraseña reseteada para {user.first_name} {user.last_name}."}],
+        "data": {"expires_at": result['expires_at'].isoformat() if result['expires_at'] else None},
+        "flash": [{
+            "level": "success",
+            "message": (
+                f"Se envió a {user.email} un enlace para que "
+                f"{user.first_name} {user.last_name} defina una contraseña nueva. "
+                f"El enlace vence en {result['ttl_minutes']} minutos y la contraseña "
+                f"anterior quedó invalidada."
+            )
+        }],
         "error": None,
         "meta": {}
     }), 200
@@ -322,6 +395,7 @@ def reset_password(user_id):
 @api_admin_users.patch("/<int:user_id>/toggle-active")
 @login_required
 @permission_required('admin_users.api.update')
+@program_scope_required(user_id_kwarg='user_id')
 def toggle_active(user_id):
     """Activa o desactiva un usuario"""
     user = User.query.get(user_id)
@@ -372,6 +446,7 @@ def toggle_active(user_id):
 @api_admin_users.post("/<int:user_id>/assign-control-number")
 @login_required
 @permission_required('admin_users.api.assign_control_number')
+@program_scope_required(user_id_kwarg='user_id', allow_self=False)
 def assign_control_number(user_id):
     """Asigna un número de control al usuario"""
     user = User.query.get(user_id)
@@ -498,6 +573,7 @@ def assign_control_number(user_id):
 @api_admin_users.delete("/<int:user_id>")
 @login_required
 @permission_required('admin_users.api.delete')
+@program_scope_required(user_id_kwarg='user_id')
 def delete_user(user_id):
     """Elimina un usuario (solo admin general)"""
     user = User.query.get(user_id)
@@ -629,7 +705,7 @@ def create_social_service():
             }), 400
 
     try:
-        new_user, delegations = create_social_service_user(
+        new_user, delegations, email_sent = create_social_service_user(
             creator_id=current_user.id,
             user_data={
                 'first_name':       payload['first_name'],
@@ -655,15 +731,37 @@ def create_social_service():
         )
         db.session.commit()
 
+        created_msg = (
+            f"Usuario {new_user.first_name} {new_user.last_name} creado con "
+            f"{len(delegations)} delegación(es)."
+        )
+        if email_sent:
+            flash_entry = {
+                "level": "success",
+                "message": (
+                    f"{created_msg} Se envió a {new_user.email} un enlace para "
+                    f"que defina su contraseña; vence en 45 minutos."
+                ),
+            }
+        else:
+            # The account and its activation token exist; only the mail could
+            # not be queued. Say so instead of implying the user was notified.
+            flash_entry = {
+                "level": "warning",
+                "message": (
+                    f"{created_msg} No se pudo enviar el correo con el enlace de "
+                    f"activación a {new_user.email}. Usa «Restablecer contraseña» "
+                    f"para generar y enviar uno nuevo."
+                ),
+            }
+
         return jsonify({
             "data": {
                 "user": new_user.to_dict(include_sensitive=True),
                 "delegations_count": len(delegations),
+                "activation_email_sent": email_sent,
             },
-            "flash": [{
-                "level": "success",
-                "message": f"Usuario {new_user.first_name} {new_user.last_name} creado con {len(delegations)} delegación(es)."
-            }],
+            "flash": [flash_entry],
             "error": None,
             "meta": {}
         }), 201
@@ -693,8 +791,14 @@ def create_social_service():
 @api_admin_users.get("/<int:user_id>/history")
 @login_required
 @permission_required('admin_users.api.list')
+@program_scope_required(user_id_kwarg='user_id')
 def user_history(user_id):
-    """Obtiene el historial completo de un usuario"""
+    """
+    Obtiene el historial completo de un usuario.
+
+    El historial es información prohibida entre programas: no existe nivel
+    reducido, el alcance lo resuelve `@program_scope_required`.
+    """
     user = User.query.get(user_id)
     if not user:
         return jsonify({

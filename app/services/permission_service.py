@@ -221,8 +221,12 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
       program_ids: lista opcional de program_id (solo relevante para postgraduate_admin).
       expires_at: datetime opcional de vencimiento común para todas las delegaciones.
 
+    La cuenta NO recibe contraseña compartida: se guarda una aleatoria que nadie
+    conoce y el acceso llega por un enlace de un solo uso enviado al correo.
+
     Returns:
-      (User, [UserPermission]) — usuario creado y lista de delegaciones creadas.
+      (User, [UserPermission], bool) — usuario creado, delegaciones creadas y si
+      el correo de activación pudo encolarse.
     """
     creator = User.query.get(creator_id)
     if not creator:
@@ -248,6 +252,16 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
         required=True,
         max_length=EMAIL_MAX_LENGTH,
     ).lower()
+
+    # The only way into this account is a link mailed to this address, so an
+    # address nothing can be delivered to must stop the creation here — before
+    # anything is written — instead of leaving an account nobody can enter.
+    if '@' not in email:
+        raise PermissionError(
+            "El correo electrónico no es una dirección válida. La cuenta se "
+            "activa mediante un enlace enviado por correo, así que no puede "
+            "crearse sin un buzón al que llegar."
+        )
 
     if User.query.filter_by(email=email).first():
         raise PermissionError(f"El email '{email}' ya está registrado.")
@@ -283,12 +297,18 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
                 scope = f"programa {pid}" if pid else "ámbito global"
                 raise PermissionError(f"No puedes delegar '{codename}' en {scope}.")
 
+    # The account is born with a password nobody knows — not the creator, not
+    # the holder. Access arrives exclusively through the single-use link mailed
+    # below, and `must_change_password` stays True so the holder still sets
+    # their own secret. There is no shared default credential in this system.
+    from app.services import password_reset_service as prs
+
     new_user = User(
         first_name=first_name,
         last_name=last_name,
         mother_last_name=mother_last_name,
         username=email,
-        password='tecno#2K',
+        password=prs.random_password(),
         email=email,
         is_internal=bool(user_data.get('is_internal', True)),
         role_id=ss_role.id,
@@ -310,6 +330,43 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
             )
             db.session.add(up)
             created_delegations.append(up)
+
+    # Single-use activation link (45 min — an admin created this account
+    # interactively and can tell the holder to check their inbox now). Mirrors
+    # student_bulk_service: generate the token, queue exactly one e-mail, and
+    # tolerate a mail failure — the token row is already persisted, so the
+    # administrator can still have it re-sent instead of losing the account.
+    prt = prs.generate_token(
+        user_id=new_user.id,
+        purpose='set_password',
+        ttl_minutes=prs.INTERACTIVE_TTL_MINUTES,
+        created_by_id=creator_id,
+    )
+    token_link = prs.build_reset_password_url(prt.token)
+
+    email_sent = False
+    try:
+        from app.services.email_templates import EmailTemplates
+        from app.services.email_service import EmailService
+
+        subject, html = EmailTemplates.staff_account_set_password(
+            user_name=f'{new_user.first_name} {new_user.last_name}'.strip(),
+            username=new_user.username,
+            token_link=token_link,
+            expires_at=prt.expires_at,
+        )
+        EmailService.queue_email(
+            user_id=new_user.id,
+            subject=subject,
+            html_content=html,
+        )
+        email_sent = True
+    except Exception as email_exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "[permission_service] No se pudo encolar el correo de activación "
+            "para el usuario %s: %s", new_user.id, email_exc
+        )
 
     db.session.commit()
 
@@ -341,7 +398,7 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
     except Exception:
         pass
 
-    return new_user, created_delegations
+    return new_user, created_delegations, email_sent
 
 
 # ===========================================================================

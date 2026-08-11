@@ -3,6 +3,8 @@ from pathlib import Path
 from flask import Blueprint, current_app, send_file, abort
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
+from app.services import file_access_service
+from app.services import program_scope_service as scope_service
 from app.utils.files import abs_path_from_db
 
 api_files = Blueprint('api_files', __name__, url_prefix='/files')
@@ -34,8 +36,17 @@ def _send_safe(base: Path, rel_path: str, inline: bool):
 @api_files.route('/avatar/<int:user_id>/<path:filename>', methods=['GET'])
 @login_required
 def avatar(user_id: int, filename: str):
-    # Cualquier usuario autenticado puede ver avatares.
-    # Si quieres restringir, agrega chequeo similar a user_doc.
+    # La foto de perfil es una fotografía del rostro: NO forma parte del nivel
+    # reducido entre programas (nombre / correo / progreso). Sólo la ve el
+    # propio usuario, quien comparte programa con él (jefe de posgrado = todos)
+    # o quien lo ve como ponente de un evento visible.
+    #
+    # 404 —no 403— a propósito: el nombre del archivo es constante, así que un
+    # 403 confirmaría "este usuario sí tiene foto" y permitiría enumerar
+    # cuentas recorriendo /files/avatar/1..N.
+    if not file_access_service.may_view_avatar(current_user, user_id):
+        abort(404)
+
     filename = secure_filename(filename)
     rel = f"{user_id}/{filename}"
     base: Path = current_app.config['AVATAR_FOLDER']
@@ -45,8 +56,11 @@ def avatar(user_id: int, filename: str):
 @api_files.route('/doc/<int:user_id>/<phase>/<path:filename>', methods=['GET'])
 @login_required
 def user_doc(user_id: int, phase: str, filename: str):
-    # Control de acceso: dueño del archivo o quien tenga permiso explícito
-    if user_id != current_user.id and not current_user.has_permission('files.api.view_doc_others'):
+    # 1) Puerta gruesa por permiso, ANTES de tocar la BD: quien ni siquiera
+    #    puede ver documentos ajenos recibe 403 sin que la respuesta revele si
+    #    el archivo existe.
+    if user_id != current_user.id and not current_user.has_permission(
+            file_access_service.VIEW_DOC_OTHERS_PERMISSION):
         abort(403)
 
     # Fases válidas
@@ -56,6 +70,23 @@ def user_doc(user_id: int, phase: str, filename: str):
 
     filename = secure_filename(filename)
     rel = f"{user_id}/{phase}/{filename}"
+
+    # 2) Autorización real: el DUEÑO se resuelve desde la fila de BD que
+    #    referencia esta ruta (Submission / AcceptanceDocument /
+    #    SemesterEnrollment), no desde los segmentos del URL. Así el día que
+    #    estas rutas sean UUID opacos no hay que reescribir el control de
+    #    acceso. Sin fila que la referencie, el archivo no existe para la
+    #    aplicación (bytes huérfanos de una re-subida) → 404.
+    owner_id = file_access_service.user_doc_owner_id(rel)
+    if owner_id is None:
+        abort(404)
+
+    # 404 —no 403— cuando el dueño queda fuera del alcance: un documento
+    # personal está prohibido entre programas y un 403 delataría qué
+    # documentos subió un estudiante de otro programa.
+    if not file_access_service.may_view_user_doc(current_user, owner_id):
+        abort(404)
+
     base: Path = current_app.config['USER_DOCS_FOLDER']
 
     # inline sólo para ciertas extensiones (PDF por ahora)
@@ -91,9 +122,12 @@ def event_image(event_id: int, kind: str, filename: str):
     if not event:
         abort(404)
 
-    # ACL
-    accessible_pids = current_user.get_accessible_program_ids()
-    is_admin = accessible_pids is None or (event.program_id and event.program_id in (accessible_pids or set()))
+    # ACL — el alcance se pregunta al predicado compartido, nunca se
+    # reimplementa la intersección a mano.
+    is_admin = (
+        scope_service.is_global_scope(current_user)
+        or scope_service.program_in_scope(current_user, event.program_id)
+    )
     is_public_accessible = (
         event.visible_to_students
         and event.status == 'published'

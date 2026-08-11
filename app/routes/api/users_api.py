@@ -7,7 +7,7 @@ from datetime import datetime
 from app.models.user_history import UserHistory
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
-from app.utils.permissions import permission_required
+from app.utils.permissions import permission_required, program_scope_required
 from app.utils.validators import (
     InputValidationError,
     validate_person_name,
@@ -450,9 +450,16 @@ def list_photo_requests():
 @api_users.post('/<int:user_id>/photo/enable-change')
 @login_required
 @permission_required('profile.api.enable_photo_change')
+@program_scope_required(user_id_kwarg='user_id')
 def enable_photo_change(user_id):
-    """Coordinator approves or rejects a photo-change request."""
+    """
+    Coordinator approves or rejects a photo-change request.
+
+    El permiso dice QUÉ; `program_scope_required` dice SOBRE QUIÉN: sólo
+    estudiantes de los programas del solicitante (el jefe de posgrado, todos).
+    """
     from app.services import profile_photo_service as photo_svc
+    from app.services.program_scope_service import ProgramScopeDenied
 
     payload = request.get_json(silent=True) or {}
     approve = bool(payload.get('approve', True))
@@ -475,6 +482,14 @@ def enable_photo_change(user_id):
             "error": None,
             "meta": {}
         }), 200
+    except ProgramScopeDenied as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": e.message}],
+            "error": {"code": "FORBIDDEN", "message": e.message},
+            "meta": {}
+        }), 403
     except photo_svc.ProfilePhotoError as e:
         return jsonify({
             "data": None,
@@ -495,9 +510,17 @@ def enable_photo_change(user_id):
 @api_users.post('/<int:user_id>/photo')
 @login_required
 @permission_required('profile.api.upload_photo_for_student')
+@program_scope_required(user_id_kwarg='user_id')
 def coordinator_upload_photo(user_id):
-    """Coordinator uploads a photo on behalf of a student."""
+    """
+    Coordinator uploads a photo on behalf of a student.
+
+    Sobrescribir la foto de alguien borra la anterior del disco y deja su
+    `photo_change_allowed` en False, así que es una escritura sobre datos
+    personales: exige que el estudiante esté dentro del alcance de programas.
+    """
     from app.services import profile_photo_service as photo_svc
+    from app.services.program_scope_service import ProgramScopeDenied
 
     file_storage = request.files.get('photo')
     if not file_storage:
@@ -521,6 +544,14 @@ def coordinator_upload_photo(user_id):
             "error": None,
             "meta": {}
         }), 200
+    except ProgramScopeDenied as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": e.message}],
+            "error": {"code": "FORBIDDEN", "message": e.message},
+            "meta": {}
+        }), 403
     except photo_svc.ProfilePhotoError as e:
         return jsonify({
             "data": None,

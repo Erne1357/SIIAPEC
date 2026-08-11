@@ -6,9 +6,15 @@ y diferimientos de inscripcion (Fase 7).
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from app.utils.permissions import permission_required, any_permission_required
+from app.utils.permissions import (
+    permission_required,
+    any_permission_required,
+    program_scope_required,
+    guard_program_scope,
+)
 from app.services import acceptance_service as svc
 from app.services import deferral_service as dsvc
+from app.services import acceptance_scope_service as ascope
 
 api_acceptance = Blueprint(
     'api_acceptance',
@@ -17,9 +23,26 @@ api_acceptance = Blueprint(
 )
 
 
+def _not_found(message: str):
+    """
+    404 estándar del blueprint.
+
+    Se usa también cuando el objeto existe pero pertenece a otro programa: un
+    403 sólo en ese caso confirmaría su existencia. Ver
+    `app/services/acceptance_scope_service.py`.
+    """
+    return jsonify({
+        "data": None,
+        "flash": [{"level": "danger", "message": message}],
+        "error": {"code": "NOT_FOUND", "message": message},
+        "meta": {}
+    }), 404
+
+
 @api_acceptance.get('/program/<int:program_id>/applicants')
 @login_required
 @permission_required('acceptance.api.list_applicants', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_get_accepted_applicants(program_id):
     """Obtiene aspirantes aceptados con estado de sus documentos."""
     try:
@@ -41,6 +64,7 @@ def api_get_accepted_applicants(program_id):
 @api_acceptance.get('/program/<int:program_id>/stats')
 @login_required
 @permission_required('acceptance.api.list_applicants', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_get_acceptance_stats(program_id):
     """Obtiene estadisticas de documentos de aceptacion para un programa."""
     try:
@@ -63,7 +87,9 @@ def api_get_acceptance_stats(program_id):
 @login_required
 def api_get_acceptance_status(user_id, program_id):
     """Obtiene el estado de los documentos de aceptacion de un aspirante."""
-    # El aspirante puede ver los suyos; coordinadores pueden ver cualquiera
+    # El aspirante puede ver los suyos; el personal sólo los de SUS programas.
+    # La respuesta incluye las rutas de los documentos personales, así que el
+    # nivel resumido entre programas (nombre/correo/progreso) no aplica aquí.
     if current_user.id != user_id:
         if not current_user.has_permission('acceptance.api.list_applicants'):
             return jsonify({
@@ -71,6 +97,10 @@ def api_get_acceptance_status(user_id, program_id):
                 "error": {"code": "FORBIDDEN", "message": "No tienes permiso"},
                 "meta": {}
             }), 403
+
+        denied = guard_program_scope(program_id)
+        if denied:
+            return denied
 
     try:
         from app.models import UserProgram
@@ -100,6 +130,7 @@ def api_get_acceptance_status(user_id, program_id):
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/upload-doc')
 @login_required
 @permission_required('acceptance.api.upload_doc', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_upload_coordinator_doc(user_id, program_id):
     """El coordinador sube carta de aceptacion o tira de materias."""
     document_type = request.form.get('document_type')
@@ -228,6 +259,11 @@ def api_submit_enrollment_receipt(user_id, program_id):
 @permission_required('acceptance.api.review_doc')
 def api_review_enrollment_receipt(doc_id):
     """El coordinador aprueba o rechaza la boleta del aspirante."""
+    # El permiso no dice de qué programa es el documento: resolverlo antes de
+    # tocarlo. Documento inexistente y documento ajeno responden igual (404).
+    if not ascope.document_in_scope(current_user, doc_id):
+        return _not_found("Documento no encontrado")
+
     data = request.get_json() or {}
     status = data.get('status')
     notes = data.get('notes')
@@ -299,6 +335,7 @@ def api_review_enrollment_receipt(doc_id):
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/assign-control-number')
 @login_required
 @permission_required('acceptance.api.assign_control_number', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_assign_control_number(user_id, program_id):
     """El coordinador asigna el número de control al aspirante aceptado."""
     data = request.get_json() or {}
@@ -371,6 +408,10 @@ def api_assign_control_number(user_id, program_id):
 @permission_required('acceptance.api.upload_doc')
 def api_delete_coordinator_doc(doc_id):
     """Elimina un documento de aceptacion subido por el coordinador."""
+    # Igual que en la revisión: el id del documento no dice de qué programa es.
+    if not ascope.document_in_scope(current_user, doc_id):
+        return _not_found("Documento no encontrado")
+
     try:
         svc.delete_coordinator_doc(doc_id=doc_id, coordinator_id=current_user.id)
         return jsonify({
@@ -412,6 +453,7 @@ def api_delete_coordinator_doc(doc_id):
 @api_acceptance.get('/program/<int:program_id>/deferred')
 @login_required
 @permission_required('acceptance.api.list_applicants', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_get_deferred_applicants(program_id):
     """Obtiene todos los aspirantes diferidos de un programa."""
     try:
@@ -434,6 +476,7 @@ def api_get_deferred_applicants(program_id):
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/defer')
 @login_required
 @permission_required('acceptance.api.defer_applicant', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_defer_applicant(user_id, program_id):
     """El coordinador difiere directamente la inscripción de un aspirante aceptado."""
     data = request.get_json() or {}
@@ -489,7 +532,15 @@ def api_defer_applicant(user_id, program_id):
 @login_required
 @permission_required('acceptance.api.request_deferral')
 def api_request_deferral(program_id):
-    """El aspirante solicita diferir su inscripción."""
+    """
+    El aspirante solicita diferir su inscripción.
+
+    No lleva `program_scope_required`: el objetivo es SIEMPRE el propio
+    solicitante (`user_id=current_user.id`) y un aspirante no tiene programas
+    "a su alcance", así que el decorador lo bloquearía. El alcance lo garantiza
+    `deferral_service._get_user_program`, que exige un UserProgram del propio
+    usuario en ese programa y si no existe lanza DeferralNotFound (404).
+    """
     data = request.get_json() or {}
     reason = (data.get('reason') or '').strip() or None
 
@@ -505,6 +556,10 @@ def api_request_deferral(program_id):
             "error": None,
             "meta": {}
         }), 200
+
+    except dsvc.DeferralNotFound as e:
+        # El aspirante no tiene proceso en ese programa: no existe para él.
+        return _not_found(str(e))
 
     except dsvc.DeferralNotAllowed as e:
         return jsonify({
@@ -528,6 +583,11 @@ def api_request_deferral(program_id):
 @permission_required('acceptance.api.defer_applicant')
 def api_approve_deferral(deferral_id):
     """El coordinador aprueba una solicitud de diferimiento del aspirante."""
+    # Aprobar borra la tira de materias y la boleta del aspirante: el objeto
+    # DEBE ser de un programa propio. Inexistente y ajeno responden igual.
+    if not ascope.deferral_in_scope(current_user, deferral_id):
+        return _not_found("Diferimiento no encontrado")
+
     data = request.get_json() or {}
     notes = (data.get('notes') or '').strip() or None
 
@@ -574,6 +634,9 @@ def api_approve_deferral(deferral_id):
 @permission_required('acceptance.api.defer_applicant')
 def api_reject_deferral(deferral_id):
     """El coordinador rechaza una solicitud de diferimiento del aspirante."""
+    if not ascope.deferral_in_scope(current_user, deferral_id):
+        return _not_found("Diferimiento no encontrado")
+
     data = request.get_json() or {}
     notes = (data.get('notes') or '').strip() or None
 
@@ -626,6 +689,7 @@ def api_reject_deferral(deferral_id):
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/reactivate')
 @login_required
 @permission_required('acceptance.api.defer_applicant', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_reactivate_deferred(user_id, program_id):
     """
     El coordinador reactiva a un aspirante diferido en el nuevo periodo.
@@ -673,6 +737,7 @@ def api_reactivate_deferred(user_id, program_id):
 @login_required
 def api_get_deferral_status(user_id, program_id):
     """Obtiene el estado de diferimiento de un aspirante."""
+    # El aspirante ve el suyo; el personal sólo el de SUS programas.
     if current_user.id != user_id:
         if not current_user.has_permission('acceptance.api.list_deferred'):
             return jsonify({
@@ -680,6 +745,10 @@ def api_get_deferral_status(user_id, program_id):
                 "error": {"code": "FORBIDDEN", "message": "No tienes permiso"},
                 "meta": {}
             }), 403
+
+        denied = guard_program_scope(program_id)
+        if denied:
+            return denied
 
     try:
         from app.models import UserProgram

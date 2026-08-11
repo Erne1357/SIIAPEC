@@ -16,12 +16,29 @@ Flujo principal:
 
 Para CSV: validar cada fila individualmente + detectar duplicados intra-CSV,
 luego ejecutar filas válidas atómicamente por fila (errores aislados).
+
+ALCANCE DE PROGRAMA — `creator_program_ids`
+-------------------------------------------
+Todas las entradas públicas de este módulo reciben `creator_program_ids`: el
+conjunto de programas sobre los que el usuario que ejecuta el alta puede
+operar. Sigue el contrato de `program_scope_service.accessible_program_ids`:
+
+    None      → TODOS los programas (jefe de posgrado)
+    set()     → NINGUNO (p. ej. servicio social sin delegación)
+    {1, 4}    → sólo esos
+
+Nunca confundas `None` con `set()`. Sin este hilo, un coordinador podía
+fabricar estudiantes con número de control, estatus `enrolled` y semestres
+confirmados hacia atrás DENTRO DEL PROGRAMA DE OTRO coordinador, masivamente
+por CSV: quedaba auditado pero no impedido.
+
+La comprobación vive en `validate_individual`, que es por donde pasan las tres
+rutas (individual, preview CSV y ejecución CSV), de modo que unas filas
+manipuladas con `valid: true` en el cuerpo de `/csv/execute` tampoco la evitan.
 """
 
 import csv
 import io
-import secrets
-import string
 import logging
 
 from app import db
@@ -56,6 +73,15 @@ class ValidationError(StudentBulkError):
 
 class StudentCreationError(StudentBulkError):
     """Error al crear el estudiante en la base de datos."""
+
+
+class ProgramScopeError(StudentBulkError):
+    """
+    El programa destino del alta está fuera del alcance de quien la ejecuta.
+
+    Se separa de `ValidationError` porque no es un payload mal formado sino una
+    denegación: la ruta la traduce a 403, no a 400.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -113,8 +139,8 @@ CONTROL_NUMBER_MAX_LENGTH = 20
 
 def _random_password(length: int = 24) -> str:
     """Genera una contraseña aleatoria segura no usable directamente."""
-    alphabet = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(secrets.choice(alphabet) for _ in range(length))
+    from app.services.password_reset_service import random_password
+    return random_password(length)
 
 
 def _get_all_periods_ordered() -> list:
@@ -151,37 +177,74 @@ def _apply_validator(validator, value, errors: list, **kwargs):
         return None
 
 
+def _program_in_creator_scope(program, creator_program_ids) -> bool:
+    """
+    True si el usuario que ejecuta el alta puede operar sobre ese programa.
+
+    `creator_program_ids is None` significa alcance global (jefe de posgrado);
+    un conjunto vacío significa SIN alcance y niega todo. Ver la nota de
+    alcance en el encabezado del módulo.
+    """
+    if creator_program_ids is None:
+        return True
+    if program is None:
+        return False
+    return program.id in creator_program_ids
+
+
+def _resolve_program_for_scope(program_slug: str):
+    """Programa por slug (sin validar nada más), o None si no existe."""
+    if not program_slug:
+        return None
+    return Program.query.filter_by(slug=program_slug).first()
+
+
+def _require_program_scope(payload: dict, creator_program_ids) -> None:
+    """
+    Denegación temprana y explícita para las altas individuales.
+
+    `validate_individual` también registra el problema como error de fila (lo
+    necesita el preview del CSV), pero la ruta individual debe responder 403 y
+    no 400, así que aquí se lanza `ProgramScopeError` antes de validar nada más.
+
+    Un slug inexistente NO se denega aquí: eso es un error de datos y lo
+    reporta la validación normal con su mensaje ("No existe un programa…").
+    """
+    program = _resolve_program_for_scope((payload.get('program_slug') or '').strip())
+    if program is not None and not _program_in_creator_scope(program, creator_program_ids):
+        raise ProgramScopeError(
+            f'No tienes acceso al programa {program.slug!r}. Sólo puedes dar de '
+            f'alta estudiantes en los programas que administras.'
+        )
+
+
 def _build_reset_password_url(token: str) -> str:
     """
     Construye la URL absoluta de la página de configuración de contraseña
     con el token incrustado.
 
-    Pinned to APP_BASE_URL, never to the live request: this link travels by
-    e-mail and grants password control over the account for 7 days. Building
-    it from the request meant the requester chose the host (nginx forwards
-    `Host` verbatim and ProxyFix honours `X-Forwarded-Host`), so a staff-
-    triggered bulk creation could be made to mail out a valid token pointing
-    at an attacker's domain.
+    Única implementación en `password_reset_service.build_reset_password_url`,
+    compartida con el alta de servicio social y el reset administrativo: la
+    regla de anclar la URL a APP_BASE_URL y nunca a la petición debe valer
+    igual para todos los correos que llevan un token.
     """
-    from app.utils.urls import external_url, get_base_url
-    try:
-        return external_url('pages_auth.reset_password_page', token=token)
-    except Exception:
-        # Sin contexto de aplicación: seguimos absolutos y seguimos anclados
-        # a la configuración del servidor, nunca a la petición.
-        return f"{get_base_url()}/reset-password/{token}"
+    from app.services.password_reset_service import build_reset_password_url
+    return build_reset_password_url(token)
 
 
 # ---------------------------------------------------------------------------
 # Validación individual
 # ---------------------------------------------------------------------------
 
-def validate_individual(payload: dict) -> dict:
+def validate_individual(payload: dict, creator_program_ids=None) -> dict:
     """
     Valida un payload de alta individual sin crear registros en DB.
 
     Args:
         payload: dict con campos mínimos del estudiante.
+        creator_program_ids: alcance de programas de quien ejecuta el alta.
+            **None significa TODOS** (jefe de posgrado); `set()` significa
+            NINGUNO. Ver la nota de alcance del encabezado del módulo.
 
     Returns:
         {'valid': bool, 'errors': list[str], 'normalized': dict}
@@ -240,6 +303,14 @@ def validate_individual(payload: dict) -> dict:
         program = Program.query.filter_by(slug=program_slug).first()
         if not program:
             errors.append(f'No existe un programa con slug {program_slug!r}.')
+        elif not _program_in_creator_scope(program, creator_program_ids):
+            # El alta masiva escribe número de control, estatus 'enrolled' y
+            # semestres confirmados: sólo en los programas propios.
+            errors.append(
+                f'No tienes acceso al programa {program_slug!r}. Sólo puedes '
+                f'dar de alta estudiantes en los programas que administras.'
+            )
+            program = None   # no sigas derivando límites de un programa ajeno
         elif not program.is_active:
             errors.append(f'El programa {program_slug!r} no está activo.')
     normalized['program_slug'] = program_slug
@@ -424,7 +495,8 @@ def _backfill_history(
 # Creación individual
 # ---------------------------------------------------------------------------
 
-def create_student_individual(payload: dict, created_by_id: int) -> dict:
+def create_student_individual(payload: dict, created_by_id: int,
+                              creator_program_ids=None) -> dict:
     """
     Crea un estudiante completo (User + UserProgram + SemesterEnrollments)
     en una única transacción de base de datos.
@@ -441,16 +513,25 @@ def create_student_individual(payload: dict, created_by_id: int) -> dict:
     Args:
         payload: dict con campos del estudiante (ver validate_individual).
         created_by_id: ID del usuario que realiza la operación.
+        creator_program_ids: alcance de programas de quien ejecuta el alta.
+            **None significa TODOS** (jefe de posgrado); `set()` significa
+            NINGUNO. Ver la nota de alcance del encabezado del módulo.
 
     Returns:
         dict: {user_id, user_program_id, sems_created, email}
 
     Raises:
+        ProgramScopeError: Si el programa destino está fuera del alcance.
         ValidationError: Si el payload no es válido.
         StudentCreationError: Si hay un error de base de datos.
     """
+    # 0. Alcance de programa. Se comprueba aquí, en el servicio, para que valga
+    #    también cuando las filas llegan desde /csv/execute con 'valid' puesto
+    #    a mano en el cuerpo de la petición.
+    _require_program_scope(payload, creator_program_ids)
+
     # 1. Validar
-    result = validate_individual(payload)
+    result = validate_individual(payload, creator_program_ids=creator_program_ids)
     if not result['valid']:
         raise ValidationError('; '.join(result['errors']))
 
@@ -598,7 +679,7 @@ def create_student_individual(payload: dict, created_by_id: int) -> dict:
 # Validación CSV
 # ---------------------------------------------------------------------------
 
-def validate_csv(csv_text: str) -> dict:
+def validate_csv(csv_text: str, creator_program_ids=None) -> dict:
     """
     Parsea y valida un CSV de alta masiva de estudiantes.
 
@@ -609,8 +690,14 @@ def validate_csv(csv_text: str) -> dict:
     Valida cada fila con validate_individual y además detecta duplicados
     intra-CSV (emails y control_numbers repetidos dentro del propio archivo).
 
+    Una fila cuyo `program_slug` cae fuera del alcance del usuario se marca
+    inválida con su motivo, igual que cualquier otro error de fila: el resto
+    del archivo se sigue validando.
+
     Args:
         csv_text: Contenido del archivo CSV como string UTF-8.
+        creator_program_ids: alcance de programas de quien ejecuta el alta.
+            **None significa TODOS**; `set()` significa NINGUNO.
 
     Returns:
         {
@@ -660,7 +747,7 @@ def validate_csv(csv_text: str) -> dict:
         payload = {k: (row.get(k) or '').strip() for k in CSV_HEADERS}
         for k in available_optional:
             payload[k] = (row.get(k) or '').strip()
-        result = validate_individual(payload)
+        result = validate_individual(payload, creator_program_ids=creator_program_ids)
 
         extra_errors = []
         email = payload.get('email', '').lower()
@@ -702,17 +789,24 @@ def validate_csv(csv_text: str) -> dict:
 # Ejecución CSV
 # ---------------------------------------------------------------------------
 
-def execute_csv(rows: list, created_by_id: int) -> dict:
+def execute_csv(rows: list, created_by_id: int, creator_program_ids=None) -> dict:
     """
     Aplica las filas válidas de un preview CSV.
 
     Cada estudiante se crea en su propia transacción atómica. Si una fila
     falla, las demás continúan procesándose (fallas aisladas).
 
+    `rows` llega del cliente, así que su bandera `valid` NO es de fiar: quien
+    llama puede ponerla a True sobre una fila que apunta al programa de otro
+    coordinador. Por eso el alcance se revalida dentro de
+    `create_student_individual`, y la fila rechazada aparece en `failed`.
+
     Args:
         rows: Lista de dicts con estructura {index, data, valid, errors}.
               Solo se procesan las filas con valid=True.
         created_by_id: ID del usuario que ejecuta la operación.
+        creator_program_ids: alcance de programas de quien ejecuta el alta.
+            **None significa TODOS**; `set()` significa NINGUNO.
 
     Returns:
         {
@@ -733,14 +827,16 @@ def execute_csv(rows: list, created_by_id: int) -> dict:
         email = data.get('email', '')
 
         try:
-            result = create_student_individual(data, created_by_id)
+            result = create_student_individual(
+                data, created_by_id, creator_program_ids=creator_program_ids
+            )
             created += 1
             created_users.append({
                 'user_id': result['user_id'],
                 'email': result['email'],
                 'control_number': data.get('control_number', ''),
             })
-        except (ValidationError, StudentCreationError) as exc:
+        except (ProgramScopeError, ValidationError, StudentCreationError) as exc:
             failed.append({
                 'index': index,
                 'email': email,

@@ -6,9 +6,14 @@ API para gestionar la permanencia semestral de estudiantes (Fase 6).
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from app import db
-from app.utils.permissions import permission_required
+from app.utils.permissions import (
+    permission_required,
+    program_scope_required,
+    guard_program_scope,
+)
 from app.models.user_program import UserProgram
 from app.services import permanence_service as svc
+from app.services import program_scope_service as scope_service
 import app.services.semester_transition_service as tsvc
 
 api_permanence = Blueprint(
@@ -21,6 +26,7 @@ api_permanence = Blueprint(
 @api_permanence.get('/program/<int:program_id>/students')
 @login_required
 @permission_required('permanence.api.list_students', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_get_enrolled_students(program_id):
     """Lista estudiantes inscritos con su estado de permanencia."""
     try:
@@ -41,6 +47,7 @@ def api_get_enrolled_students(program_id):
 @api_permanence.get('/program/<int:program_id>/stats')
 @login_required
 @permission_required('permanence.api.list_students', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_get_permanence_stats(program_id):
     """Estadisticas de permanencia para un programa."""
     try:
@@ -92,6 +99,62 @@ def _extract_form_or_json(field, default=None):
     return request.form.get(field, default)
 
 
+# ── Alcance de objeto (permiso ≠ alcance) ─────────────────────────────────────
+#
+# `permission_required` responde QUÉ puede hacer el llamador, nunca SOBRE QUÉ
+# objeto. Toda inscripción semestral, ventana de entrega, submission o
+# UserProgram pertenece a un programa: `permanence_service.get_*_scope` resuelve
+# ese programa y `program_scope_service.program_in_scope` decide.
+#
+# La negación es 404 y NO 403 a propósito: un coordinador ajeno no debe poder
+# distinguir "no existe" de "existe pero es de otro programa" recorriendo el
+# espacio de ids. Para objetos públicos (un programa) sí usamos 403, porque su
+# existencia no es secreta.
+
+def _object_not_found(message, flash=True):
+    """404 con el envelope estándar. `flash` sólo en endpoints de escritura."""
+    payload = {"data": None}
+    if flash:
+        payload["flash"] = [{"level": "danger", "message": message}]
+    payload["error"] = {"code": "NOT_FOUND", "message": message}
+    payload["meta"] = {}
+    return jsonify(payload), 404
+
+
+def _guard_object_scope(scope, message, flash=True):
+    """
+    None si el objeto existe y su programa está dentro del alcance del usuario
+    actual; si no, la respuesta 404 (idéntica en ambos casos).
+
+    Args:
+        scope: dict devuelto por los resolvers de `permanence_service`, o None.
+        message: mensaje en español para el 404.
+    """
+    if scope and scope_service.program_in_scope(current_user, scope.get('program_id')):
+        return None
+    return _object_not_found(message, flash=flash)
+
+
+def _guard_user_program_read(scope, codename='permanence.api.list_students'):
+    """
+    Lectura del expediente de permanencia de un UserProgram: lo ve el propio
+    estudiante, o alguien con el permiso indicado DENTRO del programa dueño del
+    registro. Cualquier otro caso → 404, no revelamos que el registro existe.
+    """
+    if not scope:
+        return _object_not_found('UserProgram no encontrado', flash=False)
+
+    if current_user.id == scope.get('user_id'):
+        return None
+
+    program_id = scope.get('program_id')
+    if (current_user.has_permission(codename, program_id=program_id)
+            and scope_service.program_in_scope(current_user, program_id)):
+        return None
+
+    return _object_not_found('UserProgram no encontrado', flash=False)
+
+
 @api_permanence.post('/user-program/<int:user_program_id>/confirm')
 @login_required
 @permission_required('permanence.api.confirm_enrollment')
@@ -113,17 +176,15 @@ def api_confirm_semester_enrollment(user_program_id):
             "meta": {}
         }), 400
 
-    try:
-        up = UserProgram.query.get(user_program_id)
-        if not up:
-            return jsonify({
-                "data": None,
-                "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"},
-                "meta": {}
-            }), 404
+    # Alcance: el UserProgram debe pertenecer a un programa del coordinador.
+    up_scope = svc.get_user_program_scope(user_program_id)
+    denied = _guard_object_scope(up_scope, "UserProgram no encontrado")
+    if denied:
+        return denied
 
-        payment_proof_path = _extract_payment_proof(up.user_id)
-        schedule_path = _extract_schedule(up.user_id)
+    try:
+        payment_proof_path = _extract_payment_proof(up_scope['user_id'])
+        schedule_path = _extract_schedule(up_scope['user_id'])
 
         se = svc.confirm_semester_enrollment(
             user_program_id=user_program_id,
@@ -177,6 +238,7 @@ def api_confirm_semester_enrollment(user_program_id):
 @api_permanence.get('/program/<int:program_id>/enrollment-overview')
 @login_required
 @permission_required('permanence.api.list_students', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_get_enrollment_overview(program_id):
     """Vista consolidada de inscripción para la pestaña 'Inscripción'."""
     try:
@@ -206,16 +268,14 @@ def api_reinstate_from_leave(user_program_id):
             "meta": {}
         }), 400
 
-    try:
-        up = UserProgram.query.get(user_program_id)
-        if not up:
-            return jsonify({
-                "data": None,
-                "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"},
-                "meta": {}
-            }), 404
+    # Alcance: el UserProgram debe pertenecer a un programa del coordinador.
+    up_scope = svc.get_user_program_scope(user_program_id)
+    denied = _guard_object_scope(up_scope, "UserProgram no encontrado")
+    if denied:
+        return denied
 
-        payment_proof_path = _extract_payment_proof(up.user_id)
+    try:
+        payment_proof_path = _extract_payment_proof(up_scope['user_id'])
 
         se = svc.reinstate_from_leave(
             user_program_id=user_program_id,
@@ -281,6 +341,17 @@ def api_update_enrollment_status(semester_enrollment_id):
             "meta": {}
         }), 400
 
+    # Alcance: la inscripción semestral debe pertenecer a un programa del
+    # coordinador. Sin esto, cualquiera con el permiso podía marcar 'dropped'
+    # (baja definitiva, con notificación y correo) a toda la institución
+    # recorriendo el espacio de ids.
+    denied = _guard_object_scope(
+        svc.get_semester_enrollment_scope(semester_enrollment_id),
+        "Inscripción semestral no encontrada",
+    )
+    if denied:
+        return denied
+
     try:
         se = svc.update_enrollment_status(
             semester_enrollment_id=semester_enrollment_id,
@@ -332,24 +403,12 @@ def api_update_enrollment_status(semester_enrollment_id):
 def api_get_student_permanence(user_program_id):
     """
     Obtiene el estado de permanencia de un estudiante.
-    El propio estudiante puede ver el suyo; coordinadores pueden ver cualquiera.
+    El propio estudiante puede ver el suyo; el personal, sólo el de los
+    estudiantes de sus programas.
     """
-    from app.models import UserProgram
-    up = UserProgram.query.get(user_program_id)
-    if not up:
-        return jsonify({
-            "data": None,
-            "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"},
-            "meta": {}
-        }), 404
-
-    if current_user.id != up.user_id:
-        if not current_user.has_permission('permanence.api.list_students'):
-            return jsonify({
-                "data": None,
-                "error": {"code": "FORBIDDEN", "message": "No tienes permiso"},
-                "meta": {}
-            }), 403
+    denied = _guard_user_program_read(svc.get_user_program_scope(user_program_id))
+    if denied:
+        return denied
 
     try:
         data = svc.get_student_permanence(user_program_id)
@@ -371,6 +430,7 @@ def api_get_student_permanence(user_program_id):
 @api_permanence.get('/program/<int:program_id>/deadlines')
 @login_required
 @permission_required('permanence.api.manage_deadlines', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_get_deadlines(program_id):
     """Lista ventanas de entrega del periodo activo para un programa.
     Acepta `?include_archived=true` para mostrar también las archivadas."""
@@ -390,6 +450,7 @@ def api_get_deadlines(program_id):
 @api_permanence.post('/program/<int:program_id>/deadlines')
 @login_required
 @permission_required('permanence.api.manage_deadlines', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_create_deadline(program_id):
     """Crea una ventana de entrega. Body: {archive_id, label, sequence, academic_period_id, opens_at?, closes_at?}"""
     from datetime import datetime
@@ -470,6 +531,14 @@ def api_toggle_deadline(deadline_id):
             "error": {"code": "MISSING_FIELD", "message": "is_open es requerido"},
             "meta": {}
         }), 400
+
+    # Alcance: la ventana debe pertenecer a un programa del coordinador.
+    denied = _guard_object_scope(
+        svc.get_deadline_scope(deadline_id), "Ventana no encontrada"
+    )
+    if denied:
+        return denied
+
     try:
         dl = svc.toggle_document_deadline(
             deadline_id=deadline_id,
@@ -497,6 +566,14 @@ def api_toggle_deadline(deadline_id):
 def api_update_deadline(deadline_id):
     """Edita una ventana: label / opens_at / closes_at / is_open."""
     from datetime import datetime
+
+    # Alcance: la ventana debe pertenecer a un programa del coordinador.
+    denied = _guard_object_scope(
+        svc.get_deadline_scope(deadline_id), "Ventana no encontrada"
+    )
+    if denied:
+        return denied
+
     data = request.get_json() or {}
 
     def _parse_dt(value):
@@ -546,6 +623,13 @@ def api_delete_deadline(deadline_id):
     Archiva una ventana (soft-delete). Mantiene FK con submissions y permite
     restaurar después. El verbo HTTP DELETE se conserva para compatibilidad.
     """
+    # Alcance: la ventana debe pertenecer a un programa del coordinador.
+    denied = _guard_object_scope(
+        svc.get_deadline_scope(deadline_id), "Ventana no encontrada"
+    )
+    if denied:
+        return denied
+
     try:
         svc.archive_document_deadline(deadline_id=deadline_id, coordinator_id=current_user.id)
         return jsonify({
@@ -570,6 +654,13 @@ def api_delete_deadline(deadline_id):
 @permission_required('permanence.api.manage_deadlines')
 def api_restore_deadline(deadline_id):
     """Restaura una ventana archivada (la deja cerrada por seguridad)."""
+    # Alcance: la ventana debe pertenecer a un programa del coordinador.
+    denied = _guard_object_scope(
+        svc.get_deadline_scope(deadline_id), "Ventana no encontrada"
+    )
+    if denied:
+        return denied
+
     try:
         svc.restore_document_deadline(deadline_id=deadline_id, coordinator_id=current_user.id)
         return jsonify({
@@ -595,13 +686,9 @@ def api_restore_deadline(deadline_id):
 @login_required
 def api_get_student_documents(user_program_id):
     """Lista ventanas y estado de submission del estudiante en el periodo activo."""
-    up = UserProgram.query.get(user_program_id)
-    if not up:
-        return jsonify({"data": None, "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"}, "meta": {}}), 404
-
-    if current_user.id != up.user_id:
-        if not current_user.has_permission('permanence.api.list_students'):
-            return jsonify({"data": None, "error": {"code": "FORBIDDEN", "message": "Sin permiso"}, "meta": {}}), 403
+    denied = _guard_user_program_read(svc.get_user_program_scope(user_program_id))
+    if denied:
+        return denied
 
     try:
         data = svc.get_student_documents_for_period(user_program_id)
@@ -655,6 +742,7 @@ def api_submit_permanence_document(user_program_id, deadline_id):
 @api_permanence.get('/program/<int:program_id>/pending-documents')
 @login_required
 @permission_required('permanence.api.review_doc', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_get_pending_documents(program_id):
     """Lista submissions de permanencia en estado 'review' para el programa."""
     try:
@@ -680,6 +768,13 @@ def api_review_permanence_document(submission_id):
             "error": {"code": "INVALID_DATA", "message": "status inválido"},
             "meta": {}
         }), 400
+
+    # Alcance: la submission debe pertenecer a un programa del coordinador.
+    denied = _guard_object_scope(
+        svc.get_submission_scope(submission_id), "Documento no encontrado"
+    )
+    if denied:
+        return denied
 
     try:
         sub = svc.review_permanence_document(
@@ -717,21 +812,9 @@ def api_get_payment_reference(user_program_id):
     """
     from app.services.payment_reference_service import get_payment_reference_for_student
 
-    up = UserProgram.query.get(user_program_id)
-    if not up:
-        return jsonify({
-            "data": None,
-            "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"},
-            "meta": {}
-        }), 404
-
-    if current_user.id != up.user_id:
-        if not current_user.has_permission('permanence.api.list_students'):
-            return jsonify({
-                "data": None,
-                "error": {"code": "FORBIDDEN", "message": "Sin permiso"},
-                "meta": {}
-            }), 403
+    denied = _guard_user_program_read(svc.get_user_program_scope(user_program_id))
+    if denied:
+        return denied
 
     try:
         data = get_payment_reference_for_student(user_program_id)
@@ -749,6 +832,7 @@ def api_get_payment_reference(user_program_id):
 @api_permanence.get('/program/<int:program_id>/leave-requests')
 @login_required
 @permission_required('permanence.api.review_doc', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_get_pending_leave_requests(program_id):
     """Lista solicitudes de baja temporal en estado 'review' para el programa."""
     try:
@@ -762,13 +846,9 @@ def api_get_pending_leave_requests(program_id):
 @login_required
 def api_get_student_leave_request(user_program_id):
     """Retorna el estado de la solicitud de baja temporal del estudiante."""
-    up = UserProgram.query.get(user_program_id)
-    if not up:
-        return jsonify({"data": None, "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"}, "meta": {}}), 404
-
-    if current_user.id != up.user_id:
-        if not current_user.has_permission('permanence.api.list_students'):
-            return jsonify({"data": None, "error": {"code": "FORBIDDEN", "message": "Sin permiso"}, "meta": {}}), 403
+    denied = _guard_user_program_read(svc.get_user_program_scope(user_program_id))
+    if denied:
+        return denied
 
     try:
         data = svc.get_student_leave_request(user_program_id)
@@ -833,6 +913,13 @@ def api_process_leave_request(submission_id):
             "meta": {}
         }), 400
 
+    # Alcance: la solicitud debe pertenecer a un programa del coordinador.
+    denied = _guard_object_scope(
+        svc.get_submission_scope(submission_id), "Solicitud no encontrada"
+    )
+    if denied:
+        return denied
+
     try:
         result = svc.process_leave_request(
             submission_id=submission_id,
@@ -861,6 +948,7 @@ def api_process_leave_request(submission_id):
 @api_permanence.post('/program/<int:program_id>/deadlines/conacyt-monthly')
 @login_required
 @permission_required('permanence.api.manage_deadlines', program_id_kwarg='program_id')
+@program_scope_required(program_id_kwarg='program_id')
 def api_create_conacyt_monthly_deadlines(program_id):
     """
     Crea las ventanas mensuales CONACyT del periodo activo (idempotente).
@@ -934,58 +1022,30 @@ def api_create_conacyt_monthly_deadlines(program_id):
 @permission_required('permanence.api.manage_students')
 def api_toggle_conacyt_scholarship(user_program_id):
     """Activa o desactiva la beca CONACyT de un estudiante."""
-    up = db.session.get(UserProgram, user_program_id)
-    if not up:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Estudiante no encontrado"}],
-            "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"},
-            "meta": {}
-        }), 404
+    # Alcance: el estudiante debe pertenecer a un programa del coordinador.
+    up_scope = svc.get_user_program_scope(user_program_id)
+    denied = _guard_object_scope(up_scope, "Estudiante no encontrado")
+    if denied:
+        return denied
 
     data = request.get_json() or {}
     # Acepta valor explícito o simplemente alterna el valor actual
-    if 'value' in data:
-        new_value = bool(data['value'])
-    else:
-        new_value = not up.has_conacyt_scholarship
+    value = bool(data['value']) if 'value' in data else None
 
-    up.has_conacyt_scholarship = new_value
-    label_notif = 'activada' if new_value else 'desactivada'
-
-    # Audit log
     try:
-        from app.services.user_history_service import UserHistoryService
-        UserHistoryService.log_action(
-            user_id=up.user_id,
-            admin_id=current_user.id,
-            action='conacyt_scholarship_changed',
-            details=(
-                f'Beca CONACyT {label_notif} por coordinador en {up.program.name if up.program else "programa"}'
-            ),
+        result = svc.set_conacyt_scholarship(
+            user_program_id=user_program_id,
+            coordinator_id=current_user.id,
+            value=value,
         )
+    except svc.StudentNotFound as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Estudiante no encontrado"}],
+            "error": {"code": "NOT_FOUND", "message": str(e)},
+            "meta": {}
+        }), 404
     except Exception:
-        pass
-
-    # Notificar al estudiante
-    try:
-        from app.services.notification_service import NotificationService
-        NotificationService.create_notification(
-            user_id=up.user_id,
-            notification_type='conacyt_scholarship_changed',
-            title=f'Beca CONACyT {label_notif}',
-            message=f'Tu beca CONACyT ha sido {label_notif} por el coordinador. '
-                    f'{"Ahora verás las ventanas de entrega CONACyT en tu panel." if new_value else "Ya no verás las ventanas CONACyT."}',
-            priority='medium',
-            action_url='/user/dashboard',
-        )
-    except Exception:
-        pass
-
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
         return jsonify({
             "data": None,
             "flash": [{"level": "danger", "message": "Error al actualizar beca CONACyT"}],
@@ -993,25 +1053,9 @@ def api_toggle_conacyt_scholarship(user_program_id):
             "meta": {}
         }), 500
 
-    # Socket emit: coordinadores y estudiante refrescan en tiempo real
-    try:
-        from app.sockets.emitters import emit_user_and_coordinators
-        emit_user_and_coordinators(
-            'permanence:scholarship_changed',
-            {
-                'user_id': up.user_id,
-                'program_id': up.program_id,
-                'has_conacyt_scholarship': new_value,
-            },
-            user_id=up.user_id,
-            program_id=up.program_id,
-        )
-    except Exception:
-        pass
-
-    label = 'activada' if new_value else 'desactivada'
+    label = 'activada' if result['has_conacyt_scholarship'] else 'desactivada'
     return jsonify({
-        "data": {"has_conacyt_scholarship": new_value},
+        "data": {"has_conacyt_scholarship": result['has_conacyt_scholarship']},
         "flash": [{"level": "success", "message": f"Beca CONACyT {label} exitosamente"}],
         "error": None,
         "meta": {}
@@ -1019,6 +1063,22 @@ def api_toggle_conacyt_scholarship(user_program_id):
 
 
 # ── Transición semestral (Pasar Semestre) ─────────────────────────────────────
+
+def _deny_global_transition():
+    """
+    403 en español para la transición GLOBAL. La ejecuta sólo quien tiene
+    alcance sobre todos los programas (jefatura de posgrado); un coordinador con
+    el permiso delegado debe indicar explícitamente su programa.
+    """
+    msg = ('La transición de todos los programas sólo puede ejecutarla la '
+           'jefatura de posgrado. Indica un programa específico.')
+    return jsonify({
+        "data": None,
+        "flash": [{"level": "danger", "message": msg}],
+        "error": {"code": "FORBIDDEN", "message": msg},
+        "meta": {}
+    }), 403
+
 
 @api_permanence.get('/transition/preview')
 @login_required
@@ -1046,18 +1106,28 @@ def api_transition_preview():
 
     global_mode = (not program_id_raw or str(program_id_raw).strip().lower() == 'all')
 
+    # Alcance: el modo global recorre TODOS los programas; sólo lo ve quien
+    # tiene alcance global. Con un programa concreto, debe estar en su alcance.
+    if global_mode:
+        if not scope_service.is_global_scope(current_user):
+            return _deny_global_transition()
+    else:
+        try:
+            program_id = int(program_id_raw)
+        except (TypeError, ValueError):
+            return jsonify({
+                "data": None,
+                "error": {"code": "INVALID_PARAM", "message": "program_id debe ser un entero o 'all'"},
+                "meta": {}
+            }), 400
+        denied = guard_program_scope(program_id)
+        if denied:
+            return denied
+
     try:
         if global_mode:
             data = tsvc.preview_global(source_period_id, target_period_id)
         else:
-            try:
-                program_id = int(program_id_raw)
-            except (TypeError, ValueError):
-                return jsonify({
-                    "data": None,
-                    "error": {"code": "INVALID_PARAM", "message": "program_id debe ser un entero o 'all'"},
-                    "meta": {}
-                }), 400
             data = tsvc.preview_program(program_id, source_period_id, target_period_id)
 
         return jsonify({"data": data, "error": None, "meta": {}}), 200
@@ -1125,16 +1195,26 @@ def api_transition_execute():
             "meta": {}
         }), 400
 
+    # Alcance: sin program_id la transición corre sobre TODOS los programas —
+    # reservado a la jefatura de posgrado. Con program_id, debe estar dentro
+    # del alcance del llamador.
+    if program_id:
+        try:
+            program_id = int(program_id)
+        except (TypeError, ValueError):
+            return jsonify({
+                "data": None,
+                "error": {"code": "INVALID_PARAM", "message": "program_id debe ser un entero"},
+                "meta": {}
+            }), 400
+        denied = guard_program_scope(program_id)
+        if denied:
+            return denied
+    elif not scope_service.is_global_scope(current_user):
+        return _deny_global_transition()
+
     try:
         if program_id:
-            try:
-                program_id = int(program_id)
-            except (TypeError, ValueError):
-                return jsonify({
-                    "data": None,
-                    "error": {"code": "INVALID_PARAM", "message": "program_id debe ser un entero"},
-                    "meta": {}
-                }), 400
             result = tsvc.execute_program_transition(
                 program_id=program_id,
                 source_period_id=source_period_id,

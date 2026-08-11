@@ -1,7 +1,6 @@
 # app/routes/pages/auth.py
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import current_user, login_required
-from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timezone
 from app.models.user import User
 from app.models.role import Role
@@ -14,15 +13,6 @@ from app.utils.validators import (
 from app import db
 
 pages_auth = Blueprint("pages_auth", __name__)
-
-#helpers
-
-def check_default_password(password: str) -> bool:
-    """
-    Verifica si el usuario está usando la contraseña por defecto.
-    La contraseña por defecto es 'tecno#2K' hasheada.
-    """
-    return check_password_hash(password, "tecno#2K")
 
 
 @pages_auth.route("/reset-password/<token>", methods=["GET"])
@@ -143,7 +133,9 @@ def register_page():
                 email=email,
                 is_internal=is_internal,
                 role_id=applicant_role.id,
-                must_change_password=check_default_password(password)
+                # El aspirante acaba de elegir esta contraseña: no hay nada que
+                # forzarle a cambiar en el siguiente acceso.
+                must_change_password=False,
             )
             db.session.add(new_user)
 

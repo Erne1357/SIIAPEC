@@ -31,6 +31,7 @@ from app.models.user_history import UserHistory
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.services import profile_activity_service
+from app.services import program_scope_service
 from app.utils.datetime_utils import now_local
 
 
@@ -58,20 +59,19 @@ class AccessDenied(StudentRecordError):
 
 def _can_view_record(requester: User, target: User) -> bool:
     """
-    True if the requester can view target's record:
-      - postgraduate_admin (academic_periods.api.create) → all
-      - program_admin coordinating one of target's programs → that scope
+    True if the requester can view target's FULL record:
       - target == requester → always
+      - holds 'students.api.view_record' AND the target is inside the
+        requester's program scope (postgraduate_admin = every program).
+
+    The scope half is delegated to `program_scope_service.user_in_scope`, the
+    single shared predicate — do not re-implement the intersection here.
     """
     if requester.id == target.id:
         return True
-    if requester.has_permission('students.api.view_record') is False:
+    if not requester.has_permission('students.api.view_record'):
         return False
-    accessible = requester.get_accessible_program_ids()
-    if accessible is None:
-        return True
-    target_program_ids = {up.program_id for up in (target.user_program or [])}
-    return bool(target_program_ids & set(accessible))
+    return program_scope_service.user_in_scope(requester, target, allow_self=False)
 
 
 def get_full_record(user_id: int, requester: User) -> dict:

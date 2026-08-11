@@ -11,6 +11,12 @@ Endpoints:
   POST /api/v1/student-bulk/csv/preview     — Valida CSV y devuelve filas con errores
   POST /api/v1/student-bulk/csv/execute     — Ejecuta filas válidas del preview
   GET  /api/v1/student-bulk/csv/template    — Descarga plantilla CSV
+
+Permiso ≠ alcance: `student_bulk.api.*` dice que el usuario puede dar de alta
+estudiantes, no EN QUÉ PROGRAMA. El alcance se resuelve aquí y se pasa al
+servicio como `creator_program_ids`; sin él, un coordinador podía fabricar
+estudiantes con número de control y estatus `enrolled` dentro del programa de
+otro coordinador.
 """
 
 import io
@@ -18,6 +24,7 @@ import io
 from flask import Blueprint, jsonify, request, Response
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
+from app.services import program_scope_service as scope_service
 import app.services.student_bulk_service as svc
 
 api_student_bulk = Blueprint(
@@ -25,6 +32,26 @@ api_student_bulk = Blueprint(
     __name__,
     url_prefix='/api/v1/student-bulk',
 )
+
+
+def _creator_program_ids():
+    """
+    Programas sobre los que `current_user` puede dar de alta estudiantes.
+
+    Devuelve `None` para el jefe de posgrado (TODOS) y un conjunto —posiblemente
+    vacío— para el resto. Nunca conviertas `None` en `set()` ni al revés.
+    """
+    return scope_service.accessible_program_ids(current_user)
+
+
+def _scope_denied(exc):
+    """403 con el envoltorio estándar y el mensaje en español del servicio."""
+    return jsonify({
+        'data': None,
+        'flash': [{'level': 'danger', 'message': str(exc)}],
+        'error': {'code': 'FORBIDDEN', 'message': str(exc)},
+        'meta': {},
+    }), 403
 
 
 # ---------------------------------------------------------------------------
@@ -39,7 +66,9 @@ def api_validate_individual():
     payload = request.get_json(silent=True) or {}
 
     try:
-        result = svc.validate_individual(payload)
+        result = svc.validate_individual(
+            payload, creator_program_ids=_creator_program_ids()
+        )
         return jsonify({
             'data': result,
             'error': None,
@@ -66,13 +95,20 @@ def api_create_individual():
     payload = request.get_json(silent=True) or {}
 
     try:
-        result = svc.create_student_individual(payload, created_by_id=current_user.id)
+        result = svc.create_student_individual(
+            payload,
+            created_by_id=current_user.id,
+            creator_program_ids=_creator_program_ids(),
+        )
         return jsonify({
             'data': result,
             'flash': [{'level': 'success', 'message': f'Estudiante creado exitosamente. Se envió un correo de bienvenida a {result["email"]}.'}],
             'error': None,
             'meta': {},
         }), 200
+
+    except svc.ProgramScopeError as e:
+        return _scope_denied(e)
 
     except svc.ValidationError as e:
         return jsonify({
@@ -131,7 +167,9 @@ def api_csv_preview():
         }), 400
 
     try:
-        result = svc.validate_csv(csv_text)
+        result = svc.validate_csv(
+            csv_text, creator_program_ids=_creator_program_ids()
+        )
 
         # Si el servicio retornó un error de parseo
         if 'error' in result and result.get('error'):
@@ -186,7 +224,11 @@ def api_csv_execute():
         }), 400
 
     try:
-        result = svc.execute_csv(rows, created_by_id=current_user.id)
+        result = svc.execute_csv(
+            rows,
+            created_by_id=current_user.id,
+            creator_program_ids=_creator_program_ids(),
+        )
         created = result['created']
         failed_count = len(result['failed'])
 

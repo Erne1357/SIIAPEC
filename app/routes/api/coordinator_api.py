@@ -5,7 +5,13 @@ from sqlalchemy import select, and_, or_, func
 from datetime import datetime, timezone
 
 from app import db
-from app.utils.permissions import permission_required, any_permission_required
+from app.utils.permissions import (
+    permission_required,
+    any_permission_required,
+    program_scope_required,
+    guard_user_scope,
+)
+from app.services import program_scope_service as scope_service
 from app.utils.files import save_user_doc  # Importar tu función de archivos
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
@@ -25,6 +31,151 @@ from app.services.admission_service import get_admission_state
 
 api_coordinator = Blueprint('api_coordinator', __name__, url_prefix='/api/v1/coordinator')
 
+
+def _scoped_user_program(student_id: int):
+    """
+    UserProgram del estudiante que cae DENTRO del alcance del llamador.
+
+    Un estudiante puede tener más de un UserProgram (cambio de programa). Tomar
+    `.first()` a ciegas permitía que un coordinador escribiera sobre la
+    inscripción de un programa ajeno aunque compartiera otro con el estudiante.
+
+    Returns:
+        UserProgram | None — None si no tiene ninguno accesible.
+    """
+    rows = UserProgram.query.filter_by(user_id=student_id).all()
+    if not rows:
+        return None
+    scope = scope_service.accessible_program_ids(current_user)
+    if scope is None:
+        return rows[0]
+    for up in rows:
+        if up.program_id in scope:
+            return up
+    return None
+
+
+def _is_student_account(user) -> bool:
+    """Sólo aspirantes y estudiantes son objetivo de los paneles de coordinación."""
+    return getattr(getattr(user, 'role', None), 'name', None) in ('applicant', 'student')
+
+
+def _summary_of(student, program, user_program=None, admission_state=None) -> dict:
+    """
+    Nivel reducido entre programas: nombre, correo y progreso/estado.
+
+    Se arma plano y se pasa por `to_cross_program_summary`, que descarta todo lo
+    que no esté en la lista blanca — incluido cualquier campo que se agregue
+    después. Nunca construyas el payload restringido a mano.
+    """
+    flat = {
+        "id": student.id,
+        "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
+        "email": student.email,
+        "program_id": program.id if program else None,
+        "program_name": program.name if program else None,
+        "program_slug": program.slug if program else None,
+        "can_manage": False,
+    }
+    if user_program is not None:
+        flat.update({
+            "admission_status": user_program.admission_status,
+            "current_semester": user_program.current_semester or 1,
+        })
+    if admission_state is not None:
+        counts = admission_state.get('status_count', {})
+        flat.update({
+            "progress_percentage": admission_state.get('progress_pct', 0),
+            "approved_docs": counts.get('approved', 0),
+            "pending_docs": counts.get('pending', 0),
+            "rejected_docs": counts.get('rejected', 0),
+            "extended_docs": admission_state.get('extended_docs', 0),
+        })
+    return scope_service.to_cross_program_summary(flat)
+
+
+def _restricted_permanence_payload(student, user_program, program) -> dict:
+    """
+    Respuesta de `/permanence-details` para un estudiante de otro programa.
+
+    Conserva la forma del payload (el modal la consume tal cual) pero cada
+    campo prohibido sale en `None` / vacío: foto, número de control, beca
+    SECIHTI, periodo, inscripción semestral e historial de semestres.
+    """
+    s = _summary_of(student, program, user_program=user_program)
+    return {
+        "ok": True,
+        "restricted": True,
+        "student": {
+            "id": s.get('id'),
+            "full_name": s.get('full_name'),
+            "email": s.get('email'),
+            "avatar_url": None,
+            "control_number": None,
+        },
+        "user_program": {
+            "id": None,
+            "current_semester": s.get('current_semester'),
+            "has_conacyt_scholarship": None,
+            "admission_status": s.get('admission_status'),
+        },
+        "program": {
+            "id": s.get('program_id'),
+            "name": s.get('program_name'),
+        },
+        "active_period": None,
+        "current_enrollment": None,
+        "pending_admission_count": None,
+        "semester_history": [],
+        "can_manage": False,
+    }
+
+
+def _restricted_details_payload(student, program, admission_state) -> dict:
+    """
+    Respuesta de `/details` para un estudiante de otro programa.
+
+    Mismas claves de siempre, pero sin `profile_data` (CURP, RFC, NSS,
+    domicilio, fecha y lugar de nacimiento, contacto de emergencia), sin foto,
+    sin documentos ni sus URLs y sin elegibilidad de entrevista.
+    """
+    s = _summary_of(student, program, admission_state=admission_state)
+    return {
+        "ok": True,
+        "restricted": True,
+        "student": {
+            "id": s.get('id'),
+            "full_name": s.get('full_name'),
+            "email": s.get('email'),
+            "avatar_url": None,
+            "profile_completed": None,
+            "registration_date": None,
+            "program": {
+                "id": s.get('program_id'),
+                "name": s.get('program_name'),
+                "slug": s.get('program_slug'),
+            },
+            "profile_data": None,
+        },
+        "documents": [],
+        "interview": {
+            "has_interview": False,
+            "appointment": None,
+            "eligibility": {"eligible": None, "missing_items": []},
+        },
+        "metrics": {
+            "total_documents": None,
+            "approved": s.get('approved_docs'),
+            "pending": s.get('pending_docs'),
+            "rejected": s.get('rejected_docs'),
+            "extended": s.get('extended_docs'),
+            "in_review": None,
+            "progress_percentage": s.get('progress_percentage'),
+        },
+        "missing_documents": [],
+        "can_manage": False,
+    }
+
 @api_coordinator.route('/students', methods=['GET'])
 @login_required
 @permission_required('coordinator.api.list_students')
@@ -32,13 +183,22 @@ def list_students():
     """
     Lista estudiantes que el coordinador puede ver/gestionar.
     Filtros: program_id, phase, status, search, show_other
+
+    Alcance: las filas de programas ajenos existen por decisión del dueño, pero
+    se proyectan al nivel reducido (nombre / correo / progreso) con
+    `to_cross_program_summary`. Ningún dato personal, foto ni documento sale de
+    aquí para un programa fuera del alcance del llamador.
     """
     program_id = request.args.get('program_id', type=int)
     phase = request.args.get('phase')  # admission, permanence, conclusion
     status = request.args.get('status')  # pending, review, approved, rejected
     search = request.args.get('search', '').strip()
     show_other = request.args.get('show_other') == 'true'
-    
+
+    # El toggle "ver otros programas" es exactamente el nivel reducido.
+    if show_other and not scope_service.may_view_cross_program_summary(current_user):
+        show_other = False
+
     # Base query: usuarios con programas (aspirantes y estudiantes ya inscritos)
     query = db.session.query(User, UserProgram, Program).join(
         UserProgram, User.id == UserProgram.user_id
@@ -49,16 +209,15 @@ def list_students():
         User.is_active == True,
     )
     
-    # Programas que puede gestionar el coordinador (propios + delegados)
-    accessible_pids = current_user.get_accessible_program_ids()
-    managed_programs = list(accessible_pids) if accessible_pids is not None else None
+    # Programas que puede gestionar el coordinador (propios + delegados).
+    # None = alcance global (jefe de posgrado); set() vacío = sin alcance.
+    scope = scope_service.accessible_program_ids(current_user)
 
-    if managed_programs is not None:
-        if not show_other:
-            if not managed_programs:
-                return jsonify({"students": []}), 200
-            query = query.filter(Program.id.in_(managed_programs))
-    
+    if scope is not None and not show_other:
+        if not scope:
+            return jsonify({"students": []}), 200
+        query = query.filter(Program.id.in_(scope))
+
     # Filtros adicionales
     if program_id:
         query = query.filter(Program.id == program_id)
@@ -79,6 +238,11 @@ def list_students():
     active_period = AcademicPeriod.get_active_period()
     active_period_id = active_period.id if active_period else None
 
+    # Una sola resolución de alcance para toda la página.
+    manageable_pids = scope_service.programs_in_scope(
+        current_user, {program.id for _, _, program in results}
+    )
+
     for user, user_program, program in results:
         # Calcular estado actual del estudiante
         admission_state = get_admission_state(user.id, program.id, user_program)
@@ -91,13 +255,10 @@ def list_students():
         if phase and current_phase != phase:
             continue
         
-        # Puede gestionar este estudiante?
-        # managed_programs None = acceso global (jefe de posgrado)
-        if managed_programs is None:
-            can_manage = True
-        else:
-            can_manage = program.id in managed_programs
-        
+        # ¿Puede gestionar este estudiante? (el programa de la fila está dentro
+        # del alcance del llamador — el jefe de posgrado siempre pasa)
+        can_manage = program.id in manageable_pids
+
         # Calcular métricas
         student_data = {
             "id": user.id,
@@ -130,11 +291,16 @@ def list_students():
             "conclusion_progress": 0,
             "conclusion_status": "pending"
         }
-        
+
+        # Fuera de alcance: sólo nombre, correo y progreso/estado. La proyección
+        # elimina la foto de perfil y cualquier campo que se añada después.
+        if not can_manage:
+            student_data = scope_service.to_cross_program_summary(student_data)
+
         # Filtro por status
-        if status and student_data["overall_status"] != status:
+        if status and student_data.get("overall_status") != status:
             continue
-            
+
         students.append(student_data)
     
     return jsonify({"students": students}), 200
@@ -146,13 +312,13 @@ def manageable_students():
     """
     Lista solo estudiantes que el coordinador puede gestionar (para selects)
     """
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is None:
+    scope = scope_service.accessible_program_ids(current_user)
+    if scope is None:
         program_filter = True  # acceso global
     else:
-        if not accessible_pids:
+        if not scope:
             return jsonify({"students": []}), 200
-        program_filter = Program.id.in_(accessible_pids)
+        program_filter = Program.id.in_(scope)
     
     query = db.session.query(User, Program).join(
         UserProgram, User.id == UserProgram.user_id
@@ -180,23 +346,21 @@ def manageable_students():
 @api_coordinator.route('/student/<int:student_id>/uploadable-archives', methods=['GET'])
 @login_required
 @permission_required('coordinator.api.upload_for_student')
+@program_scope_required(user_id_kwarg='student_id', allow_self=False)
 def student_uploadable_archives(student_id: int):
     """
-    Lista archivos que el coordinador puede subir para un estudiante específico
+    Lista archivos que el coordinador puede subir para un estudiante específico.
+
+    El alcance lo resuelve `@program_scope_required`: un aspirante de otro
+    programa (o un id inexistente) nunca llega al cuerpo de la vista.
     """
-    # Verificar que puede gestionar este estudiante
     student = db.session.get(User, student_id)
-    if not student:
+    if not student or not _is_student_account(student):
         return jsonify({"error": "Estudiante no encontrado"}), 404
-    
-    user_program = UserProgram.query.filter_by(user_id=student_id).first()
+
+    user_program = _scoped_user_program(student_id)
     if not user_program:
         return jsonify({"error": "Estudiante no inscrito en programa"}), 404
-    
-    # Verificar permisos
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is not None and user_program.program_id not in accessible_pids:
-        return jsonify({"error": "No tienes permiso para gestionar este estudiante"}), 403
 
     # Obtener archivos que permiten subida por coordinador
     query = db.session.query(Archive, Step, Phase).join(
@@ -250,6 +414,17 @@ def upload_for_student():
     if not student_id or not archive_id:
         return jsonify({"error": "student_id y archive_id son requeridos"}), 400
 
+    # Alcance ANTES de tocar nada: subir un documento es una escritura y una
+    # escritura nunca cruza programas. El id viene en el form, no en el URL,
+    # así que se usa la guarda imperativa.
+    denied = guard_user_scope(student_id, allow_self=False)
+    if denied:
+        return denied
+
+    student = db.session.get(User, student_id)
+    if not student or not _is_student_account(student):
+        return jsonify({"error": "Estudiante no encontrado"}), 404
+
     # Archivo opcional: si no se proporciona, el coordinador valida sin documento
     # (caso típico: examen presencial). Aspirantes/estudiantes siempre suben file.
     file = request.files.get('file') if 'file' in request.files else None
@@ -260,14 +435,10 @@ def upload_for_student():
             "error": "Si no subes un archivo debes proporcionar al menos un comentario justificativo"
         }), 400
     
-    # Verificar permisos sobre el estudiante
-    user_program = UserProgram.query.filter_by(user_id=student_id).first()
+    # Inscripción sobre la que se escribe: siempre una que el llamador gestiona.
+    user_program = _scoped_user_program(student_id)
     if not user_program:
         return jsonify({"error": "Estudiante no inscrito"}), 404
-    
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is not None and user_program.program_id not in accessible_pids:
-        return jsonify({"error": "No tienes permiso para este estudiante"}), 403
 
     # Verificar que el archivo permite subida por coordinador
     archive = db.session.get(Archive, archive_id)
@@ -360,13 +531,13 @@ def upload_for_student():
 @permission_required('coordinator.api.list_students')
 def list_coordinator_programs():
     """Lista programas que el coordinador puede gestionar"""
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is None:
+    scope = scope_service.accessible_program_ids(current_user)
+    if scope is None:
         programs = Program.query.all()
-    elif not accessible_pids:
+    elif not scope:
         programs = []
     else:
-        programs = Program.query.filter(Program.id.in_(accessible_pids)).all()
+        programs = Program.query.filter(Program.id.in_(scope)).all()
     
     items = [{
         "id": p.id,
@@ -390,17 +561,29 @@ def get_student_permanence_details(student_id: int):
     from app.models.academic_period import AcademicPeriod
 
     student = db.session.get(User, student_id)
-    if not student:
+    if not student or not _is_student_account(student):
         return jsonify({"ok": False, "error": "Estudiante no encontrado"}), 404
 
-    user_program = UserProgram.query.filter_by(user_id=student_id).first()
+    # La inscripción que se muestra es la del programa que el llamador gestiona;
+    # sólo si no gestiona ninguna se cae al nivel reducido.
+    user_program = _scoped_user_program(student_id)
+    can_manage = user_program is not None
+    if user_program is None:
+        user_program = UserProgram.query.filter_by(user_id=student_id).first()
     if not user_program:
         return jsonify({"ok": False, "error": "Sin programa"}), 404
 
     program = db.session.get(Program, user_program.program_id)
 
-    accessible_pids = current_user.get_accessible_program_ids()
-    can_manage = accessible_pids is None or program.id in accessible_pids
+    # Fuera de alcance: nivel reducido (nombre / correo / progreso). Ni número
+    # de control, ni foto, ni beca, ni historial semestral cruzan de programa.
+    if not can_manage:
+        if not scope_service.may_view_cross_program_summary(current_user):
+            return jsonify({
+                "ok": False,
+                "error": "No tienes acceso a la información de este estudiante"
+            }), 403
+        return jsonify(_restricted_permanence_payload(student, user_program, program)), 200
 
     # Periodo activo y enrollment del periodo actual
     active_period = AcademicPeriod.get_active_period()
@@ -486,23 +669,32 @@ def get_student_details(student_id: int):
     
     # 1. Obtener estudiante
     student = db.session.get(User, student_id)
-    if not student:
+    if not student or not _is_student_account(student):
         return jsonify({"ok": False, "error": "Estudiante no encontrado"}), 404
-    
-    # 2. Verificar permisos
-    user_program = UserProgram.query.filter_by(user_id=student_id).first()
+
+    # 2. Resolver la inscripción dentro del alcance del llamador
+    user_program = _scoped_user_program(student_id)
+    can_manage = user_program is not None
+    if user_program is None:
+        user_program = UserProgram.query.filter_by(user_id=student_id).first()
     if not user_program:
         return jsonify({"ok": False, "error": "Estudiante no inscrito"}), 404
-    
+
     program = db.session.get(Program, user_program.program_id)
-    
-    # Determinar si el coordinador puede gestionar este estudiante
-    accessible_pids = current_user.get_accessible_program_ids()
-    can_manage = accessible_pids is None or program.id in accessible_pids
 
     # 3. Obtener estado de admisión completo
     admission_state = get_admission_state(student_id, program.id, user_program)
-    
+
+    # Fuera de alcance: nivel reducido. Los datos personales, los documentos y
+    # sus URLs nunca cruzan de programa, aunque el llamador tenga el permiso.
+    if not can_manage:
+        if not scope_service.may_view_cross_program_summary(current_user):
+            return jsonify({
+                "ok": False,
+                "error": "No tienes acceso a la información de este estudiante"
+            }), 403
+        return jsonify(_restricted_details_payload(student, program, admission_state)), 200
+
     # 4. Organizar documentos por paso
     documents_by_step = []
     for item in admission_state['processed_steps']:
@@ -802,16 +994,15 @@ def get_student_history(student_id):
                 'message': 'Estudiante no encontrado'
             }), 404
         
-        # Verificar permisos: programas accesibles del coordinador (propios + delegados)
-        accessible_pids = current_user.get_accessible_program_ids()
-        if accessible_pids is not None:
-            user_programs = UserProgram.query.filter_by(user_id=student_id).all()
-            if not any(up.program_id in accessible_pids for up in user_programs):
-                return jsonify({
-                    'success': False,
-                    'message': 'No tienes permisos para ver el historial de este estudiante'
-                }), 403
-        
+        # El historial es información prohibida entre programas: aquí no hay
+        # nivel reducido, o el estudiante está en tu alcance o no lo ves.
+        if not scope_service.user_in_scope(current_user, student, allow_self=False):
+            return jsonify({
+                'success': False,
+                'message': 'No tienes permisos para ver el historial de este estudiante'
+            }), 403
+
+
         # Parámetros de consulta
         format_type = request.args.get('format', 'formatted')
         limit = min(int(request.args.get('limit', 50)), 100)

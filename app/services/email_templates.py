@@ -2,6 +2,19 @@ from flask import render_template
 from typing import Dict, Any
 
 
+def _format_expiry_es(expires_at) -> str:
+    """
+    '31 de julio de 2026 a las 14:30' — never strftime('%B'), which prints the
+    month in English because this project sets no locale.
+    """
+    if not expires_at:
+        return ''
+    from app.utils.datetime_utils import format_date_es, format_time_es
+    day = format_date_es(expires_at)
+    hour = format_time_es(expires_at)
+    return f'{day} a las {hour}' if hour else day
+
+
 class EmailTemplates:
     """Plantillas de correo para diferentes tipos de notificaciones"""
     
@@ -143,15 +156,42 @@ class EmailTemplates:
         return subject, html
     
     @staticmethod
-    def password_reset(user_name: str, dashboard_url: str) -> tuple[str, str]:
-        """Plantilla para contraseña reseteada"""
-        subject = "🔒 Tu contraseña ha sido reseteada"
+    def password_reset(user_name: str, token_link: str, expires_at=None) -> tuple[str, str]:
+        """
+        Plantilla para contraseña restablecida por un administrador.
+
+        No transporta contraseña alguna: el usuario define la suya a través del
+        enlace de un solo uso.
+        """
+        subject = "🔒 Restablece tu contraseña de SIIAP"
         html = EmailTemplates.render_email('password_reset', {
             'user_name': user_name,
-            'dashboard_url': dashboard_url
+            'token_link': token_link,
+            'expires_str': _format_expiry_es(expires_at),
         })
         return subject, html
-    
+
+    @staticmethod
+    def staff_account_set_password(
+        user_name: str,
+        username: str,
+        token_link: str,
+        expires_at=None,
+    ) -> tuple[str, str]:
+        """
+        Plantilla de activación para cuentas internas creadas desde la consola
+        (servicio social). Sin contraseña temporal: sólo el enlace.
+        """
+        subject = "Tu cuenta SIIAP está lista — define tu contraseña"
+        html = EmailTemplates.render_email('staff_account_set_password', {
+            'user_name': user_name,
+            'username': username,
+            'token_link': token_link,
+            'expires_str': _format_expiry_es(expires_at),
+        })
+        return subject, html
+
+
     @staticmethod
     def control_number_assigned(user_name: str, control_number: str, dashboard_url: str) -> tuple[str, str]:
         """Plantilla para número de control asignado"""
@@ -321,10 +361,9 @@ class EmailTemplates:
             (subject, html)
         """
         subject = 'Bienvenido a SIIAP — Configura tu contraseña'
-        try:
-            expires_str = expires_at.strftime('%d de %B de %Y a las %H:%M')
-        except Exception:
-            expires_str = ''
+        # strftime('%B') printed the month in English: this project never calls
+        # locale.setlocale(). Shared helper, same as the other password mails.
+        expires_str = _format_expiry_es(expires_at)
         html = f"""<!DOCTYPE html>
 <html lang="es">
 <head>

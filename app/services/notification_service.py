@@ -573,34 +573,57 @@ class NotificationService:
     # ==================== ADMINISTRATIVAS ====================
     
     @staticmethod
-    def notify_password_reset(user_id: int) -> Notification:
-        """Notifica cuando la contraseña es reseteada por un admin"""
+    def notify_password_reset(
+        user_id: int,
+        token_link: str | None = None,
+        expires_at=None,
+    ) -> Notification:
+        """
+        Notifica cuando un administrador restablece la contraseña.
+
+        La notificación en pantalla NO lleva credencial ni enlace: se almacena
+        en la base y se muestra en cada sesión del usuario, así que un enlace
+        de un solo uso ahí sería una credencial persistida. El enlace viaja
+        únicamente en el correo.
+        """
         notification = NotificationService.create_notification(
             user_id=user_id,
             notification_type='password_reset',
-            title='Contraseña reseteada',
-            message='Tu contraseña ha sido reseteada a "tecno#2K". Debes cambiarla en tu próximo inicio de sesión.',
+            title='Contraseña restablecida',
+            message=(
+                'Un administrador restableció tu contraseña. Tu contraseña anterior '
+                'ya no funciona: revisa tu correo, ahí te enviamos un enlace para '
+                'que definas una nueva.'
+            ),
             priority='critical',
-            action_url='/user/profile',
+            action_url='/login',
         )
-        
-        # NUEVO: Enviar correo
+
+        # Enviar correo con el enlace de un solo uso.
         try:
             from app.models.user import User
             from app.services.email_service import EmailService
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
-            if user:
-                dashboard_url = external_url('pages_auth.login_page')
+            if not token_link:
+                # Sin enlace no hay nada que el usuario pueda hacer con el
+                # correo: mejor no enviarlo que mandar instrucciones muertas.
+                import logging
+                logging.error(
+                    "notify_password_reset sin token_link para el usuario %s: "
+                    "no se envía correo.", user_id
+                )
+            elif user:
                 subject, html = EmailTemplates.password_reset(
                     user_name=f"{user.first_name} {user.last_name}",
-                    dashboard_url=dashboard_url
+                    token_link=token_link,
+                    expires_at=expires_at,
                 )
                 EmailService.queue_email(user_id, subject, html, notification.id)
         except Exception as e:
             import logging
             logging.error(f"Error queueing email for password_reset: {e}")
-        
+
         return notification
     
     @staticmethod

@@ -94,8 +94,19 @@ class UserHistoryService:
         return history_entry
 
     @staticmethod
-    def log_password_reset(user_id: int, admin_id: Optional[int] = None) -> UserHistory:
-        """Registra un reset de contraseña - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+    def log_password_reset(
+        user_id: int,
+        admin_id: Optional[int] = None,
+        token_link: Optional[str] = None,
+        expires_at=None,
+    ) -> UserHistory:
+        """
+        Registra un reset de contraseña - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR
+
+        `token_link` / `expires_at` viajan hasta el correo del usuario afectado.
+        Nunca se escriben en el historial ni en la notificación: el enlace vale
+        tanto como una contraseña y esas dos superficies quedan almacenadas.
+        """
         # Obtener información del usuario afectado
         user = User.query.get(user_id)
         user_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {user_id}"
@@ -125,8 +136,10 @@ class UserHistoryService:
         )
         
         # ✅ CORRECTO: La notificación se envía a quien se AFECTA (el usuario)
-        NotificationService.notify_password_reset(user_id)
-        
+        NotificationService.notify_password_reset(
+            user_id, token_link=token_link, expires_at=expires_at
+        )
+
         return history
 
     @staticmethod

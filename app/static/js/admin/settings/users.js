@@ -435,13 +435,14 @@
         }
     }
     
-    // Resetear contraseña
+    // Password reset: the admin never sees a credential. The backend
+    // invalidates the stored password and mails a single-use link.
     async function resetPassword(userId, userName) {
         const ok = await siiapConfirm({
             type: 'warning',
-            title: 'Resetear contraseña',
-            message: `¿Resetear la contraseña de ${userName} a "tecno#2K"?\n\nEl usuario deberá cambiarla en su próximo inicio de sesión.`,
-            confirmLabel: 'Sí, resetear',
+            title: 'Restablecer contraseña',
+            message: `¿Restablecer la contraseña de ${userName}?\n\nSu contraseña actual dejará de funcionar de inmediato y recibirá en su correo un enlace de un solo uso, válido 45 minutos, para definir una nueva. Tú no verás ninguna contraseña.`,
+            confirmLabel: 'Sí, enviar enlace',
         });
         if (!ok) return;
         

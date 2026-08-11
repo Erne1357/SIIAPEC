@@ -1,60 +1,174 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from app.utils.permissions import permission_required, any_permission_required
-from app.services.appointments_service import AppointmentsService
+from app.utils.permissions import (
+    permission_required,
+    any_permission_required,
+    guard_program_scope,
+    guard_user_scope,
+)
+from app.services import program_scope_service as scope_service
+from app.services.appointments_service import AppointmentsService, AppointmentAccessDenied
 from app.services.user_history_service import UserHistoryService
 from app.models.appointment import Appointment
 from app import db
 
 api_appointments = Blueprint('api_appointments', __name__, url_prefix='/api/v1/appointments')
 
+#: Permiso que distingue al coordinador (gestiona citas ajenas) del aspirante
+#: (sólo gestiona la suya).
+_STAFF_PERMISSION = 'appointments.api.assign'
+
+
+def _deny(code: str, message: str, status: int):
+    """Respuesta de denegación con el envelope del proyecto (mensaje en español)."""
+    return jsonify({
+        "ok": False,
+        "data": None,
+        "flash": [{"level": "danger", "message": message}],
+        "error": {"code": code, "message": message},
+        "meta": {}
+    }), status
+
+
+def _event_scope_denied(program_id):
+    """
+    Alcance sobre el programa del evento de la cita.
+
+    Con programa: delega en la guarda compartida (`guard_program_scope`), que
+    es la única implementación de la intersección de alcances.
+    Sin programa: evento institucional, gestionado por cualquier portador del
+    permiso — mismo contrato que `events_api._event_in_scope`.
+
+    Returns:
+        None si procede; la respuesta 403 si no.
+    """
+    if program_id is None:
+        return None
+    return guard_program_scope(program_id)
+
+
+def _appointment_not_found():
+    """
+    404 deliberado: se usa TAMBIÉN cuando la cita existe pero es de otra
+    persona y quien pregunta no es personal autorizado. Un 403 confirmaría
+    que ese id existe y permitiría recorrer el espacio de ids.
+    """
+    return _deny("NOT_FOUND", "Cita no encontrada.", 404)
+
+
+def _resolve_manage_context(appointment_id: int):
+    """
+    Carga la cita y decide si `current_user` puede gestionarla.
+
+    Returns:
+        (ctx, as_admin, error_response). `error_response` distinto de None
+        significa que hay que devolverlo tal cual.
+    """
+    ctx = AppointmentsService.get_appointment_context(appointment_id)
+    if not ctx:
+        return None, False, _appointment_not_found()
+
+    appt = ctx['appointment']
+    if appt.applicant_id == current_user.id:
+        return ctx, False, None
+
+    # No es su cita: sólo el personal con permiso de gestión y con el programa
+    # del evento dentro de su alcance puede tocarla.
+    if not current_user.has_permission(_STAFF_PERMISSION):
+        return None, False, _appointment_not_found()
+
+    denied = _event_scope_denied(ctx['program_id'])
+    if denied:
+        return None, False, denied
+
+    return ctx, True, None
+
+
+def _applicant_may_book(event) -> bool:
+    """Un aspirante sólo puede agendarse en un evento publicado de su programa."""
+    if not event or not event.visible_to_students or event.status != 'published':
+        return False
+    if event.program_id is None:
+        return True
+    return event.program_id in scope_service.program_ids_of_user(current_user.id)
+
+
 @api_appointments.route('', methods=['POST'])
 @login_required
 @any_permission_required('appointments.api.assign', 'appointments.api.book')
 def assign():
     data = request.get_json() or {}
+
+    try:
+        event_id = int(data['event_id'])
+        slot_id = int(data['slot_id'])
+    except (KeyError, TypeError, ValueError):
+        return _deny("VALIDATION_ERROR", "event_id y slot_id son requeridos.", 400)
+
+    slot_ctx = AppointmentsService.get_slot_context(slot_id)
+    if not slot_ctx or not slot_ctx['event'] or slot_ctx['event'].id != event_id:
+        return _deny("NOT_FOUND", "Horario no encontrado.", 404)
+
+    event = slot_ctx['event']
+    is_staff = current_user.has_permission(_STAFF_PERMISSION)
+
+    if is_staff:
+        # El coordinador sólo agenda dentro de los programas a su alcance…
+        denied = _event_scope_denied(event.program_id)
+        if denied:
+            return denied
+        try:
+            applicant_id = int(data.get('applicant_id') or current_user.id)
+        except (TypeError, ValueError):
+            return _deny("VALIDATION_ERROR", "applicant_id inválido.", 400)
+        # …y sólo sobre aspirantes de esos mismos programas.
+        denied = guard_user_scope(applicant_id)
+        if denied:
+            return denied
+    else:
+        # Un aspirante sólo puede agendarse a sí mismo. El applicant_id del
+        # cuerpo se ignora deliberadamente.
+        applicant_id = current_user.id
+        if not _applicant_may_book(event):
+            return _deny("FORBIDDEN", "No puedes agendar una cita en este evento.", 403)
+
     try:
         appt = AppointmentsService.assign_slot(
-            event_id=int(data['event_id']),
-            slot_id=int(data['slot_id']),
-            applicant_id=int(data['applicant_id']),
+            event_id=event_id,
+            slot_id=slot_id,
+            applicant_id=applicant_id,
             assigned_by=current_user.id,
             notes=data.get('notes')
         )
-        
+
         # Registrar en el historial Y enviar notificación
         try:
-            from app.models.event import Event, EventSlot, EventWindow
             from app.services.notification_service import NotificationService
-            slot = EventSlot.query.get(int(data['slot_id']))
-            if slot:
-                window = EventWindow.query.get(slot.event_window_id)
-                if window:
-                    event = Event.query.get(window.event_id)
-                    if event:
-                        # Registrar en historial
-                        UserHistoryService.log_appointment_assignment(
-                            user_id=int(data['applicant_id']),
-                            event_title=event.title,
-                            appointment_datetime=slot.starts_at.isoformat(),
-                            assigned_by_admin=current_user.id
-                        )
-                        
-                        # NUEVO: Enviar notificación con correo
-                        NotificationService.notify_appointment_assigned(
-                            user_id=int(data['applicant_id']),
-                            event_title=event.title,
-                            appointment_id=appt.id,
-                            slot_datetime=slot.starts_at.strftime('%d/%m/%Y a las %H:%M'),
-                            event_id=event.id,
-                            location=event.location
-                        )
-                        
-                        db.session.commit()
+            slot = slot_ctx['slot']
+
+            # Registrar en historial
+            UserHistoryService.log_appointment_assignment(
+                user_id=applicant_id,
+                event_title=event.title,
+                appointment_datetime=slot.starts_at.isoformat(),
+                assigned_by_admin=current_user.id
+            )
+
+            # Enviar notificación con correo
+            NotificationService.notify_appointment_assigned(
+                user_id=applicant_id,
+                event_title=event.title,
+                appointment_id=appt.id,
+                slot_datetime=slot.starts_at.strftime('%d/%m/%Y a las %H:%M'),
+                event_id=event.id,
+                location=event.location
+            )
+
+            db.session.commit()
         except Exception as e:
             from flask import current_app
             current_app.logger.error(f"Error al registrar asignación de cita en historial: {e}")
-        
+
         # Broadcast a coordinadores
         try:
             from app.extensions import socketio
@@ -92,42 +206,39 @@ def my_appointments():
 
 @api_appointments.route('/<int:appointment_id>', methods=['DELETE'])
 @login_required
-@permission_required('appointments.api.cancel')
+@any_permission_required('appointments.api.cancel', 'appointments.api.assign')
 def cancel(appointment_id:int):
+    ctx, as_admin, err = _resolve_manage_context(appointment_id)
+    if err:
+        return err
+
+    event_title = ctx['event_title']
+
     try:
-        # Obtener información antes de cancelar
-        appt = Appointment.query.get(appointment_id)
-        event_title = "Desconocido"
-        if appt:
-            from app.models.event import Event, EventSlot, EventWindow
-            slot = EventSlot.query.get(appt.slot_id)
-            if slot:
-                window = EventWindow.query.get(slot.event_window_id)
-                if window:
-                    event = Event.query.get(window.event_id)
-                    if event:
-                        event_title = event.title
-        
-        appt = AppointmentsService.cancel_appointment(appointment_id, reason=request.args.get('reason'))
-        
+        appt = AppointmentsService.cancel_appointment(
+            appointment_id,
+            reason=request.args.get('reason'),
+            acting_user_id=current_user.id,
+            as_admin=as_admin,
+        )
+
         # Registrar en el historial (incluye notificación automática)
         try:
-            cancelled_by_admin = (current_user.id != appt.applicant_id)
             reason = request.args.get('reason', 'Cancelada por el usuario')
-            
+
             UserHistoryService.log_appointment_cancellation(
                 user_id=appt.applicant_id,
                 event_title=event_title,
                 reason=reason,
-                cancelled_by_admin=cancelled_by_admin,
-                admin_id=current_user.id if cancelled_by_admin else None
+                cancelled_by_admin=as_admin,
+                admin_id=current_user.id if as_admin else None
             )
-            
+
             db.session.commit()
         except Exception as e:
             from flask import current_app
             current_app.logger.error(f"Error al registrar cancelación de cita en historial: {e}")
-        
+
         # Broadcast a coordinadores
         try:
             from app.extensions import socketio
@@ -146,20 +257,28 @@ def cancel(appointment_id:int):
             pass
 
         return jsonify({"ok": True, "id": appt.id, "status": appt.status}), 200
+    except AppointmentAccessDenied:
+        return _appointment_not_found()
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
 @api_appointments.route('/<int:appointment_id>/change-requests', methods=['POST'])
 @login_required
-@permission_required('appointments.api.change_request')
+@any_permission_required('appointments.api.change_request', 'appointments.api.assign')
 def request_change(appointment_id:int):
     data = request.get_json() or {}
+
+    ctx, as_admin, err = _resolve_manage_context(appointment_id)
+    if err:
+        return err
+
     try:
         acr = AppointmentsService.request_change(
             appointment_id=appointment_id,
             requested_by=current_user.id,
             reason=data.get('reason'),
-            suggestions=data.get('suggestions')
+            suggestions=data.get('suggestions'),
+            as_admin=as_admin,
         )
         # Broadcast a coordinadores
         try:
@@ -176,6 +295,8 @@ def request_change(appointment_id:int):
         except Exception:
             pass
         return jsonify({"ok": True, "id": acr.id}), 201
+    except AppointmentAccessDenied:
+        return _appointment_not_found()
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
@@ -183,33 +304,23 @@ def request_change(appointment_id:int):
 @login_required
 def appointment_details(appointment_id: int):
     """Obtiene detalles completos de una cita incluyendo slot, window y evento"""
-    from app.models.event import Event, EventSlot, EventWindow
     from app.models.user import User
-    
-    appt = db.session.get(Appointment, appointment_id)
-    if not appt:
-        return jsonify({"ok": False, "error": "Cita no encontrada"}), 404
-    
-    # Verificar permisos
-    if current_user.id != appt.applicant_id and not current_user.has_permission('appointments.api.assign'):
-        return jsonify({"ok": False, "error": "No tienes permiso para ver esta cita"}), 403
-    
-    # Obtener relaciones
-    slot = db.session.get(EventSlot, appt.slot_id)
+
+    ctx, _as_admin, err = _resolve_manage_context(appointment_id)
+    if err:
+        return err
+
+    appt = ctx['appointment']
+    slot = ctx['slot']
+    event = ctx['event']
     if not slot:
-        return jsonify({"ok": False, "error": "Slot no encontrado"}), 404
-        
-    window = db.session.get(EventWindow, slot.event_window_id)
-    if not window:
-        return jsonify({"ok": False, "error": "Window no encontrada"}), 404
-        
-    event = db.session.get(Event, window.event_id)
+        return _deny("NOT_FOUND", "Horario no encontrado.", 404)
     if not event:
-        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
-    
+        return _deny("NOT_FOUND", "Evento no encontrado.", 404)
+
     # Información del coordinador que asignó
     assigner = db.session.get(User, appt.assigned_by) if appt.assigned_by else None
-    
+
     return jsonify({
         "ok": True,
         "appointment": {
@@ -242,26 +353,26 @@ def appointment_details(appointment_id: int):
 def my_active_appointments():
     """Obtiene todas las citas activas del usuario actual con detalles completos"""
     from app.models.event import Event, EventSlot, EventWindow
-    
+
     appointments = Appointment.query.filter_by(
         applicant_id=current_user.id,
         status='scheduled'
     ).all()
-    
+
     items = []
     for appt in appointments:
         slot = db.session.get(EventSlot, appt.slot_id)
         if not slot:
             continue
-            
+
         window = db.session.get(EventWindow, slot.event_window_id)
         if not window:
             continue
-            
+
         event = db.session.get(Event, window.event_id)
         if not event:
             continue
-        
+
         # Verificar si hay solicitud de cambio pendiente
         from app.models.appointment import AppointmentChangeRequest
         pending_change = AppointmentChangeRequest.query.filter_by(
@@ -286,7 +397,7 @@ def my_active_appointments():
                 "created_at": pending_change.created_at.isoformat()
             } if pending_change else None
         })
-    
+
     return jsonify({"ok": True, "appointments": items}), 200
 
 @api_appointments.route('/change-requests/by-event/<int:event_id>', methods=['GET'])
@@ -294,19 +405,19 @@ def my_active_appointments():
 @permission_required('appointments.api.assign')
 def get_change_requests_by_event(event_id: int):
     """Lista solicitudes de cambio de cita pendientes para un evento específico"""
-    from app.models.event import Event, EventSlot, EventWindow
+    from app.models.event import EventSlot
+    from app.models.event import Event
     from app.models.user import User
     from app.models.appointment import AppointmentChangeRequest
-    from app.models.program import Program
     from sqlalchemy import select
 
     event = db.session.get(Event, event_id)
     if not event:
-        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+        return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
-        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+    denied = _event_scope_denied(event.program_id)
+    if denied:
+        return denied
 
     try:
         results = db.session.execute(
@@ -352,6 +463,15 @@ def get_change_requests_by_event(event_id: int):
 @permission_required('appointments.api.assign')
 def decide_change(req_id:int):
     data = request.get_json() or {}
+
+    ctx = AppointmentsService.get_change_request_context(req_id)
+    if not ctx or not ctx.get('appointment'):
+        return _deny("NOT_FOUND", "Solicitud de cambio no encontrada.", 404)
+
+    denied = _event_scope_denied(ctx['program_id'])
+    if denied:
+        return denied
+
     try:
         acr = AppointmentsService.decide_change(
             request_id=req_id,
@@ -402,27 +522,39 @@ def decide_change(req_id:int):
 
 @api_appointments.route('/by-slot/<int:slot_id>', methods=['GET'])
 @login_required
+@permission_required('appointments.api.assign')
 def get_appointment_by_slot(slot_id: int):
-    """Obtiene la cita asignada a un slot específico"""
-    appointment = Appointment.query.filter_by(slot_id=slot_id).first()
-    
+    """
+    Obtiene la cita asignada a un slot (vista de coordinador).
+
+    Sólo nombre y estado: el correo institucional y las notas privadas del
+    coordinador NO salen por aquí.
+    """
+    slot_ctx = AppointmentsService.get_slot_context(slot_id)
+    if not slot_ctx or not slot_ctx['event']:
+        return _deny("NOT_FOUND", "Horario no encontrado.", 404)
+
+    denied = _event_scope_denied(slot_ctx['program_id'])
+    if denied:
+        return denied
+
+    appointment = AppointmentsService.get_active_appointment_for_slot(slot_id)
+
     if not appointment:
         return jsonify({"ok": True, "appointment": None}), 200
-    
+
     # Obtener datos del estudiante
     from app.models.user import User
     student = db.session.get(User, appointment.applicant_id)
-    
+
     return jsonify({
         "ok": True,
         "appointment": {
             "id": appointment.id,
             "status": appointment.status,
-            "notes": appointment.notes,
             "student": {
                 "id": student.id,
-                "full_name": f"{student.first_name} {student.last_name}",
-                "email": student.email
+                "full_name": f"{student.first_name} {student.last_name}"
             } if student else None,
             "assigned_by": appointment.assigned_by,
             "created_at": appointment.created_at.isoformat()
@@ -437,8 +569,6 @@ def mark_appointment_status(appointment_id: int):
     Marca el estado de una cita (done, no_show).
     Si se marca como 'done' y es una entrevista, actualiza admission_status.
     """
-    from app.models.program import Program
-    from app.models.event import EventSlot, EventWindow, Event
     from app.models import UserProgram
 
     data = request.get_json() or {}
@@ -451,23 +581,16 @@ def mark_appointment_status(appointment_id: int):
             "error": "Estado invalido. Usar 'done' o 'no_show'"
         }), 400
 
+    ctx, _as_admin, err = _resolve_manage_context(appointment_id)
+    if err:
+        return err
+
+    appt = ctx['appointment']
+    event = ctx['event']
+    if not ctx['slot'] or not event:
+        return _deny("NOT_FOUND", "Horario no encontrado.", 404)
+
     try:
-        appt = db.session.get(Appointment, appointment_id)
-        if not appt:
-            return jsonify({"ok": False, "error": "Cita no encontrada"}), 404
-
-        # Verificar permisos
-        slot = db.session.get(EventSlot, appt.slot_id)
-        if not slot:
-            return jsonify({"ok": False, "error": "Slot no encontrado"}), 404
-
-        window = db.session.get(EventWindow, slot.event_window_id)
-        event = db.session.get(Event, window.event_id)
-
-        accessible_pids = current_user.get_accessible_program_ids()
-        if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
-            return jsonify({"ok": False, "error": "Sin permisos"}), 403
-
         # Actualizar estado de la cita
         appt.status = new_status
         if notes:
@@ -510,50 +633,34 @@ def mark_appointment_status(appointment_id: int):
 @permission_required('appointments.api.assign')
 def cancel_appointment_by_coordinator(appointment_id: int):
     """Cancelar cita desde el coordinador con motivo"""
-    from app.models.program import Program
-    
     data = request.get_json() or {}
     reason = data.get('reason', 'Cancelada por coordinador')
-    
-    try:
-        appt = db.session.get(Appointment, appointment_id)
-        if not appt:
-            return jsonify({"ok": False, "error": "Cita no encontrada"}), 404
-        
-        # Verificar permisos
-        from app.models.event import EventSlot, EventWindow, Event
-        slot = db.session.get(EventSlot, appt.slot_id)
-        if not slot:
-            return jsonify({"ok": False, "error": "Slot no encontrado"}), 404
-            
-        window = db.session.get(EventWindow, slot.event_window_id)
-        event = db.session.get(Event, window.event_id)
-        
-        accessible_pids = current_user.get_accessible_program_ids()
-        if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
-            return jsonify({"ok": False, "error": "Sin permisos"}), 403
 
-        # Cancelar
-        appt.status = 'cancelled'
-        appt.notes = f"{appt.notes or ''}\n[Cancelada]: {reason}".strip()
-        slot.status = 'free'
-        slot.held_by = None
-        slot.hold_expires_at = None
-        
-        # NUEVO: Registrar en historial (incluye notificación automática)
+    ctx, as_admin, err = _resolve_manage_context(appointment_id)
+    if err:
+        return err
+
+    try:
+        appt = AppointmentsService.cancel_appointment(
+            appointment_id,
+            reason=reason,
+            acting_user_id=current_user.id,
+            as_admin=as_admin,
+        )
+
+        # Registrar en historial (incluye notificación automática)
         try:
             UserHistoryService.log_appointment_cancellation(
                 user_id=appt.applicant_id,
-                event_title=event.title,
+                event_title=ctx['event_title'],
                 reason=reason,
                 cancelled_by_admin=True,
                 admin_id=current_user.id
             )
+            db.session.commit()
         except Exception as e:
             from flask import current_app
             current_app.logger.error(f"Error al registrar cancelación: {e}")
-        
-        db.session.commit()
 
         # Broadcast a coordinadores
         try:
@@ -575,6 +682,10 @@ def cancel_appointment_by_coordinator(appointment_id: int):
 
         return jsonify({"ok": True, "id": appointment_id}), 200
 
+    except AppointmentAccessDenied:
+        return _appointment_not_found()
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
     except Exception as e:
         db.session.rollback()
         return jsonify({"ok": False, "error": str(e)}), 500

@@ -16,6 +16,7 @@ import os
 from flask import Blueprint, jsonify, request, send_file, current_app
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
+from app.services import program_scope_service as scope_service
 from app import db
 from app.models.document_template import (
     DocumentTemplate, DOCUMENT_TYPES, TEMPLATE_FILE_TYPES
@@ -240,7 +241,7 @@ def list_variables():
 
 @api_document_templates.post('/generate')
 @login_required
-@permission_required('admin_templates.api.list')
+@permission_required('admin_templates.api.generate')
 def generate_document():
     """
     Genera un documento relleno para un estudiante y lo retorna como descarga.
@@ -250,6 +251,12 @@ def generate_document():
       program_id    (int, required)
       document_type (str, required)
       period_id     (int, optional)
+
+    Alcance: la plantilla puede incrustar `{{student_curp}}` y
+    `{{control_number}}`, así que esto NO es una lectura de catálogo. Exige el
+    permiso propio `admin_templates.api.generate` y que TANTO el programa como
+    el estudiante estén dentro del alcance del llamador. No hay nivel reducido:
+    un documento relleno es dato personal completo o no es nada.
     """
     body = request.get_json(silent=True) or {}
     user_id = body.get('user_id')
@@ -262,6 +269,12 @@ def generate_document():
 
     if doc_type not in DOCUMENT_TYPES:
         return _err(f"document_type inválido. Opciones: {list(DOCUMENT_TYPES.keys())}")
+
+    if not scope_service.program_in_scope(current_user, program_id):
+        return _err("No tienes acceso a este programa.", 403)
+
+    if not scope_service.user_in_scope(current_user, user_id, allow_self=False):
+        return _err("No tienes acceso al expediente de este estudiante.", 403)
 
     try:
         from app.services.document_generation_service import DocumentGenerationService

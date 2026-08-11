@@ -32,6 +32,82 @@ class InvalidStateTransition(PermanenceError):
     pass
 
 
+# ── Resolución de alcance: ¿a qué programa pertenece este objeto? ─────────────
+#
+# La REGLA de alcance vive en `app/services/program_scope_service.py`
+# (`program_in_scope` / `user_in_scope`); aquí sólo resolvemos el programa
+# DUEÑO de cada objeto de permanencia para que la ruta pueda preguntarla.
+# Un permiso dice QUÉ puede hacer el usuario, nunca SOBRE QUÉ objeto.
+#
+# Todos devuelven None cuando el objeto no existe, para que la ruta pueda
+# responder 404 sin distinguir "no existe" de "existe pero es de otro programa".
+
+def get_user_program_scope(user_program_id: int):
+    """Programa y estudiante dueños de un UserProgram. None si no existe."""
+    up = db.session.get(UserProgram, user_program_id)
+    if not up:
+        return None
+    return {
+        'user_program_id': up.id,
+        'program_id': up.program_id,
+        'user_id': up.user_id,
+    }
+
+
+def get_semester_enrollment_scope(semester_enrollment_id: int):
+    """Programa y estudiante dueños de una inscripción semestral."""
+    se = db.session.get(SemesterEnrollment, semester_enrollment_id)
+    if not se:
+        return None
+    up = se.user_program
+    if not up:
+        return None
+    return {
+        'semester_enrollment_id': se.id,
+        'user_program_id': up.id,
+        'program_id': up.program_id,
+        'user_id': up.user_id,
+    }
+
+
+def get_deadline_scope(deadline_id: int):
+    """Programa dueño de una ventana de entrega."""
+    from app.models.document_deadline import DocumentDeadline
+
+    dl = db.session.get(DocumentDeadline, deadline_id)
+    if not dl:
+        return None
+    return {
+        'deadline_id': dl.id,
+        'program_id': dl.program_id,
+        'user_id': None,
+    }
+
+
+def get_submission_scope(submission_id: int):
+    """
+    Programa dueño de una submission de permanencia.
+
+    El programa se toma del ProgramStep (fuente que usa el propio servicio para
+    localizar el UserProgram) y, si faltara, de la ventana de entrega.
+    """
+    from app.models.submission import Submission
+
+    sub = db.session.get(Submission, submission_id)
+    if not sub:
+        return None
+
+    program_id = sub.program_step.program_id if sub.program_step else None
+    if program_id is None and sub.document_deadline is not None:
+        program_id = sub.document_deadline.program_id
+
+    return {
+        'submission_id': sub.id,
+        'program_id': program_id,
+        'user_id': sub.user_id,
+    }
+
+
 def get_enrolled_students(program_id: int) -> list:
     """
     Obtiene todos los estudiantes inscritos de un programa con su estado
@@ -1735,6 +1811,88 @@ def create_monthly_conacyt_deadlines(
         'created': len(created),
         'skipped': skipped,
         'deadlines': [dl.to_dict() for dl in created],
+    }
+
+
+def set_conacyt_scholarship(
+    user_program_id: int,
+    coordinator_id: int,
+    value: bool = None,
+) -> dict:
+    """
+    Activa o desactiva la beca SECIHTI/CONACyT de un estudiante.
+
+    Si `value` es None, alterna el valor actual (comportamiento histórico del
+    endpoint). Registra historial, notifica al estudiante y emite el evento de
+    socket; el historial y la notificación no rompen la operación si fallan.
+
+    Returns:
+        {'has_conacyt_scholarship': bool, 'user_id': int, 'program_id': int}
+    """
+    up = db.session.get(UserProgram, user_program_id)
+    if not up:
+        raise StudentNotFound(f"UserProgram {user_program_id} no encontrado")
+
+    new_value = (not up.has_conacyt_scholarship) if value is None else bool(value)
+    up.has_conacyt_scholarship = new_value
+    label = 'activada' if new_value else 'desactivada'
+
+    # Historial
+    try:
+        UserHistoryService.log_action(
+            user_id=up.user_id,
+            admin_id=coordinator_id,
+            action='conacyt_scholarship_changed',
+            details=(
+                f'Beca CONACyT {label} por coordinador en '
+                f'{up.program.name if up.program else "programa"}'
+            ),
+        )
+    except Exception:
+        pass
+
+    # Notificar al estudiante
+    try:
+        NotificationService.create_notification(
+            user_id=up.user_id,
+            notification_type='conacyt_scholarship_changed',
+            title=f'Beca CONACyT {label}',
+            message=(
+                f'Tu beca CONACyT ha sido {label} por el coordinador. '
+                f'{"Ahora verás las ventanas de entrega CONACyT en tu panel." if new_value else "Ya no verás las ventanas CONACyT."}'
+            ),
+            priority='medium',
+            action_url='/user/dashboard',
+        )
+    except Exception:
+        pass
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    # Socket: coordinadores y estudiante refrescan en tiempo real
+    try:
+        from app.sockets.emitters import emit_user_and_coordinators
+        emit_user_and_coordinators(
+            'permanence:scholarship_changed',
+            {
+                'user_id': up.user_id,
+                'program_id': up.program_id,
+                'has_conacyt_scholarship': new_value,
+            },
+            user_id=up.user_id,
+            program_id=up.program_id,
+        )
+    except Exception:
+        pass
+
+    return {
+        'has_conacyt_scholarship': new_value,
+        'user_id': up.user_id,
+        'program_id': up.program_id,
     }
 
 

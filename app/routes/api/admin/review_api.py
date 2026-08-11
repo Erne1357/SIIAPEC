@@ -1,14 +1,29 @@
 # app/routes/api/admin/review_api.py
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from sqlalchemy.orm import joinedload
-from app import db
-from app.utils.permissions import permission_required
-from app.models import Submission, ProgramStep, User, Program
-from app.services.user_history_service import UserHistoryService
-from app.services.notification_service import NotificationService
+
+from app.utils.permissions import any_permission_required, permission_required
+from app.models import Submission
+from app.services import review_service
+from app.services.review_service import InvalidReviewAction, SubmissionNotFound
 
 api_review = Blueprint("api_review", __name__, url_prefix="/api/v1/admin/review")
+
+_NOT_FOUND_MESSAGE = "La entrega no existe o no pertenece a tus programas."
+
+
+def _not_found(message: str = _NOT_FOUND_MESSAGE):
+    """
+    404 (no 403) para entregas de otros programas: el revisor no debe poder
+    distinguir "no existe" de "existe pero no es tuya".
+    """
+    return jsonify({
+        "data": None,
+        "flash": [{"level": "warning", "message": message}],
+        "error": {"code": "NOT_FOUND", "message": message},
+        "meta": {}
+    }), 404
+
 
 def _sub_to_dict(sub: Submission) -> dict:
     return {
@@ -35,46 +50,45 @@ def _sub_to_dict(sub: Submission) -> dict:
         } if sub.archive else None,
     }
 
+
 @api_review.get("/submissions")
 @login_required
-@permission_required('admin_review.api.decide')
+@any_permission_required('admin_review.api.list_submissions', 'admin_review.api.decide')
 def list_submissions():
+    """
+    Entregas del alcance de programas del revisor. Los filtros sólo reducen
+    ese conjunto: nunca lo amplían a programas ajenos.
+    """
     applicant_id = request.args.get('applicant_id', type=int)
     program_id   = request.args.get('program_id',   type=int)
     status       = request.args.get('status',       'pending', type=str)
     sort         = request.args.get('sort',         'desc',    type=str)
 
-    q = Submission.query.filter_by(status=status).join(ProgramStep)
-    if applicant_id:
-        q = q.filter(Submission.user_id == applicant_id)
-    if program_id:
-        q = q.filter(ProgramStep.program_id == program_id)
-
-    q = q.options(
-        joinedload(Submission.user),
-        joinedload(Submission.program_step).joinedload(ProgramStep.program),
-        joinedload(Submission.program_step).joinedload(ProgramStep.step),
-        joinedload(Submission.archive),
+    subs = review_service.list_submissions_for_review(
+        current_user,
+        status=status,
+        applicant_id=applicant_id,
+        program_id=program_id,
+        sort=sort,
     )
-    q = q.order_by(Submission.upload_date.asc() if sort == 'asc' else Submission.upload_date.desc())
-    subs = [_sub_to_dict(s) for s in q.all()]
-    return jsonify({"data": {"submissions": subs}, "error": None, "meta": {}}), 200
+    return jsonify({
+        "data": {"submissions": [_sub_to_dict(s) for s in subs]},
+        "error": None,
+        "meta": {}
+    }), 200
+
 
 @api_review.get("/submissions/<int:sub_id>")
 @login_required
-@permission_required('admin_review.api.decide')
+@any_permission_required('admin_review.api.detail_submission', 'admin_review.api.decide')
 def get_submission(sub_id: int):
-    sub = (
-        Submission.query
-        .options(
-            joinedload(Submission.user),
-            joinedload(Submission.program_step).joinedload(ProgramStep.program),
-            joinedload(Submission.program_step).joinedload(ProgramStep.step),
-            joinedload(Submission.archive),
-        )
-        .get_or_404(sub_id)
-    )
+    try:
+        sub = review_service.get_submission_for_review(current_user, sub_id)
+    except SubmissionNotFound as e:
+        return _not_found(e.message)
+
     return jsonify({"data": {"submission": _sub_to_dict(sub)}, "error": None, "meta": {}}), 200
+
 
 @api_review.post("/submissions/<int:sub_id>/decision")
 @login_required
@@ -84,71 +98,25 @@ def decide_submission(sub_id: int):
     JSON:
       - action: 'approve' | 'reject'
       - comment: str (optional)
+
+    El alcance se verifica ANTES de escribir: una entrega de otro programa
+    responde 404 y no se modifica.
     """
-    sub = Submission.query.get_or_404(sub_id)
     payload = request.get_json(silent=True) or {}
     action  = (payload.get("action") or "").strip().lower()
     comment = (payload.get("comment") or "").strip()
 
-    if action not in ("approve", "reject"):
+    try:
+        sub = review_service.decide_submission(current_user, sub_id, action, comment)
+    except InvalidReviewAction as e:
         return jsonify({
             "data": None,
-            "flash": [{"level": "danger", "message": "Acción inválida."}],
-            "error": {"code": "BAD_ACTION", "message": "Acción inválida"},
+            "flash": [{"level": "danger", "message": e.message}],
+            "error": {"code": "BAD_ACTION", "message": e.message},
             "meta": {}
         }), 400
-
-    sub.status           = 'approved' if action == 'approve' else 'rejected'
-    sub.reviewer_id      = current_user.id
-    sub.review_date      = db.func.now()
-    sub.reviewer_comment = comment
-
-    db.session.commit()
-
-    # Registrar en el historial
-    archive_name = sub.archive.name if sub.archive else f"Documento ID {sub.archive_id}"
-    try:
-        UserHistoryService.log_document_review(
-            user_id=sub.user_id,
-            archive_name=archive_name,
-            status=sub.status,
-            reviewer_comment=comment,
-            admin_id=current_user.id
-        )
-        db.session.commit()
-    except Exception as e:
-        from flask import current_app
-        current_app.logger.error(f"Error al registrar revisión de documento en historial: {e}")
-
-    # Notificar al aspirante (incluye email automático)
-    try:
-        program_slug = None
-        if sub.program_step and sub.program_step.program:
-            program_slug = sub.program_step.program.slug
-        if action == 'approve':
-            NotificationService.notify_document_approved(sub.user_id, archive_name, sub.id, program_slug=program_slug)
-        else:
-            NotificationService.notify_document_rejected(sub.user_id, archive_name, sub.id, comment, program_slug=program_slug)
-        db.session.commit()
-    except Exception as e:
-        from flask import current_app
-        current_app.logger.error(f"Error al enviar notificación de revisión: {e}")
-
-    # WebSocket: actualizar dashboard del aspirante + coordinadores scoped del programa
-    from app.sockets.emitters import emit_user_and_coordinators
-    program_id = sub.program_step.program_id if sub.program_step else None
-    emit_user_and_coordinators(
-        'submission:reviewed',
-        {
-            'user_id': sub.user_id,
-            'submission_id': sub.id,
-            'archive_id': sub.archive_id,
-            'program_id': program_id,
-            'status': sub.status,
-        },
-        user_id=sub.user_id,
-        program_id=program_id,
-    )
+    except SubmissionNotFound as e:
+        return _not_found(e.message)
 
     return jsonify({
         "data": {"submission": _sub_to_dict(sub)},
