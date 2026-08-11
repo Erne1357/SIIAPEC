@@ -1,5 +1,64 @@
 import os
+import sys
 from pathlib import Path
+
+# Canonical public host of the deployment. The edge nginx answers on this name;
+# `siiapec.cdjuarez.tecnm.mx` only 301-redirects here, so never use it as base.
+CANONICAL_PRODUCTION_BASE_URL = 'https://siiap.cdjuarez.tecnm.mx'
+
+# Development-only base. Any outbound link built on top of it is unusable for
+# the recipient of an e-mail, which is why production must set APP_BASE_URL.
+DEVELOPMENT_BASE_URL = 'http://localhost'
+
+
+class MissingProductionConfigError(RuntimeError):
+    """A mandatory production setting is absent from the environment."""
+
+
+def _running_under_pytest() -> bool:
+    """True while the process is a pytest run (collection included)."""
+    return 'pytest' in sys.modules or 'PYTEST_CURRENT_TEST' in os.environ
+
+
+def _require_production_base_url() -> None:
+    """
+    Refuse to boot a production process without an explicit APP_BASE_URL.
+
+    Every absolute link that leaves the system (e-mail, notification, the
+    7-day set-password token link) is built from APP_BASE_URL and never from
+    the incoming request. If the variable is missing the fallback is
+    `http://localhost`, so the whole outbound mail stream silently ships dead
+    links: an outage discovered by the recipients, days later, one token at a
+    time. A container that refuses to start is strictly cheaper.
+    """
+    if _running_under_pytest():
+        return
+    if os.environ.get('FLASK_ENV', 'development').strip().lower() != 'production':
+        return
+    if (os.environ.get('APP_BASE_URL') or '').strip():
+        return
+
+    raise MissingProductionConfigError(
+        "Falta la variable de entorno APP_BASE_URL y FLASK_ENV=production.\n"
+        "\n"
+        "APP_BASE_URL es la base de TODO enlace absoluto que sale del sistema\n"
+        "(correos, notificaciones, enlace de establecer contrasena con token de\n"
+        "7 dias). Sin ella la aplicacion usaria "
+        f"'{DEVELOPMENT_BASE_URL}' y todos esos\n"
+        "enlaces llegarian rotos al destinatario.\n"
+        "\n"
+        "Anade esta linea al archivo de entorno del despliegue\n"
+        "(docker/.env.prod, el mismo que carga docker-compose.prod.yml):\n"
+        "\n"
+        f"    APP_BASE_URL={CANONICAL_PRODUCTION_BASE_URL}\n"
+        "\n"
+        "Usa el host canonico: siiapec.cdjuarez.tecnm.mx recibe un 301 del nginx\n"
+        "de borde y cada enlace pagaria un salto de mas."
+    )
+
+
+_require_production_base_url()
+
 
 class Config:
     # Versión estática (actualízala cuando cambies CSS/JS)
@@ -62,8 +121,34 @@ class Config:
 
     # ===== PROXY REVERSO (para HTTPS en producción) =====
     PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME', 'http')
+
+    # ===== URL PÚBLICA DE LA APLICACIÓN =====
+    # Base de TODO enlace absoluto que sale del sistema (correos,
+    # notificaciones, enlaces de establecer contraseña con token de 7 días).
+    #
+    # Debe fijarse por entorno en producción, con el host CANÓNICO:
+    #   APP_BASE_URL=https://siiap.cdjuarez.tecnm.mx
+    #
+    # No usar siiapec.cdjuarez.tecnm.mx: el nginx de borde lo redirige con 301
+    # al canónico, así que cada enlace de correo pagaría un salto de más.
+    #
+    # Con FLASK_ENV=production y sin APP_BASE_URL el proceso NO arranca: lo
+    # impide _require_production_base_url() arriba en este mismo archivo. El
+    # valor de abajo es solo el de desarrollo. No se vuelve a construir la URL
+    # desde la petición en curso (ese era justamente el defecto: el Host lo
+    # elige quien hace la petición), así que un valor incorrecto se manifiesta
+    # como enlaces rotos, nunca como enlaces al dominio de un atacante.
+    #
+    # Consumido por app/utils/urls.py::external_url().
+    APP_BASE_URL = os.environ.get('APP_BASE_URL', DEVELOPMENT_BASE_URL).rstrip('/')
     
-    GUNICORN_WORKERS = int(os.environ.get('GUNICORN_WORKERS', '4'))
+    # Uno, no cuatro. eventlet exige exactamente un worker por proceso, y todos
+    # los compose arrancan con `--workers 1` sin leer esta clave. Además dos
+    # mecanismos dependen de que el proceso sea único: la expulsión de sockets
+    # al desactivar una cuenta (app/sockets/emitters.py) y el tope por proceso
+    # del registro de autenticación. Dejarlo en 4 era una trampa: quien lo
+    # cableara algún día rompería ambos sin enterarse.
+    GUNICORN_WORKERS = int(os.environ.get('GUNICORN_WORKERS', '1'))
     GUNICORN_TIMEOUT = int(os.environ.get('GUNICORN_TIMEOUT', '120'))
 
     # ===== REDIS =====

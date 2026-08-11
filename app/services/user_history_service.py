@@ -51,9 +51,19 @@ class UserHistoryService:
             
         Returns:
             UserHistory: La entrada de historial creada
-            
+
         Raises:
             ValueError: Si el action no es válido o el user_id no existe
+
+        ADVERTENCIA — admin_id=None NO significa "sin administrador".
+        Si hay una sesión activa, el bloque de abajo lo rellena con
+        current_user.id. Para una acción que el propio usuario ejecuta sobre sí
+        mismo eso deja admin_id == user_id, es decir "fue su propio
+        administrador", que es justo lo contrario de lo que esa columna
+        comunica. Todo flujo que necesite un NULL real debe registrarse fuera
+        de user_history (ver AuthAuditService) o pasar por aquí sabiendo esto.
+        No se corrige en este cambio porque varias decenas de llamadas ya
+        dependen del comportamiento actual.
         """
         # Validar que el usuario existe
         user = User.query.get(user_id)
@@ -1020,6 +1030,15 @@ class UserHistoryService:
 
         # CONVOCATORIAS
         'admission_interest_registered':  'Pidió aviso de convocatoria',
+
+        # AUTENTICACIÓN — NO VAN AQUÍ.
+        # Los eventos de inicio de sesión se registran en la tabla `log` a
+        # través de AuthAuditService (app/services/auth_audit_service.py).
+        # No los vuelvas a agregar a este catálogo: user_history se muestra en
+        # las consolas de coordinación/administración y se serializa completo
+        # en User.to_dict(include_sensitive=True), su admin_id se rellena solo
+        # desde current_user (un login quedaría como "su propio administrador")
+        # y su volumen aquí lo controlaría una petición no autenticada.
     }
 
     @staticmethod

@@ -4,7 +4,7 @@ from app.models.user import User
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from app.utils.datetime_utils import now_local
-from flask import url_for
+from app.utils.urls import external_url
 
 
 class NotificationService:
@@ -126,9 +126,8 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('program.admission.admission_dashboard', 
-                                       slug=user.user_program[0].program.slug if user.user_program else 'general', 
-                                       _external=True)
+                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.document_approved(
                     user_name=f"{user.first_name} {user.last_name}",
                     archive_name=archive_name,
@@ -171,9 +170,8 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('program.admission.admission_dashboard', 
-                                       slug=user.user_program[0].program.slug if user.user_program else 'general', 
-                                       _external=True)
+                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.document_rejected(
                     user_name=f"{user.first_name} {user.last_name}",
                     archive_name=archive_name,
@@ -212,9 +210,8 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('program.admission.admission_dashboard', 
-                                       slug=user.user_program[0].program.slug if user.user_program else 'general', 
-                                       _external=True)
+                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.coordinator_uploaded(
                     user_name=f"{user.first_name} {user.last_name}",
                     archive_name=archive_name,
@@ -255,9 +252,8 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('program.admission.admission_dashboard', 
-                                       slug=user.user_program[0].program.slug if user.user_program else 'general', 
-                                       _external=True)
+                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.extension_approved(
                     user_name=f"{user.first_name} {user.last_name}",
                     archive_name=archive_name,
@@ -300,9 +296,8 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('program.admission.admission_dashboard', 
-                                       slug=user.user_program[0].program.slug if user.user_program else 'general', 
-                                       _external=True)
+                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.extension_rejected(
                     user_name=f"{user.first_name} {user.last_name}",
                     archive_name=archive_name,
@@ -344,7 +339,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('pages_user.dashboard', _external=True)
+                dashboard_url = external_url('pages_user.dashboard')
                 subject, html = EmailTemplates.appointment_assigned(
                     user_name=f"{user.first_name} {user.last_name}",
                     event_title=event_title,
@@ -382,7 +377,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('pages_user.dashboard', _external=True)
+                dashboard_url = external_url('pages_user.dashboard')
                 subject, html = EmailTemplates.appointment_cancelled(
                     user_name=f"{user.first_name} {user.last_name}",
                     event_title=event_title,
@@ -422,7 +417,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('pages_user.dashboard', _external=True)
+                dashboard_url = external_url('pages_user.dashboard')
                 subject, html = EmailTemplates.appointment_reassigned(
                     user_name=f"{user.first_name} {user.last_name}",
                     event_title=event_title,
@@ -469,7 +464,7 @@ class NotificationService:
                 raise ValueError(f"Usuario {user_id} no tiene email configurado")
 
             try:
-                event_url = url_for('pages_events_public.view_event', event_id=event_id, _external=True)
+                event_url = external_url('pages_events_public.view_event', event_id=event_id)
             except RuntimeError:
                 # Fuera de request context (p.ej. desde Celery): fallback relativo
                 event_url = f"/events/{event_id}"
@@ -543,7 +538,7 @@ class NotificationService:
                 return notification
 
             try:
-                event_url = url_for('pages_events_public.view_event', event_id=event.id, _external=True)
+                event_url = external_url('pages_events_public.view_event', event_id=event.id)
             except RuntimeError:
                 event_url = f"/events/{event.id}"
 
@@ -596,7 +591,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('pages_auth.login_page', _external=True)
+                dashboard_url = external_url('pages_auth.login_page')
                 subject, html = EmailTemplates.password_reset(
                     user_name=f"{user.first_name} {user.last_name}",
                     dashboard_url=dashboard_url
@@ -630,7 +625,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('pages_user.profile', _external=True)
+                dashboard_url = external_url('pages_user.profile')
                 subject, html = EmailTemplates.control_number_assigned(
                     user_name=f"{user.first_name} {user.last_name}",
                     control_number=control_number,
@@ -666,7 +661,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('pages_auth.login_page', _external=True)
+                dashboard_url = external_url('pages_auth.login_page')
                 subject, html = EmailTemplates.account_deactivated(
                     user_name=f"{user.first_name} {user.last_name}",
                     reason=reason or "No especificado",
@@ -702,9 +697,8 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('program.admission.admission_dashboard', 
-                                       slug=user.user_program[0].program.slug if user.user_program else 'general', 
-                                       _external=True)
+                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.program_changed(
                     user_name=f"{user.first_name} {user.last_name}",
                     from_program=from_program,

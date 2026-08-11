@@ -413,8 +413,9 @@ def update_enrollment_status(
             try:
                 from app.services.email_service import EmailService
                 from app.services.email_templates import EmailTemplates
-                from flask import url_for
-                dashboard_url = url_for('pages_user.dashboard', _external=True)
+                from app.utils.urls import external_url
+                # Pinned to APP_BASE_URL, never to the request host.
+                dashboard_url = external_url('pages_user.dashboard')
                 subject, html = EmailTemplates.enrollment_status_changed(
                     user_name=f"{user.first_name} {user.last_name}",
                     program_name=program.name,
@@ -1222,10 +1223,11 @@ def review_permanence_document(
         try:
             from app.services.email_service import EmailService
             from app.services.email_templates import EmailTemplates
-            from flask import url_for
+            from app.utils.urls import external_url
             user = User.query.get(sub.user_id)
             if user:
-                dashboard_url = url_for('pages_user.dashboard', _external=True)
+                # Pinned to APP_BASE_URL, never to the request host.
+                dashboard_url = external_url('pages_user.dashboard')
                 subject, html = EmailTemplates.permanence_doc_rejected(
                     user_name=f"{user.first_name} {user.last_name}",
                     document_label=dl_label,
@@ -1561,13 +1563,14 @@ def process_leave_request(
     try:
         from app.services.email_service import EmailService
         from app.services.email_templates import EmailTemplates
-        from flask import url_for
+        from app.utils.urls import external_url
         user = User.query.get(sub.user_id)
         if user:
             # Obtener nombre del programa
             up_for_email = UserProgram.query.filter_by(user_id=sub.user_id).first()
             program_name = up_for_email.program.name if up_for_email and up_for_email.program else 'tu programa'
-            dashboard_url = url_for('pages_user.dashboard', _external=True)
+            # Pinned to APP_BASE_URL, never to the request host.
+            dashboard_url = external_url('pages_user.dashboard')
             subject, html = EmailTemplates.leave_request_result(
                 user_name=f"{user.first_name} {user.last_name}",
                 program_name=program_name,

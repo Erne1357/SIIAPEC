@@ -260,11 +260,15 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
     doc.status = 'uploaded'
 
     program = Program.query.get(program_id)
-    from flask import url_for
+    # Pinned to APP_BASE_URL: this URL is embedded in an e-mail body, so it must
+    # not be rebuilt from the live request host (the requester controls `Host`).
+    from app.utils.urls import external_url, get_base_url
     try:
-        dashboard_url = url_for('pages_user.dashboard', _external=True)
+        dashboard_url = external_url('pages_user.dashboard')
     except Exception:
-        dashboard_url = '/user/dashboard'
+        # Only reachable without an application context, which neither a route
+        # nor a Celery ContextTask can be. Stay absolute anyway.
+        dashboard_url = f"{get_base_url()}/user/dashboard"
 
     # Notificación individual por documento (solo en upload nuevo, no en re-subida)
     if was_pending:
@@ -490,10 +494,11 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
     try:
         from app.services.email_service import EmailService
         from app.services.email_templates import EmailTemplates
-        from flask import url_for
+        from app.utils.urls import external_url
         user = User.query.get(user_id)
         if user:
-            dashboard_url = url_for('pages_user.dashboard', _external=True)
+            # Pinned to APP_BASE_URL, never to the request host.
+            dashboard_url = external_url('pages_user.dashboard')
             if status == 'approved':
                 subject, html = EmailTemplates.enrollment_receipt_approved(
                     user_name=f"{user.first_name} {user.last_name}",

@@ -346,12 +346,21 @@ def toggle_active(user_id):
     user.is_active = not user.is_active
     action = 'activated' if user.is_active else 'deactivated'
     message = f"Usuario {user.first_name} {user.last_name} {'activado' if user.is_active else 'desactivado'}."
-    
+
     # Registrar en historial
     UserHistoryService.log_user_activation(user_id=user_id, is_active=user.is_active)
-    
+
     db.session.commit()
-    
+
+    # Deactivation has to reach the open sockets too. load_user() already turns
+    # the next HTTP request anonymous, but a Socket.IO connection is authorised
+    # once at the handshake and then keeps its rooms for the lifetime of the
+    # sid, so without this the tab keeps receiving live payloads. Runs after the
+    # commit so a failed write never evicts anybody.
+    if not user.is_active:
+        from app.sockets.emitters import disconnect_user_sockets
+        disconnect_user_sockets(user_id)
+
     return jsonify({
         "data": {"is_active": user.is_active},
         "flash": [{"level": "success", "message": message}],
@@ -534,6 +543,13 @@ def delete_user(user_id):
     # Eliminar usuario
     db.session.delete(user)
     db.session.commit()
+
+    # Misma razón que en toggle_active: las salas de Socket.IO se unen una sola
+    # vez en el handshake y no se vuelven a resolver contra la base. Sin esto,
+    # la pestaña de un usuario ya borrado sigue recibiendo el feed hasta que
+    # reconecte por su cuenta.
+    from app.sockets.emitters import disconnect_user_sockets
+    disconnect_user_sockets(user_id)
 
     try:
         from app.extensions import socketio

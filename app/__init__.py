@@ -100,7 +100,31 @@ def create_app(test_config=None):
 
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        """
+        Resolve the session cookie to a user.
+
+        A malformed identifier resolves to "anonymous", never to an exception.
+        int(user_id) on a cookie whose _user_id is not an integer (a stale
+        cookie, or one minted on either side of the pending UUID migration)
+        raised straight out of the login manager on EVERY request — including
+        /login and /logout — so the victim could not clear the bad session from
+        inside the app at all; the only way out was deleting the cookie by hand.
+
+        Returns None for a deactivated account so that the very next request
+        from an existing cookie is anonymous. Without this, deactivating a
+        compromised account changed nothing for whoever already held a session:
+        the before_request handler rewrote last_activity on every request, so
+        the 15-minute idle window never closed and the cookie stayed valid
+        indefinitely.
+        """
+        try:
+            pk = int(user_id)
+        except (TypeError, ValueError):
+            return None
+        user = User.query.get(pk)
+        if user is None or not user.is_active:
+            return None
+        return user
 
     app.permanent_session_lifetime = timedelta(minutes=17)
 
@@ -240,27 +264,63 @@ def create_app(test_config=None):
 
     @app.before_request
     def check_password_change_required():
-        """Fuerza cambio de contraseña si must_change_password=True."""
+        """
+        Fuerza el cambio de contraseña si must_change_password=True.
+
+        An API/XHR call gets the 403 envelope; a browser navigation is pinned to
+        the page that hosts the forced-change modal. Falling through to None on
+        a plain GET (the previous behaviour) made the flag purely advisory: the
+        user typed the dashboard URL and was in, modal or no modal.
+        """
         if not current_user.is_authenticated:
             return None
         if not getattr(current_user, 'must_change_password', False):
             return None
 
-        allowed_paths = [
-            '/api/v1/auth/change-password',
-            '/api/v1/auth/logout',
-            '/api/v1/auth/me',
-            '/api/v1/auth/keepalive',
-            '/auth/logout',
-            '/static/',
-            '/health',
-        ]
+        # Matched by endpoint name, not by path prefix, so a future route that
+        # merely shares a prefix is not exempted by accident.
+        #   static                         → CSS/JS, incl. force_password_change.js
+        #   pages_user.dashboard           → the redirect target below; it renders
+        #                                    base.html, which carries the modal
+        #   pages_auth.login_page          → the view itself bounces an already
+        #                                    authenticated user to the dashboard
+        #   pages_auth.reset_password_page → token-based flow that logs the user
+        #                                    out; another legitimate way to set a
+        #                                    new password, so it must stay open
+        allowed_endpoints = {
+            'static',
+            'pages_user.dashboard',
+            'pages_auth.login_page',
+            'pages_auth.reset_password_page',
+        }
+        if request.endpoint in allowed_endpoints:
+            return None
 
+        # Kept as prefixes: this is the API contract the modal itself speaks.
+        # '/auth/logout' was dropped — no such route exists; logout is
+        # api_auth.api_logout at /api/v1/auth/logout, already listed here.
+        allowed_paths = (
+            '/api/v1/auth/change-password',   # the fix itself
+            '/api/v1/auth/logout',            # escape hatch
+            '/api/v1/auth/me',                # modal reads must_change_password here
+            '/api/v1/auth/keepalive',         # the session must survive the typing
+            # The set-password-by-token flow is the other legitimate way to
+            # leave this state. The PAGE endpoint being exempt is not enough:
+            # its XHRs hit these two, and they only work today because
+            # reset_password_page() happens to call logout_user() on load,
+            # which makes the later calls anonymous. That is an undeclared
+            # order dependency — a bfcache resubmit or any change to that page
+            # would kill the flow silently. Exempt the API explicitly.
+            '/api/v1/auth/reset-password/',
+            '/static/',
+            '/health',                        # docker health check
+        )
         for allowed in allowed_paths:
             if request.path.startswith(allowed):
                 return None
 
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        if request.path.startswith('/api/') or request.is_json or \
+                request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 "data": None,
                 "flash": [{"level": "warning", "message": "Debes cambiar tu contraseña antes de continuar"}],
@@ -272,7 +332,11 @@ def create_app(test_config=None):
                 "meta": {}
             }), 403
 
-        return None
+        # Browser navigation. The target endpoint is in allowed_endpoints above,
+        # so the redirected request returns None here instead of being redirected
+        # again — one hop, never a loop.
+        flash("Debes cambiar tu contraseña antes de continuar.", "warning")
+        return redirect(url_for('pages_user.dashboard'))
 
     def _viewer_is_authenticated():
         """

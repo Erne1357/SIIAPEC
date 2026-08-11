@@ -175,7 +175,18 @@ def clear_account_and_cache():
             if os.path.exists(cfg['ACCT_PATH']):
                 os.remove(cfg['ACCT_PATH'])
 
-def build_auth_url(state: str = "email_config"):
+def build_auth_url(state: str):
+    """
+    Build the Microsoft consent URL.
+
+    `state` is REQUIRED and must be a per-attempt random value stored in the
+    caller's session — it is what lets /admin/emails/callback tell a code from
+    a consent flow an admin started apart from a code an attacker pasted in.
+    It used to default to the constant "email_config", which verified nothing.
+    Never reintroduce a default here.
+    """
+    if not state:
+        raise ValueError("build_auth_url requiere un 'state' aleatorio por intento.")
     if not is_configured():
         raise RuntimeError("Las credenciales de Microsoft Graph no están configuradas.")
     cfg = get_config()

@@ -1,11 +1,18 @@
 # app/routes/api/auth_api.py
-from flask import Blueprint, request, jsonify, session, redirect, url_for
+from flask import Blueprint, request, jsonify, session, redirect, url_for, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime, timezone
 from werkzeug.security import check_password_hash, generate_password_hash
 from app.models.user import User
+from app.services.auth_audit_service import AuthAuditService
 from app.services.user_history_service import UserHistoryService
 from app.utils.csrf import generate_csrf_token
+from app.utils.datetime_utils import now_local
+from app.utils.rate_limit import (
+    clear_login_failures,
+    client_ip,
+    register_login_attempt,
+)
 from app import db
 import re
 
@@ -42,6 +49,67 @@ def validate_password_strength(password):
     return True, "Contraseña válida"
 
 
+# ---------------------------------------------------------------------------
+# Login helpers
+# ---------------------------------------------------------------------------
+
+# Timing-equalizer hash. When the username does not exist we still have to
+# spend one password-hash verification, otherwise the response time alone tells
+# an attacker which usernames are real (a scrypt check costs orders of
+# magnitude more than a failed SELECT). Built lazily and reused: it must be
+# produced by generate_password_hash so it uses the exact same algorithm and
+# work factor as the stored hashes.
+_TIMING_EQUALIZER_HASH = None
+
+
+def _burn_password_hash(password: str) -> None:
+    """Spend the same CPU a real verification would, and discard the result."""
+    global _TIMING_EQUALIZER_HASH
+    if _TIMING_EQUALIZER_HASH is None:
+        _TIMING_EQUALIZER_HASH = generate_password_hash("siiap-timing-equalizer")
+    check_password_hash(_TIMING_EQUALIZER_HASH, password or "")
+
+
+def _invalid_credentials_response():
+    """
+    The single generic failure. Wrong password, unknown username and disabled
+    account must all return this exact body so none of them is an oracle.
+    """
+    return jsonify({
+        "data": None,
+        "error": {
+            "code": "INVALID_CREDENTIALS",
+            "message": "Usuario o contraseña inválidos"
+        },
+        "meta": {}
+    }), 401
+
+
+def _log_login_event(action: str, username: str, ip: str, user_agent: str,
+                     user=None, reason: str = None) -> None:
+    """
+    Record an authentication event.
+
+    The single seam between this route and the audit trail. It exists so that
+    both failure branches — unknown username and known username — call the
+    *same* function with the same arguments except ``user``, which the audit
+    never branches on. See app/services/auth_audit_service.py for why these
+    events go to the ``log`` table instead of ``user_history``, what is
+    truncated, why only the network prefix of the client address is persisted,
+    and how repeated failures are capped. Never raises.
+    """
+    user_id = user.id if user is not None else None
+    if action == 'login_success':
+        AuthAuditService.record_login_success(
+            user_id=user_id, username=username, ip=ip, user_agent=user_agent
+        )
+    else:
+        AuthAuditService.record_login_failure(
+            username=username, ip=ip, user_agent=user_agent,
+            reason=reason, user_id=user_id
+        )
+
+
 @api_auth_bp.post("/login")
 def api_login():
     """
@@ -51,12 +119,20 @@ def api_login():
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
-    
-    user = User.query.filter_by(username=username).first()
-    
-    if not user or not check_password_hash(user.password, password):
+
+    ip = client_ip()
+    # First cut only, so nothing downstream carries an oversized header around.
+    # The audit truncates again to the length it actually stores.
+    user_agent = (request.headers.get("User-Agent") or "")[:255]
+
+    # A credential-less request never reaches the throttle. Every empty
+    # username hashes to the same digest, so they would all share one counter
+    # and one penalty key — the only bucket in the system not tied to a real
+    # account — and the caller would get "demasiados intentos" for what is just
+    # a malformed request. It would have failed with 401 anyway.
+    if not username or not password:
         return jsonify({
-            "data": None, 
+            "data": None,
             "error": {
                 "code": "INVALID_CREDENTIALS",
                 "message": "Usuario o contraseña inválidos"
@@ -64,14 +140,69 @@ def api_login():
             "meta": {}
         }), 401
 
-    login_user(user)
-    session['last_activity'] = datetime.now().timestamp()
-    
+    # Throttle: this must run before the database lookup and before any
+    # password hashing, so a flood costs nothing beyond a Redis round trip.
+    # It COUNTS as well as decides — the count has to happen before the yield
+    # points below (Redis, User.query, scrypt), otherwise concurrent attempts
+    # for the same username all read the same pre-increment value and pass
+    # together. A successful login undoes it via clear_login_failures().
+    verdict = register_login_attempt(username, ip)
+    if verdict is not None:
+        # No audit row here on purpose: the failures that produced the delay
+        # are already recorded in the `log` table, and writing one row per
+        # blocked attempt would turn a login flood into a Postgres write flood.
+        current_app.logger.warning(
+            f"[auth] Intento de login bloqueado por límite de intentos "
+            f"(scope={verdict.scope}, ip={ip}, username={username!r})"
+        )
+        response = jsonify({
+            "data": None,
+            "error": {
+                "code": "RATE_LIMITED",
+                "message": "Demasiados intentos de inicio de sesión. "
+                           "Espera unos minutos antes de volver a intentarlo."
+            },
+            "meta": {}
+        })
+        response.headers["Retry-After"] = str(verdict.retry_after)
+        return response, 429
+
+    user = User.query.filter_by(username=username).first()
+
+    if user is None:
+        # Unknown username: pay the hash anyway so the timing matches the
+        # wrong-password path, then audit through the SAME call and fail
+        # identically. The audit must not be cheaper here than on the branch
+        # below, or the equalizer hash above buys nothing — a Postgres round
+        # trip is far louder than the scrypt delta it is hiding.
+        _burn_password_hash(password)
+        _log_login_event('login_failed', username, ip, user_agent, reason='unknown_user')
+        return _invalid_credentials_response()
+
+    if not check_password_hash(user.password, password):
+        _log_login_event('login_failed', username, ip, user_agent, user=user, reason='bad_password')
+        return _invalid_credentials_response()
+
+    # Flask-Login refuses to log in a user whose is_active is False and returns
+    # False. Ignoring that return value used to report success to a disabled
+    # account (and leaked which accounts are disabled), so branch on it and
+    # answer with the same generic failure as a wrong password.
+    if not login_user(user):
+        _log_login_event('login_failed', username, ip, user_agent, user=user, reason='inactive_account')
+        return _invalid_credentials_response()
+
+    # Undo the attempt counted at the gate and release any pending delay: the
+    # policy is a delay, never a lockout, so one correct password clears it.
+    clear_login_failures(username)
+    session['last_activity'] = now_local().timestamp()
+
     # Generar token CSRF para la nueva sesión
     new_csrf_token = generate_csrf_token(force_new=True)
-    
-    user.last_login = datetime.now()
+
+    user.last_login = now_local()
     db.session.commit()
+
+    _log_login_event('login_success', username, ip, user_agent, user=user)
 
     # NUEVO: Verificar si debe cambiar contraseña
     response_data = {
@@ -296,7 +427,7 @@ def api_me():
 @login_required
 def api_keepalive():
     """Mantiene la sesión activa"""
-    session['last_activity'] = datetime.now().timestamp()
+    session['last_activity'] = now_local().timestamp()
     return jsonify({
         "data": "OK",
         "error": None,

@@ -306,11 +306,15 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     )
 
     # Notificar al aspirante con email (en la misma transaccion)
-    from flask import url_for
+    # Pinned to APP_BASE_URL: this URL is embedded in an e-mail body, so it must
+    # not be rebuilt from the live request host (the requester controls `Host`).
+    from app.utils.urls import external_url, get_base_url
     try:
-        dashboard_url = url_for('pages_user.dashboard', _external=True)
+        dashboard_url = external_url('pages_user.dashboard')
     except Exception:
-        dashboard_url = '/user/dashboard'
+        # Only reachable without an application context, which neither a route
+        # nor a Celery ContextTask can be. Stay absolute anyway.
+        dashboard_url = f"{get_base_url()}/user/dashboard"
 
     NotificationService.notify_deliberation_accepted(
         user_id=user_id,
@@ -434,11 +438,15 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
     )
 
     # Notificar al aspirante con email (en la misma transaccion)
-    from flask import url_for
+    # Pinned to APP_BASE_URL: this URL is embedded in an e-mail body, so it must
+    # not be rebuilt from the live request host (the requester controls `Host`).
+    from app.utils.urls import external_url, get_base_url
     try:
-        dashboard_url = url_for('pages_user.dashboard', _external=True)
+        dashboard_url = external_url('pages_user.dashboard')
     except Exception:
-        dashboard_url = '/user/dashboard'
+        # Only reachable without an application context, which neither a route
+        # nor a Celery ContextTask can be. Stay absolute anyway.
+        dashboard_url = f"{get_base_url()}/user/dashboard"
 
     NotificationService.notify_deliberation_rejected(
         user_id=user_id,

@@ -32,6 +32,12 @@ from app.models.semester_enrollment import SemesterEnrollment
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.utils.datetime_utils import now_local
+from app.utils.validators import (
+    EMAIL_MAX_LENGTH,
+    InputValidationError,
+    validate_person_name,
+    validate_short_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +86,26 @@ CSV_EXAMPLE_ROW = [
     '20221', 'no',
 ]
 
+# Spanish labels used in the per-row validation messages of the optional
+# profile columns, plus the length each one is bounded to. Every limit mirrors
+# its `user` column except `address`, a TEXT column bounded here for sanity.
+CSV_OPTIONAL_FIELD_RULES = {
+    'phone':                          ('Teléfono', 20),
+    'mobile_phone':                   ('Teléfono móvil', 20),
+    'address':                        ('Dirección', 500),
+    'curp':                           ('CURP', 18),
+    'rfc':                            ('RFC', 13),
+    'nss':                            ('NSS', 15),
+    'cedula_profesional':             ('Cédula profesional', 20),
+    'birth_place':                    ('Lugar de nacimiento', 200),
+    'emergency_contact_name':         ('Nombre del contacto de emergencia', 200),
+    'emergency_contact_phone':        ('Teléfono del contacto de emergencia', 20),
+    'emergency_contact_relationship': ('Parentesco del contacto de emergencia', 50),
+}
+
+# Mirrors user.control_number -> String(20).
+CONTROL_NUMBER_MAX_LENGTH = 20
+
 
 # ---------------------------------------------------------------------------
 # Helpers internos
@@ -101,35 +127,49 @@ def _get_active_period() -> AcademicPeriod | None:
     return AcademicPeriod.query.filter_by(is_active=True).first()
 
 
-def _build_login_url() -> str:
+# `_build_login_url()` used to live here. It built the URL from the live request
+# (`url_for(_external=True)`, falling back to `request.host_url`), i.e. from a
+# host the requester chooses, and it had no callers at all. Removed rather than
+# left as a ready-made hole for the next caller to step in. Anything needing an
+# absolute login URL must use `app.utils.urls.external_url('pages_auth.login_page')`.
+
+
+def _apply_validator(validator, value, errors: list, **kwargs):
     """
-    Construye la URL absoluta de la página de login.
+    Run one validator from app/utils/validators.py folding its rejection into
+    the per-row `errors` list instead of letting it raise.
+
+    Bulk import reports every problem of a row at once and keeps processing the
+    remaining rows, so a rejected value must never abort the pass.
+
+    Returns the normalized value, or None when the value was rejected.
     """
     try:
-        from flask import url_for
-        return url_for('pages_auth.login_page', _external=True)
-    except Exception:
-        try:
-            from flask import request
-            return f"{request.host_url.rstrip('/')}/login"
-        except Exception:
-            return '/login'
+        return validator(value, **kwargs)
+    except InputValidationError as exc:
+        errors.append(exc.message)
+        return None
 
 
 def _build_reset_password_url(token: str) -> str:
     """
     Construye la URL absoluta de la página de configuración de contraseña
     con el token incrustado.
+
+    Pinned to APP_BASE_URL, never to the live request: this link travels by
+    e-mail and grants password control over the account for 7 days. Building
+    it from the request meant the requester chose the host (nginx forwards
+    `Host` verbatim and ProxyFix honours `X-Forwarded-Host`), so a staff-
+    triggered bulk creation could be made to mail out a valid token pointing
+    at an attacker's domain.
     """
+    from app.utils.urls import external_url, get_base_url
     try:
-        from flask import url_for
-        return url_for('pages_auth.reset_password_page', token=token, _external=True)
+        return external_url('pages_auth.reset_password_page', token=token)
     except Exception:
-        try:
-            from flask import request
-            return f"{request.host_url.rstrip('/')}/reset-password/{token}"
-        except Exception:
-            return f'/reset-password/{token}'
+        # Sin contexto de aplicación: seguimos absolutos y seguimos anclados
+        # a la configuración del servidor, nunca a la petición.
+        return f"{get_base_url()}/reset-password/{token}"
 
 
 # ---------------------------------------------------------------------------
@@ -149,35 +189,45 @@ def validate_individual(payload: dict) -> dict:
     errors = []
     normalized = {}
 
+    # Person names and bounded free text go through the shared validators
+    # (app/utils/validators.py) — the same rules as self-registration, because
+    # these columns end up in the staff consoles either way. A rejection is
+    # recorded as a row error and the row is simply skipped at execution time.
+
     # --- first_name ---
-    first_name = (payload.get('first_name') or '').strip()
-    if not first_name:
-        errors.append('El nombre es requerido.')
-    normalized['first_name'] = first_name
+    normalized['first_name'] = _apply_validator(
+        validate_person_name, payload.get('first_name'), errors, label='Nombre'
+    )
 
     # --- last_name ---
-    last_name = (payload.get('last_name') or '').strip()
-    if not last_name:
-        errors.append('El apellido paterno es requerido.')
-    normalized['last_name'] = last_name
+    normalized['last_name'] = _apply_validator(
+        validate_person_name, payload.get('last_name'), errors,
+        label='Apellido paterno',
+    )
 
     # --- mother_last_name ---
-    mother_last_name = (payload.get('mother_last_name') or '').strip() or None
-    normalized['mother_last_name'] = mother_last_name
+    normalized['mother_last_name'] = _apply_validator(
+        validate_person_name, payload.get('mother_last_name'), errors,
+        label='Apellido materno', required=False,
+    )
 
     # --- email ---
-    email = (payload.get('email') or '').strip().lower()
-    if not email:
-        errors.append('El correo electrónico es requerido.')
-    elif User.query.filter_by(email=email).first():
+    email = _apply_validator(
+        validate_short_text, payload.get('email'), errors,
+        label='Correo electrónico', required=True, max_length=EMAIL_MAX_LENGTH,
+    )
+    email = email.lower() if email else ''
+    if email and User.query.filter_by(email=email).first():
         errors.append(f'El correo {email!r} ya está registrado en el sistema.')
     normalized['email'] = email
 
     # --- control_number ---
-    control_number = (payload.get('control_number') or '').strip()
-    if not control_number:
-        errors.append('El número de control es requerido.')
-    elif User.query.filter_by(control_number=control_number).first():
+    control_number = _apply_validator(
+        validate_short_text, payload.get('control_number'), errors,
+        label='Número de control', required=True,
+        max_length=CONTROL_NUMBER_MAX_LENGTH,
+    ) or ''
+    if control_number and User.query.filter_by(control_number=control_number).first():
         errors.append(f'El número de control {control_number!r} ya está registrado.')
     normalized['control_number'] = control_number
 
@@ -235,18 +285,23 @@ def validate_individual(payload: dict) -> dict:
     normalized['has_conacyt'] = has_conacyt
 
     # --- Campos opcionales del perfil ---
-    # Se ignora silenciosamente cualquier campo opcional vacío. Sólo birth_date
-    # se valida estrictamente porque debe parsearse a date.
-    for field in ('phone', 'mobile_phone', 'address', 'curp', 'rfc', 'nss',
-                  'cedula_profesional', 'birth_place',
-                  'emergency_contact_name', 'emergency_contact_phone',
-                  'emergency_contact_relationship'):
+    # Un campo opcional vacío se ignora silenciosamente; uno con contenido pasa
+    # por el validador correspondiente (charset y longitud). Sólo birth_date se
+    # valida aparte porque debe parsearse a date.
+    for field, (label, max_length) in CSV_OPTIONAL_FIELD_RULES.items():
         raw = payload.get(field)
         if raw is None:
             normalized[field] = None
-        else:
-            value = str(raw).strip()
-            normalized[field] = value or None
+            continue
+        # Every optional column, including emergency_contact_name, goes through
+        # the permissive validator. That field is filled in freely by whoever
+        # prepares the CSV — "Juan Perez (madre)", "Maria, mama" — so the strict
+        # person-name charset would reject ordinary rows. It is bounded and
+        # markup-free, which is what the render sites need.
+        normalized[field] = _apply_validator(
+            validate_short_text, str(raw), errors,
+            label=label, required=False, max_length=max_length,
+        )
 
     raw_birth = payload.get('birth_date')
     if raw_birth is None or (isinstance(raw_birth, str) and not raw_birth.strip()):
