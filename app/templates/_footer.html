@@ -1,0 +1,12 @@
+{# app/templates/_footer.html
+
+   Contenido del pie, compartido por base.html y auth_base.html.
+
+   El elemento <footer> lo declara cada shell y no este parcial, porque su
+   visibilidad difiere a propósito: en la app se oculta por debajo de 768px
+   (base.css colapsa --footer-h a 0 en ese tramo), mientras que en las
+   pantallas sin sesión está siempre visible con --auth-footer-h. Lo que sí
+   comparten es el texto, y ese vive aquí una sola vez. #}
+<div class="container-fluid d-flex justify-content-center align-items-center px-4 small">
+  <span>ITCJ &middot; TECNM &middot; &copy; {{ now_local().year }} SIIAP</span>
+</div>
