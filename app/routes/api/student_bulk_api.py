@@ -17,6 +17,13 @@ estudiantes, no EN QUÉ PROGRAMA. El alcance se resuelve aquí y se pasa al
 servicio como `creator_program_ids`; sin él, un coordinador podía fabricar
 estudiantes con número de control y estatus `enrolled` dentro del programa de
 otro coordinador.
+
+`/validate` y `/csv/preview` son ensayos en seco y devuelven los errores de fila
+tal cual, así que son la superficie más barata para sondear datos: un CSV prueba
+N valores en una sola petición. Por eso ambas pasan `actor_id=current_user.id`
+al servicio — el rechazo por número de control no dice nada, pero la colisión
+queda atribuida en el log. Ver "UNICIDAD DEL NÚMERO DE CONTROL" en
+`app/services/student_bulk_service.py`.
 """
 
 import io
@@ -67,7 +74,9 @@ def api_validate_individual():
 
     try:
         result = svc.validate_individual(
-            payload, creator_program_ids=_creator_program_ids()
+            payload,
+            creator_program_ids=_creator_program_ids(),
+            actor_id=current_user.id,
         )
         return jsonify({
             'data': result,
@@ -168,7 +177,9 @@ def api_csv_preview():
 
     try:
         result = svc.validate_csv(
-            csv_text, creator_program_ids=_creator_program_ids()
+            csv_text,
+            creator_program_ids=_creator_program_ids(),
+            actor_id=current_user.id,
         )
 
         # Si el servicio retornó un error de parseo

@@ -279,6 +279,25 @@ def emit_admin_user_change(payload: dict, program_ids=None):
         sus propios alumnos en esa pantalla, así que su lista sigue
         refrescándose sola.
 
+    Por qué `role:postgraduate_admin` y no `coordinator:programs:all`
+    ----------------------------------------------------------------
+    `app/sockets/core.py` no crea ninguna sala llamada "global admin"; las dos
+    candidatas son estas. `coordinator:programs:all` se une cuando
+    `get_accessible_program_ids()` devuelve None **y** además se tiene
+    `coordinator.page.view`, así que depende de dos condiciones y de un permiso
+    delegable. `role:postgraduate_admin` se une por `role:{role.name}`, y el
+    alcance global es hoy exactamente un rol
+    (`User.has_global_program_scope()` lee un permiso DE ROL, nunca una
+    delegación). Entre las dos se elige la que nunca puede entregar de más:
+    este payload lleva identidad de personal, y equivocarse por defecto sólo
+    cuesta un refresco manual de la lista.
+
+    Este es el único emisor de `admin_user:changed`. Sus tres llamadores
+    —`admin/users_api.update_user`, `admin/users_api.delete_user` y
+    `permission_service.create_social_service_user`— deben pasar por aquí; un
+    `socketio.emit('admin_user:changed', …, room='role:coordinator')` suelto
+    reabre la fuga entera, porque esa sala es toda la institución.
+
     Args:
         payload: dict del evento (action, user_id, role, email, full_name…).
         program_ids: iterable de program_id de la cuenta afectada. None o vacío

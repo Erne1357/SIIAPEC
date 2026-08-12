@@ -5,7 +5,6 @@ from app.utils.permissions import (
     any_permission_required,
     guard_user_scope,
 )
-from app.services import program_scope_service as scope_service
 from app.services.appointments_service import AppointmentsService, AppointmentAccessDenied
 from app.services.events_service import EventsService
 from app.services.user_history_service import UserHistoryService
@@ -91,21 +90,25 @@ def _resolve_manage_context(appointment_id: int):
     return ctx, True, None
 
 
-def _applicant_may_book(event) -> bool:
+def _event_read_denied(appointment, event):
     """
-    Un aspirante sólo puede agendarse en un evento publicado de su programa.
+    Autoridad de LECTURA sobre el evento del que cuelga una cita.
 
-    OJO: aquí un evento sin programa SÍ vale, y es correcto — es el nivel de
-    PARTICIPANTE (el evento institucional se publica para toda la institución,
-    igual que en `events_api._event_is_public_for_current_user`), y el aspirante
-    sólo se agenda a sí mismo. No copies esta forma a una guarda de GESTIÓN:
-    para eso está `_event_manage_denied`.
+    Tener la cita no basta: la respuesta la da
+    `AppointmentsService.user_may_read_event_of_appointment` (gestiona el
+    evento, o se la asignó un tercero con autoridad, o puede participar en él
+    ahora mismo). Sin esto, una cita que el propio aspirante se creó volvía a
+    ser lo que era una fila de `EventAttendance`: una autorización firmada por
+    el propio interesado.
+
+    Returns:
+        None si procede; la respuesta 403 si no.
     """
-    if not event or not event.visible_to_students or event.status != 'published':
-        return False
-    if event.program_id is None:
-        return True
-    return event.program_id in scope_service.program_ids_of_user(current_user.id)
+    if not AppointmentsService.user_may_read_event_of_appointment(
+        current_user, appointment, event
+    ):
+        return _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
+    return None
 
 
 @api_appointments.route('', methods=['POST'])
@@ -144,7 +147,21 @@ def assign():
         # Un aspirante sólo puede agendarse a sí mismo. El applicant_id del
         # cuerpo se ignora deliberadamente.
         applicant_id = current_user.id
-        if not _applicant_may_book(event):
+
+        # Regla ÚNICA de participación: `user_may_participate_in_event`. La
+        # guarda local que había aquí era la QUINTA respuesta a la misma
+        # pregunta y el único sitio del código que leía `visible_to_students`
+        # sin leer `visibility`, así que un evento PRIVADO de cualquier
+        # posgrado aceptaba la reserva de cualquier aspirante — y la cita
+        # resultante abría después la lectura del evento.
+        #
+        # El predicado compartido NO mira `capacity_type`, así que admite los
+        # eventos 1:1 ('single') y la entrevista de admisión sigue
+        # funcionando igual: es el mismo predicado que ya gobierna
+        # `GET /api/v1/events/public/<id>` y `GET /api/v1/events/<id>/slots`,
+        # que son los que le entregan los horarios al aspirante. Si aquí
+        # pasara y allí no, el aspirante no habría podido ni ver el slot.
+        if not EventsService.user_may_participate_in_event(current_user, event):
             return _deny("FORBIDDEN", "No puedes agendar una cita en este evento.", 403)
 
     try:
@@ -214,8 +231,15 @@ def assign():
 @login_required
 @permission_required('appointments.api.list_own')
 def my_appointments():
-    # listado simple; ajusta filtros si quieres por evento
-    appts = Appointment.query.filter_by(applicant_id=current_user.id).all()
+    """
+    Citas propias, sólo identificadores y estado.
+
+    No sirve NINGÚN campo del evento (ni título, ni sede, ni descripción), así
+    que no necesita la guarda de lectura del evento: `event_id` y `slot_id` son
+    los ids de la propia fila del llamante. Si algún día se añade aquí un campo
+    del evento, hay que pasar por `_event_read_denied` como en /details.
+    """
+    appts = AppointmentsService.list_appointments_of_user(current_user.id)
     payload = [{
         "id": a.id,
         "event_id": a.event_id,
@@ -342,6 +366,12 @@ def appointment_details(appointment_id: int):
     if not event:
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
+    # `_resolve_manage_context` sólo ha comprobado que la cita es del llamante
+    # (o que la gestiona). Los campos del evento se re-derivan aquí.
+    denied = _event_read_denied(appt, event)
+    if denied:
+        return denied
+
     # Información del coordinador que asignó
     assigner = db.session.get(User, appt.assigned_by) if appt.assigned_by else None
 
@@ -375,34 +405,31 @@ def appointment_details(appointment_id: int):
 @api_appointments.route('/mine/active', methods=['GET'])
 @login_required
 def my_active_appointments():
-    """Obtiene todas las citas activas del usuario actual con detalles completos"""
-    from app.models.event import Event, EventSlot, EventWindow
+    """
+    Citas vigentes del usuario actual con detalles completos.
 
-    appointments = Appointment.query.filter_by(
-        applicant_id=current_user.id,
-        status='scheduled'
-    ).all()
+    La consulta filtra por `applicant_id == current_user.id` (dentro del
+    servicio), así que no hace falta comprobar la propiedad fila a fila: aquí
+    no entra la cita de otra persona. Lo que SÍ hace falta —y no había— es la
+    guarda del EVENTO: este payload publica tipo, título y sede del evento, y
+    la cita por sí sola no autoriza a leerlos. Una cita que el propio aspirante
+    se reservó sobre un evento que después se cerró (privado, despublicado u
+    oculto a estudiantes) deja de aparecer; la que le asignó su coordinador
+    sigue apareciendo, que es la entrevista de admisión.
+    """
+    contexts = AppointmentsService.list_active_appointment_contexts(current_user.id)
 
     items = []
-    for appt in appointments:
-        slot = db.session.get(EventSlot, appt.slot_id)
-        if not slot:
-            continue
+    for ctx in contexts:
+        appt = ctx['appointment']
+        slot = ctx['slot']
+        event = ctx['event']
+        pending_change = ctx['pending_change']
 
-        window = db.session.get(EventWindow, slot.event_window_id)
-        if not window:
+        if not AppointmentsService.user_may_read_event_of_appointment(
+            current_user, appt, event
+        ):
             continue
-
-        event = db.session.get(Event, window.event_id)
-        if not event:
-            continue
-
-        # Verificar si hay solicitud de cambio pendiente
-        from app.models.appointment import AppointmentChangeRequest
-        pending_change = AppointmentChangeRequest.query.filter_by(
-            appointment_id=appt.id,
-            status='pending'
-        ).first()
 
         items.append({
             "id": appt.id,

@@ -23,6 +23,49 @@ def test_csv_template_has_headers_and_example():
     assert all(h in lines[0] for h in svc.CSV_HEADERS)
 
 
+def test_csv_preview_cannot_batch_probe_control_numbers(app, periods, program,
+                                                        other_program, roles):
+    """
+    F18 — `/csv/preview` es un ensayo en seco que devuelve los errores de fila
+    tal cual, así que un solo archivo sondeaba N números de control de golpe.
+
+    Con el alcance comprobado antes de la consulta global, un CSV entero
+    apuntado al programa ajeno responde lo mismo fila por fila, exista o no el
+    número; y ningún error repite el valor sondeado.
+    """
+    taken = User(
+        first_name='Ya', last_name='Existe', mother_last_name='',
+        username='probe_target', password='pw', email='probe@test.local',
+        is_internal=False, role_id=roles['student'].id,
+        must_change_password=False,
+    )
+    db.session.add(taken)
+    db.session.flush()
+    taken.control_number = 'M22118888'
+    db.session.commit()
+
+    def _row(ctrl, email):
+        return {
+            'first_name': 'Son', 'last_name': 'Deo', 'mother_last_name': '',
+            'email': email, 'control_number': ctrl,
+            'program_slug': other_program.slug, 'current_semester': '2',
+            'admission_period_code': '20223', 'has_conacyt': 'no',
+        }
+
+    result = svc.validate_csv(
+        _csv_text([
+            _row('M22118888', 'a@test.local'),   # existe
+            _row('M22110000', 'b@test.local'),   # no existe
+        ]),
+        creator_program_ids={program.id},        # coordinador del OTRO programa
+    )
+
+    rows = result['rows']
+    assert result['summary']['valid'] == 0
+    assert rows[0]['errors'] == rows[1]['errors']
+    assert not any('M22118888' in e for e in rows[0]['errors'])
+
+
 def test_validate_csv_empty_returns_error(app, periods, program):
     result = svc.validate_csv('')
     assert result['summary']['total'] == 0

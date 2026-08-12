@@ -132,11 +132,27 @@ def invite_students(event_id: int):
             allow_external=allow_external
         )
 
+        # Invitar a un evento en borrador está permitido —preparar la lista
+        # antes de publicar es el flujo normal—, pero el invitado no verá la
+        # invitación hasta la publicación, así que se le dice al organizador.
+        flash = []
+        if results.get('pending_publication'):
+            flash.append({
+                "level": "warning",
+                "message": (
+                    "Las invitaciones quedaron registradas, pero el evento aún no "
+                    "está publicado: los invitados podrán confirmarlas cuando lo "
+                    "publiques."
+                ),
+            })
+
         return jsonify({
             "ok": True,
             "invited": len(results['invited']),
             "already_invited": len(results['already_invited']),
             "already_registered": len(results['already_registered']),
+            "pending_publication": bool(results.get('pending_publication')),
+            "flash": flash,
             "details": results
         }), 201
 

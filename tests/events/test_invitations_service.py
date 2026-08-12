@@ -389,3 +389,199 @@ class TestGetMyInvitations(unittest.TestCase):
         result = EventsService.get_event_invitations(self.ev.id)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]['user_id'], self.student.id)
+
+
+class TestInviteToDraftEvent(unittest.TestCase):
+    """
+    Preparing the guest list while the event is still a draft is legitimate,
+    so `invite_students` accepts it — but the *response* has to wait, because
+    `user_may_participate_in_event` refuses a draft on purpose and
+    `register_to_event` enforces that rule.
+
+    The dead end this covers: the invitee saw a pending invitation in the
+    dashboard, pressed "Aceptar", and got "No tienes acceso a este evento"
+    with nothing to do about it.
+    """
+
+    def setUp(self):
+        self.app = create_app(make_test_config())
+        self.ctx = self.app.app_context()
+        self.ctx.push()
+        db.create_all()
+
+        role_admin = make_role('program_admin')
+        self.admin = make_user(role_admin, suffix='_adm')
+        self.prog = make_program(self.admin)
+
+        role_student = make_role('student')
+        self.student = make_user(role_student, suffix='_stu')
+        db.session.commit()
+
+        # Institutional draft event: nobody may participate in it yet.
+        self.ev = _make_event(self.admin.id, None)
+        self.ev.status = 'draft'
+        db.session.commit()
+
+    def tearDown(self):
+        db.session.remove()
+        db.drop_all()
+        self.ctx.pop()
+
+    def _invite(self, allow_external=False):
+        with patch('app.services.notification_service.NotificationService'
+                   '.notify_event_invitation') as mock_notif, \
+             patch('app.services.user_history_service.UserHistoryService'
+                   '.log_event_invitation'):
+            mock_notif.return_value = MagicMock(id=1)
+            with self.app.test_request_context('/'):
+                return EventsService.invite_students(
+                    event_id=self.ev.id,
+                    user_ids=[self.student.id],
+                    invited_by=self.admin.id,
+                    allow_external=allow_external,
+                )
+
+    def _publish(self):
+        self.ev.status = 'published'
+        self.ev.visible_to_students = True
+        db.session.commit()
+
+    def _invitation(self):
+        return EventInvitation.query.filter_by(
+            event_id=self.ev.id, user_id=self.student.id
+        ).first()
+
+    # -- inviting is allowed while the event is a draft ------------------
+
+    def test_invite_while_draft_creates_invitation(self):
+        results = self._invite()
+        self.assertIn(self.student.id, results['invited'])
+        self.assertEqual(self._invitation().status, 'pending')
+
+    def test_invite_while_draft_flags_pending_publication(self):
+        results = self._invite()
+        self.assertTrue(results['pending_publication'])
+
+    def test_invite_to_published_event_does_not_flag_pending_publication(self):
+        self._publish()
+        results = self._invite()
+        self.assertFalse(results['pending_publication'])
+
+    def test_invite_to_hidden_event_flags_pending_publication(self):
+        self.ev.status = 'published'
+        self.ev.visible_to_students = False
+        db.session.commit()
+        results = self._invite()
+        self.assertTrue(results['pending_publication'])
+
+    def test_invite_to_closed_event_raises(self):
+        """A cancelled/finished event could never resolve the invitation."""
+        for closed in ('cancelled', 'completed'):
+            with self.subTest(status=closed):
+                self.ev.status = closed
+                db.session.commit()
+                with self.app.test_request_context('/'):
+                    with self.assertRaises(ValueError):
+                        EventsService.invite_students(
+                            event_id=self.ev.id,
+                            user_ids=[self.student.id],
+                            invited_by=self.admin.id,
+                        )
+
+    # -- the invitation is not advertised until it can be answered -------
+
+    def test_draft_invitation_hidden_from_my_invitations(self):
+        self._invite()
+        self.assertEqual(EventsService.get_my_invitations(self.student.id), [])
+
+    def test_draft_invitation_hidden_from_dashboard_widget(self):
+        self._invite()
+        with self.app.test_request_context('/'):
+            widget = EventsService.get_dashboard_widget(self.student.id)
+        self.assertEqual(widget['pending_invitations'], [])
+
+    def test_invitation_appears_after_publication(self):
+        self._invite()
+        self._publish()
+
+        listed = EventsService.get_my_invitations(self.student.id)
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(listed[0]['invitation_id'], self._invitation().id)
+
+        with self.app.test_request_context('/'):
+            widget = EventsService.get_dashboard_widget(self.student.id)
+        self.assertEqual(len(widget['pending_invitations']), 1)
+
+    # -- accepting: before vs after publication --------------------------
+
+    def test_accept_before_publication_fails_with_spanish_reason(self):
+        self._invite()
+        inv_id = self._invitation().id
+
+        with self.app.test_request_context('/'):
+            with self.assertRaises(ValueError) as cm:
+                EventsService.respond_to_invitation(inv_id, self.student.id, accept=True)
+
+        self.assertIn('no está publicado', str(cm.exception))
+        # The invitation survives untouched: a draft is temporary, and a
+        # temporary obstacle must not burn the invitation as 'rejected'.
+        db.session.rollback()
+        inv = db.session.get(EventInvitation, inv_id)
+        self.assertEqual(inv.status, 'pending')
+        self.assertIsNone(inv.responded_at)
+        self.assertIsNone(
+            EventAttendance.query.filter_by(
+                event_id=self.ev.id, user_id=self.student.id
+            ).first()
+        )
+
+    def test_invite_while_draft_then_publish_then_accept(self):
+        self._invite()
+        inv_id = self._invitation().id
+        self._publish()
+
+        with self.app.test_request_context('/'):
+            result = EventsService.respond_to_invitation(inv_id, self.student.id, accept=True)
+
+        self.assertEqual(result.status, 'accepted')
+        self.assertIsNotNone(
+            EventAttendance.query.filter_by(
+                event_id=self.ev.id, user_id=self.student.id
+            ).first()
+        )
+
+    def test_reject_before_publication_is_allowed(self):
+        """Declining needs no participation right — only accepting does."""
+        self._invite()
+        inv_id = self._invitation().id
+
+        with self.app.test_request_context('/'):
+            result = EventsService.respond_to_invitation(inv_id, self.student.id, accept=False)
+
+        self.assertEqual(result.status, 'rejected')
+
+    # -- the shipped cross-program flow must keep working ----------------
+
+    def test_external_invitee_of_another_program_can_still_accept(self):
+        """`allow_external=True` on a program event, invitee from elsewhere."""
+        other_prog = make_program(self.admin, slug='other-prog')
+        db.session.add(UserProgram(
+            user_id=self.student.id,
+            program_id=other_prog.id,
+            admission_status='enrolled',
+        ))
+        self.ev.program_id = self.prog.id      # student is NOT in this program
+        db.session.commit()
+
+        results = self._invite(allow_external=True)
+        self.assertIn(self.student.id, results['invited'])
+
+        self._publish()
+        inv_id = self._invitation().id
+
+        listed = EventsService.get_my_invitations(self.student.id)
+        self.assertEqual(len(listed), 1)
+
+        with self.app.test_request_context('/'):
+            result = EventsService.respond_to_invitation(inv_id, self.student.id, accept=True)
+        self.assertEqual(result.status, 'accepted')

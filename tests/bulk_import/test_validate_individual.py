@@ -67,6 +67,77 @@ def test_duplicate_control_number_rejected(app, periods, program, roles, valid_p
     assert any('número de control' in e.lower() for e in result['errors'])
 
 
+def _student_with_control_number(roles, control_number, *, username, email):
+    """Crea un usuario ya dueño de ese número de control."""
+    u = User(
+        first_name='Ya', last_name='Existe', mother_last_name='',
+        username=username, password='pw', email=email, is_internal=False,
+        role_id=roles['student'].id, must_change_password=False,
+    )
+    db.session.add(u)
+    db.session.flush()
+    u.control_number = control_number
+    db.session.commit()
+    return u
+
+
+def test_control_number_collision_uses_the_shared_message(app, periods, program,
+                                                          roles, valid_payload):
+    """
+    F18 — el rechazo por colisión no nombra el número ni afirma que exista, y
+    usa LITERALMENTE la misma cadena que los otros tres puntos de rechazo
+    (`acceptance_service.assign_control_number`,
+    `assign_control_number_admin` y `admin/users_api.assign_control_number`).
+    Si alguien reescribe uno de los cuatro textos, este test cae.
+    """
+    from app.services.acceptance_service import CONTROL_NUMBER_REJECTED_MESSAGE
+
+    _student_with_control_number(
+        roles, valid_payload['control_number'],
+        username='dueno_ctrl', email='dueno@test.local',
+    )
+
+    result = svc.validate_individual(
+        valid_payload, creator_program_ids={program.id}
+    )
+    assert result['valid'] is False
+    assert CONTROL_NUMBER_REJECTED_MESSAGE in result['errors']
+    # Ni el número ni la palabra "registrado": el mensaje anterior confirmaba
+    # la existencia del dato que se estaba sondeando.
+    assert not any(valid_payload['control_number'] in e for e in result['errors'])
+
+
+def test_control_number_oracle_closed_for_out_of_scope_row(app, periods, program,
+                                                           other_program, roles,
+                                                           valid_payload):
+    """
+    F18 — el oráculo batcheable.
+
+    Un coordinador de A que valida una fila apuntando al programa B debe recibir
+    EXACTAMENTE la misma respuesta tanto si el número de control existe como si
+    no. El alcance se comprueba antes, así que la consulta global —que es
+    institucional por diseño— nunca llega a ejecutarse para esa fila.
+    """
+    _student_with_control_number(
+        roles, 'M22119999',
+        username='ajeno_ctrl', email='ajeno@test.local',
+    )
+
+    scope = {program.id}          # coordinador de A, y sólo de A
+    base = dict(valid_payload, program_slug=other_program.slug)
+
+    hit = svc.validate_individual(
+        dict(base, control_number='M22119999'), creator_program_ids=scope
+    )
+    miss = svc.validate_individual(
+        dict(base, control_number='M22110000'), creator_program_ids=scope
+    )
+
+    assert hit['valid'] is False and miss['valid'] is False
+    assert hit['errors'] == miss['errors']
+    assert not any('M22119999' in e for e in hit['errors'])
+
+
 def test_invalid_program_slug(app, periods, program, valid_payload):
     valid_payload['program_slug'] = 'no-existe'
     result = svc.validate_individual(valid_payload)

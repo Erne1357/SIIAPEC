@@ -6,6 +6,7 @@ from app import db
 from app.models.event import EventSlot, EventWindow
 from app.models.appointment import Appointment, AppointmentChangeRequest
 from app.models.event import Event
+from app.services.events_service import EventsService
 
 
 class AppointmentAccessDenied(PermissionError):
@@ -87,6 +88,148 @@ class AppointmentsService:
             'event': event,
             'program_id': event.program_id if event else None,
         }
+
+    # ─── ACL — leer el EVENTO que hay detrás de una cita ──────────────────
+    #
+    # TENER LA CITA NO ES PERMISO PARA LEER EL EVENTO. Es literalmente la
+    # lección de `EventAttendance`: una fila que el propio sujeto puede
+    # escribirse no autoriza nada, y en cuanto un ACL la aceptaba como prueba
+    # bastaba con crearla para leer un evento privado de cualquier posgrado.
+    # `Appointment` tenía la misma forma: `POST /api/v1/appointments` la crea
+    # el aspirante para sí mismo, y luego `/details` y `/mine/active` servían
+    # título, tipo, sede y descripción del evento con la sola prueba de que la
+    # cita era suya.
+    #
+    # La diferencia — y la única razón por la que una cita SÍ puede abrir la
+    # lectura — es quién la escribió: ver `_assignment_is_third_party`.
+
+    @staticmethod
+    def _assignment_is_third_party(appointment) -> bool:
+        """
+        ¿Se la puso OTRA persona al aspirante, o se la puso él mismo?
+
+        `assign()` escribe SIEMPRE `assigned_by = <quien llama>`, y sólo deja
+        elegir el `applicant_id` a quien tiene 'appointments.api.assign' y
+        además pasa `EventsService.user_may_manage_event` sobre el evento y
+        `guard_user_scope` sobre la persona. De ahí que
+        `assigned_by != applicant_id` implique: un gestor con autoridad sobre
+        el evento Y sobre el aspirante creó esta cita. Esa es exactamente la
+        forma de una `EventInvitation` — una concesión de TERCERO — y por eso
+        vale como llave de lectura del evento, aunque el evento sea privado o
+        se haya cerrado después (el aspirante tiene que poder seguir viendo
+        dónde y a qué hora es su entrevista).
+
+        `assigned_by == applicant_id` es una AUTO-reserva: no concede nada.
+
+        `assigned_by` es NULL-able (`ondelete='SET NULL'`): si se borra la
+        cuenta del coordinador que asignó, la concesión deja de constar y la
+        lectura vuelve al predicado compartido. Falla cerrado a propósito.
+        """
+        if appointment is None:
+            return False
+        return (
+            appointment.assigned_by is not None
+            and appointment.assigned_by != appointment.applicant_id
+        )
+
+    @staticmethod
+    def user_may_read_event_of_appointment(user, appointment, event) -> bool:
+        """
+        ¿Puede `user` leer los CAMPOS DEL EVENTO (título, tipo, sede,
+        descripción, horarios) que cuelgan de esta cita?
+
+        Composición explícita, no una copia. Tres vías, en este orden:
+
+          1. gestiona el evento   → `EventsService.user_may_manage_event`;
+          2. es el dueño de la cita Y se la asignó un tercero con autoridad
+             → `_assignment_is_third_party` (misma lógica que una invitación);
+          3. puede participar en el evento AHORA
+             → `EventsService.user_may_participate_in_event`, releído en cada
+               lectura, nunca cacheado en la fila de la cita.
+
+        La vía 3 es la que hay que releer: un evento que se vuelve privado, se
+        despublica o se oculta a estudiantes deja de ser legible por esa vía
+        aunque la auto-reserva siga existiendo — igual que un registro de
+        asistencia deja de listar el evento en /events cuando el organizador
+        lo cierra.
+
+        Framework-agnostic: el llamador pasa el usuario, nunca `current_user`.
+        """
+        if user is None or appointment is None or event is None:
+            return False
+
+        if EventsService.user_may_manage_event(user, event):
+            return True
+
+        user_id = getattr(user, 'id', None)
+        if user_id is None:
+            return False
+
+        if (
+            appointment.applicant_id == user_id
+            and AppointmentsService._assignment_is_third_party(appointment)
+        ):
+            return True
+
+        return EventsService.user_may_participate_in_event(user, event)
+
+    # ─── Listados propios del aspirante ──────────────────────────────────
+
+    @staticmethod
+    def list_appointments_of_user(user_id: int) -> list[Appointment]:
+        """Citas de un usuario (todas, cualquier estado)."""
+        return db.session.execute(
+            select(Appointment)
+            .where(Appointment.applicant_id == user_id)
+            .order_by(Appointment.created_at.desc())
+        ).scalars().all()
+
+    @staticmethod
+    def list_active_appointment_contexts(user_id: int) -> list[dict]:
+        """
+        Citas vigentes ('scheduled') de un usuario, ya resueltas a
+        slot → ventana → evento y con su solicitud de cambio pendiente.
+
+        El filtro por `applicant_id` es la única forma de entrar aquí: la ruta
+        no acepta un id de usuario del cliente. Aun así, el que la cita sea
+        suya NO decide si puede leer el evento — eso lo contesta
+        `user_may_read_event_of_appointment` sobre cada fila.
+
+        Returns:
+            lista de dicts con 'appointment', 'slot', 'event' y 'pending_change'.
+        """
+        rows = db.session.execute(
+            select(Appointment, EventSlot, Event)
+            .join(EventSlot, EventSlot.id == Appointment.slot_id)
+            .join(EventWindow, EventWindow.id == EventSlot.event_window_id)
+            .join(Event, Event.id == EventWindow.event_id)
+            .where(
+                Appointment.applicant_id == user_id,
+                Appointment.status == 'scheduled',
+            )
+            .order_by(EventSlot.starts_at.asc())
+        ).all()
+
+        appointment_ids = [appt.id for appt, _slot, _event in rows]
+        pending_by_appointment: dict[int, AppointmentChangeRequest] = {}
+        if appointment_ids:
+            pending = db.session.execute(
+                select(AppointmentChangeRequest)
+                .where(
+                    AppointmentChangeRequest.appointment_id.in_(appointment_ids),
+                    AppointmentChangeRequest.status == 'pending',
+                )
+                .order_by(AppointmentChangeRequest.created_at.desc())
+            ).scalars().all()
+            for acr in pending:
+                pending_by_appointment.setdefault(acr.appointment_id, acr)
+
+        return [{
+            'appointment': appt,
+            'slot': slot,
+            'event': event,
+            'pending_change': pending_by_appointment.get(appt.id),
+        } for appt, slot, event in rows]
 
     @staticmethod
     def get_active_appointment_for_slot(slot_id: int) -> Appointment | None:

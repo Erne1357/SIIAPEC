@@ -615,11 +615,24 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
 
     db.session.commit()
 
-    # Notificar a admins en tiempo real
+    # Notificar a admins en tiempo real.
+    #
+    # Este aviso lleva el nombre y el correo de una cuenta de PERSONAL. La
+    # segunda emisión iba a `role:coordinator`, que reúne a todo titular de
+    # `coordinator.page.view` — o sea a cada program_admin de la institución—,
+    # y eso contradice la regla del propio módulo de alcance: una cuenta de
+    # personal no es alumno de nadie, así que su identidad no sale del alcance
+    # global. `emit_admin_user_change(payload, None)` es exactamente ese
+    # reparto, y es el mismo emisor que usan las otras dos rutas que publican
+    # `admin_user:changed` (`admin/users_api.update_user` y `delete_user`).
+    # El try/except se conserva porque este bloque corre DESPUÉS del commit:
+    # la cuenta ya existe y un fallo del transporte no debe convertir un alta
+    # correcta en un 500. (`emit_admin_user_change` ya traga sus propios
+    # errores; esto sólo cubre el import.)
     try:
-        from app.extensions import socketio
-        socketio.emit(
-            'admin_user:changed',
+        from app.sockets.emitters import emit_admin_user_change
+
+        emit_admin_user_change(
             {
                 'action': 'created',
                 'user_id': new_user.id,
@@ -627,18 +640,7 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
                 'email': new_user.email,
                 'full_name': f'{new_user.first_name} {new_user.last_name}',
             },
-            room='role:postgraduate_admin',
-        )
-        socketio.emit(
-            'admin_user:changed',
-            {
-                'action': 'created',
-                'user_id': new_user.id,
-                'role': 'social_service',
-                'email': new_user.email,
-                'full_name': f'{new_user.first_name} {new_user.last_name}',
-            },
-            room='role:coordinator',
+            None,   # cuenta de personal: sin audiencia program-scoped
         )
     except Exception:
         pass

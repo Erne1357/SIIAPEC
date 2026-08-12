@@ -35,6 +35,35 @@ por CSV: quedaba auditado pero no impedido.
 La comprobación vive en `validate_individual`, que es por donde pasan las tres
 rutas (individual, preview CSV y ejecución CSV), de modo que unas filas
 manipuladas con `valid: true` en el cuerpo de `/csv/execute` tampoco la evitan.
+
+UNICIDAD DEL NÚMERO DE CONTROL — ORDEN Y MENSAJE
+------------------------------------------------
+El número de control es único en TODA la institución, así que comprobarlo es
+forzosamente una consulta global. Eso lo convertía en un oráculo de existencia,
+y aquí era el peor de todos: `/validate` y `/csv/preview` son ensayos en seco
+que devuelven los errores tal cual, y un solo CSV sondea N números de golpe.
+Además la consulta corría ANTES del alcance de programa, así que contestaba
+incluso en la fila que se iba a rechazar por apuntar al programa de otro.
+
+Dos reglas lo cierran, y ninguna toca la restricción de unicidad (que es
+correcta y debe quedarse):
+
+  1. ORDEN — el alcance de programa se resuelve primero. Una fila fuera de
+     alcance se rechaza sin que la consulta global llegue a ejecutarse.
+  2. MENSAJE — una colisión responde con
+     `acceptance_service.CONTROL_NUMBER_REJECTED_MESSAGE`, literalmente el mismo
+     texto que emiten `acceptance_service.assign_control_number`,
+     `acceptance_service.assign_control_number_admin` y
+     `admin/users_api.assign_control_number`. No nombra el número ni afirma que
+     exista. Cuatro sitios, una sola redacción: dos textos distintos volverían a
+     distinguir la colisión del resto de los rechazos.
+
+Queda un residuo inevitable —una fila con número libre valida y una con número
+tomado no—, idéntico al de los otros tres sitios y propio de cualquier columna
+única escrita con un valor que elige quien llama. Lo que se elimina es la
+confirmación explícita y la cosecha pasiva; el sondeo que resta queda escrito en
+el log de la aplicación con el id de quien lo hace (`actor_id`), que es la
+señal de volumen sobre la que se puede actuar.
 """
 
 import csv
@@ -236,7 +265,8 @@ def _build_reset_password_url(token: str) -> str:
 # Validación individual
 # ---------------------------------------------------------------------------
 
-def validate_individual(payload: dict, creator_program_ids=None) -> dict:
+def validate_individual(payload: dict, creator_program_ids=None,
+                        actor_id=None) -> dict:
     """
     Valida un payload de alta individual sin crear registros en DB.
 
@@ -245,6 +275,9 @@ def validate_individual(payload: dict, creator_program_ids=None) -> dict:
         creator_program_ids: alcance de programas de quien ejecuta el alta.
             **None significa TODOS** (jefe de posgrado); `set()` significa
             NINGUNO. Ver la nota de alcance del encabezado del módulo.
+        actor_id: id de quien ejecuta la validación. Sólo se usa para atribuir
+            en el log una colisión de número de control; el servicio sigue sin
+            leer `current_user` (la ruta lo pasa explícitamente).
 
     Returns:
         {'valid': bool, 'errors': list[str], 'normalized': dict}
@@ -284,19 +317,14 @@ def validate_individual(payload: dict, creator_program_ids=None) -> dict:
         errors.append(f'El correo {email!r} ya está registrado en el sistema.')
     normalized['email'] = email
 
-    # --- control_number ---
-    control_number = _apply_validator(
-        validate_short_text, payload.get('control_number'), errors,
-        label='Número de control', required=True,
-        max_length=CONTROL_NUMBER_MAX_LENGTH,
-    ) or ''
-    if control_number and User.query.filter_by(control_number=control_number).first():
-        errors.append(f'El número de control {control_number!r} ya está registrado.')
-    normalized['control_number'] = control_number
-
     # --- program_slug ---
+    # Se resuelve ANTES del número de control a propósito. La unicidad del
+    # número de control es institucional y por tanto se consulta contra toda la
+    # base; esa consulta no debe llegar a ejecutarse para una fila que apunta al
+    # programa de otro. Ver "UNICIDAD DEL NÚMERO DE CONTROL" en el encabezado.
     program_slug = (payload.get('program_slug') or '').strip()
     program = None
+    program_in_scope = False
     if not program_slug:
         errors.append('El slug del programa es requerido.')
     else:
@@ -311,9 +339,37 @@ def validate_individual(payload: dict, creator_program_ids=None) -> dict:
                 f'dar de alta estudiantes en los programas que administras.'
             )
             program = None   # no sigas derivando límites de un programa ajeno
-        elif not program.is_active:
-            errors.append(f'El programa {program_slug!r} no está activo.')
+        else:
+            program_in_scope = True
+            if not program.is_active:
+                errors.append(f'El programa {program_slug!r} no está activo.')
     normalized['program_slug'] = program_slug
+
+    # --- control_number ---
+    # La consulta de unicidad se ejecuta SÓLO si la fila ya pasó el alcance.
+    # Antes corría siempre y respondía con el motivo exacto, así que un
+    # coordinador podía pedir `/validate` —o un CSV entero contra
+    # `/csv/preview`— con números de control de programas ajenos y leer en la
+    # respuesta cuáles existen, sin escribir nada y sin dejar rastro.
+    #
+    # El texto del rechazo no vive aquí: es el mismo objeto que usan los otros
+    # tres puntos que rechazan por colisión. Si esta cadena se reescribiera
+    # "para que diga algo más útil", el oráculo se reabre.
+    control_number = _apply_validator(
+        validate_short_text, payload.get('control_number'), errors,
+        label='Número de control', required=True,
+        max_length=CONTROL_NUMBER_MAX_LENGTH,
+    ) or ''
+    if control_number and program_in_scope:
+        if User.query.filter_by(control_number=control_number).first():
+            from app.services.acceptance_service import CONTROL_NUMBER_REJECTED_MESSAGE
+            logger.warning(
+                '[control_number] Colisión en alta masiva de estudiantes '
+                f'(actor_id={actor_id}, program_slug={program_slug!r}, '
+                f'control_number={control_number})'
+            )
+            errors.append(CONTROL_NUMBER_REJECTED_MESSAGE)
+    normalized['control_number'] = control_number
 
     # --- current_semester ---
     raw_semester = payload.get('current_semester')
@@ -531,7 +587,11 @@ def create_student_individual(payload: dict, created_by_id: int,
     _require_program_scope(payload, creator_program_ids)
 
     # 1. Validar
-    result = validate_individual(payload, creator_program_ids=creator_program_ids)
+    result = validate_individual(
+        payload,
+        creator_program_ids=creator_program_ids,
+        actor_id=created_by_id,
+    )
     if not result['valid']:
         raise ValidationError('; '.join(result['errors']))
 
@@ -679,7 +739,7 @@ def create_student_individual(payload: dict, created_by_id: int,
 # Validación CSV
 # ---------------------------------------------------------------------------
 
-def validate_csv(csv_text: str, creator_program_ids=None) -> dict:
+def validate_csv(csv_text: str, creator_program_ids=None, actor_id=None) -> dict:
     """
     Parsea y valida un CSV de alta masiva de estudiantes.
 
@@ -698,6 +758,10 @@ def validate_csv(csv_text: str, creator_program_ids=None) -> dict:
         csv_text: Contenido del archivo CSV como string UTF-8.
         creator_program_ids: alcance de programas de quien ejecuta el alta.
             **None significa TODOS**; `set()` significa NINGUNO.
+        actor_id: id de quien ejecuta la validación, sólo para atribuir en el
+            log una colisión de número de control (ver `validate_individual`).
+            Un CSV sondea N números por petición: sin este dato el log no
+            distingue quién lo mandó.
 
     Returns:
         {
@@ -747,7 +811,11 @@ def validate_csv(csv_text: str, creator_program_ids=None) -> dict:
         payload = {k: (row.get(k) or '').strip() for k in CSV_HEADERS}
         for k in available_optional:
             payload[k] = (row.get(k) or '').strip()
-        result = validate_individual(payload, creator_program_ids=creator_program_ids)
+        result = validate_individual(
+            payload,
+            creator_program_ids=creator_program_ids,
+            actor_id=actor_id,
+        )
 
         extra_errors = []
         email = payload.get('email', '').lower()

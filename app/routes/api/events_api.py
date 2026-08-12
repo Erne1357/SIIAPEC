@@ -209,12 +209,23 @@ def list_slots(event_id:int):
 @permission_required('events.api.list')
 def list_events():
     """
-    Lista eventos visibles para el panel de administración.
+    Lista eventos para el PANEL DE ADMINISTRACIÓN — no es la lista pública.
 
-    Incluye los institucionales (sin programa) para que un coordinador siga
-    viendo el calendario general, pero cada fila trae `can_manage`: sólo el
-    alcance global puede actuar sobre un evento institucional. El front debe
-    ocultar/deshabilitar las acciones cuando venga en False.
+    La lista del aspirante y del estudiante es `GET /api/v1/events/public`, que
+    pasa por `user_may_participate_in_event`. Esta trae borradores, eventos
+    privados, los ocultos al alumnado y los contadores de registros e
+    invitaciones pendientes: es material de gestión y `events.api.list` es un
+    permiso de gestión. Los roles applicant y student lo tenían por semilla, así
+    que un aspirante leía el calendario institucional completo —incluidos los
+    borradores— desde aquí; ver el parche
+    `database/DML/patches/2026_08_12_01_events_list_revoke_applicant_student.sql`.
+
+    Sigue incluyendo los institucionales (sin programa) para que un coordinador
+    vea el calendario general, pero sólo los ya publicados: el borrador
+    institucional es de la Jefatura y nadie sin alcance global puede tocarlo
+    (`EventsService._institutional_readable_clause`). Cada fila trae
+    `can_manage`; el front debe ocultar/deshabilitar las acciones cuando venga
+    en False.
     """
     from app.models.academic_period import AcademicPeriod
 
@@ -1060,7 +1071,12 @@ def delete_event_image(image_id: int):
 @login_required
 @permission_required('events.api.list')
 def get_admin_dashboard_stats():
-    """KPIs para el dashboard de administración de eventos."""
+    """
+    KPIs para el dashboard de administración de eventos.
+
+    Mismo permiso y mismo universo de filas que `list_events`: un contador
+    también es una lectura. Cuenta sólo lo que ese llamador podría listar.
+    """
     accessible_pids = current_user.get_accessible_program_ids()
     stats = EventsService.get_admin_dashboard_stats(accessible_pids)
     return jsonify({"ok": True, **stats}), 200

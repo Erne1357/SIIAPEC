@@ -267,25 +267,29 @@ class EventsService:
         clauses: registration is a self-service write, so trusting it here let
         a user list a private event of any program by first POSTing a
         registration to it. See `user_may_participate_in_event`.
+
+        The user's programs come from `program_ids_of_user` — ALL their
+        UserProgram rows, the same source the shared predicate reads. Taking
+        `.first()` instead silently denied a user enrolled in two programs the
+        events of whichever program the database happened to return second.
         """
-        from app.models.user_program import UserProgram
         from app.models.event import EventInvitation
         from app.models.user import User
+        from app.services import program_scope_service as scope_service
 
         active_period = AcademicPeriod.get_active_period()
         active_pid = active_period.id if active_period else None
-        user_program = UserProgram.query.filter_by(user_id=user_id).first()
-        user_pid = user_program.program_id if user_program else None
+
+        # Programas accesibles para preview de privados (si es admin)
+        user = db.session.get(User, user_id)
+        user_pids = scope_service.program_ids_of_user(user) if user else set()
+        accessible_pids = user.get_accessible_program_ids() if user else set()
 
         invited_event_ids = [
             row[0] for row in db.session.query(EventInvitation.event_id).filter(
                 EventInvitation.user_id == user_id
             ).all()
         ]
-
-        # Programas accesibles para preview de privados (si es admin)
-        user = db.session.get(User, user_id)
-        accessible_pids = user.get_accessible_program_ids() if user else set()
 
         base = Event.query.filter(
             Event.visible_to_students == True,
@@ -312,8 +316,8 @@ class EventsService:
 
         # Público: el usuario lo ve si...
         public_subfilters = [Event.program_id.is_(None)]  # eventos generales
-        if user_pid:
-            public_subfilters.append(Event.program_id == user_pid)
+        if user_pids:
+            public_subfilters.append(Event.program_id.in_(user_pids))
         if accessible_pids is None:
             # Admin global (postgraduate_admin sin scope) ve todos los públicos
             public_subfilters.append(Event.id.isnot(None))
@@ -380,22 +384,53 @@ class EventsService:
         ]
 
     @staticmethod
+    def _institutional_readable_clause():
+        """
+        The institutional rows a NON-GLOBAL caller may see in an admin listing.
+
+        An event without a program belongs to the Jefatura de Posgrado:
+        `user_may_manage_event` gives it to global scope and to nobody else, so
+        every other caller reads those rows as an audience member, never as an
+        owner. The admin listing may therefore only include the institutional
+        events that same caller could already pull from
+        `GET /api/v1/events/public` — published, public, and switched live for
+        the audience. A draft, a private event or one still hidden from
+        students is the Jefatura's unpublished planning and stays hidden.
+
+        Without this, "no accessible programs" was read as "all institutional
+        events": the empty set meaning everything, one more time. Keeping the
+        rule here (and not in the route) means the endpoint stays safe even if
+        the permission catalogue is mis-seeded again.
+        """
+        return and_(
+            Event.program_id.is_(None),
+            Event.status == 'published',
+            Event.visibility == 'public',
+            Event.visible_to_students == True,
+        )
+
+    @staticmethod
     def list_admin_events(accessible_pids: set | None, filters: dict | None = None) -> list[Event]:
         """
         Lista eventos administrables. accessible_pids = None significa acceso global.
         filters: academic_period_id, program_id, type, status, capacity_type, search.
+
+        Un conjunto VACÍO significa NINGÚN programa, nunca "todos": ese llamador
+        sólo ve los eventos institucionales ya publicados
+        (`_institutional_readable_clause`), jamás borradores ni privados.
         """
         filters = filters or {}
         query = Event.query
 
         if accessible_pids is not None:
+            institutional = EventsService._institutional_readable_clause()
             if not accessible_pids:
-                query = query.filter(Event.program_id.is_(None))
+                query = query.filter(institutional)
             else:
                 query = query.filter(
                     or_(
                         Event.program_id.in_(accessible_pids),
-                        Event.program_id.is_(None)
+                        institutional
                     )
                 )
 
@@ -422,7 +457,14 @@ class EventsService:
 
     @staticmethod
     def get_admin_dashboard_stats(accessible_pids: set | None) -> dict:
-        """KPIs para encabezado de la vista de administración de eventos."""
+        """
+        KPIs para encabezado de la vista de administración de eventos.
+
+        Mismo universo de filas que `list_admin_events`: un contador es una
+        lectura igual que la lista —dice cuántos borradores institucionales hay
+        aunque no diga cuáles—, así que comparte
+        `_institutional_readable_clause` en lugar de reimplementar el alcance.
+        """
         from app.models.appointment import AppointmentChangeRequest, Appointment
 
         today_start = datetime.combine(date.today(), time.min)
@@ -432,12 +474,13 @@ class EventsService:
         def scope_event_query():
             q = Event.query
             if accessible_pids is not None:
+                institutional = EventsService._institutional_readable_clause()
                 if not accessible_pids:
-                    q = q.filter(Event.program_id.is_(None))
+                    q = q.filter(institutional)
                 else:
                     q = q.filter(or_(
                         Event.program_id.in_(accessible_pids),
-                        Event.program_id.is_(None)
+                        institutional
                     ))
             return q.filter(Event.status != 'archived')
 
@@ -879,13 +922,80 @@ class EventsService:
             'notes': attendance.notes if include_notes else None
         } for attendance, user in registrations]
     
+    #: Estados de los que un evento ya no sale: invitar a uno de ellos crea un
+    #: callejón sin salida permanente, porque `register_to_event` nunca podrá
+    #: aceptar la invitación resultante.
+    CLOSED_EVENT_STATUSES = ('cancelled', 'completed')
+
+    @staticmethod
+    def event_accepts_invitation_response(event) -> bool:
+        """
+        May an invitee act on an invitation to this event *right now*?
+
+        Purely a property of the event, so it can be evaluated once for a whole
+        batch. It mirrors the status/visibility half of
+        `user_may_participate_in_event`; the per-user half stays in that rule.
+        """
+        return bool(event is not None
+                    and event.status == 'published'
+                    and event.visible_to_students)
+
+    @staticmethod
+    def invitation_block_reason(user, event) -> str | None:
+        """
+        Why can't `user` act on an invitation to `event` right now? Returns a
+        message in Spanish, or None when accepting would succeed.
+
+        THE rule is still `user_may_participate_in_event`; this only translates
+        its "no" into something the invitee can read, and it is the single
+        gate used by `get_my_invitations`, `get_dashboard_widget` and
+        `respond_to_invitation` so the three never disagree.
+
+        Why this exists: inviting people while the event is still a draft is
+        the normal way to prepare it, and forbidding it would break a real
+        workflow (the guest list of a private event has to be fixed *before*
+        publication). But a draft accepts nobody — `register_to_event` enforces
+        the participant rule, on purpose, because a self-written
+        `EventAttendance` row must never be an authorisation. So the invitation
+        is legal and the *response* is what has to wait. Making a pending
+        invitation invisible until the event is live, instead of showing an
+        Accept button that fails, is what removes the dead end without
+        weakening either rule.
+        """
+        if event is None:
+            return "El evento de esta invitación ya no existe."
+
+        if (EventsService.user_may_participate_in_event(user, event)
+                or EventsService.user_may_manage_event(user, event)):
+            return None
+
+        if event.status in EventsService.CLOSED_EVENT_STATUSES:
+            return "Este evento ya no admite registros."
+
+        if not EventsService.event_accepts_invitation_response(event):
+            return (
+                "Este evento aún no está publicado. Tu invitación sigue activa "
+                "y podrás confirmarla en cuanto el organizador lo publique."
+            )
+
+        return "No tienes acceso a este evento."
+
     @staticmethod
     def invite_students(event_id: int, user_ids: list[int], invited_by: int, notes: str = None, allow_external: bool = False):
         """
         Invita múltiples estudiantes a un evento
 
+        Se permite invitar a un evento en borrador o todavía oculto: preparar la
+        lista de invitados antes de publicar es el flujo normal, y en un evento
+        privado es el único orden posible. Lo que espera es la RESPUESTA — ver
+        `invitation_block_reason`. Sí se rechaza el evento cerrado
+        (cancelado/finalizado), porque esa invitación no podría aceptarse nunca.
+
         Returns:
-            dict con 'invited', 'already_invited', 'already_registered', 'wrong_program'
+            dict con 'invited', 'already_invited', 'already_registered',
+            'wrong_program' y 'pending_publication' (True cuando el evento
+            todavía no acepta respuestas, para que la interfaz del organizador
+            pueda avisarlo).
         """
         from app.models.event import EventInvitation, EventAttendance
         from app.models.user_program import UserProgram
@@ -897,11 +1007,19 @@ class EventsService:
         if event.capacity_type == 'single':
             raise ValueError("Este evento requiere asignación de slots individuales")
 
+        if event.status in EventsService.CLOSED_EVENT_STATUSES:
+            raise ValueError(
+                "Este evento ya está cerrado y no admite nuevas invitaciones."
+            )
+
         results = {
             'invited': [],
             'already_invited': [],
             'already_registered': [],
-            'wrong_program': []  # NUEVO
+            'wrong_program': [],  # NUEVO
+            # El invitado no verá la invitación hasta que el evento se publique.
+            # Se informa al organizador en vez de rechazar el envío.
+            'pending_publication': not EventsService.event_accepts_invitation_response(event),
         }
 
         for user_id in user_ids:
@@ -1045,8 +1163,18 @@ class EventsService:
         """
         Responder a una invitación (aceptar/rechazar).
         Si ya fue rechazada y se acepta ahora → reconsiderar (permitido).
+
+        RECHAZAR siempre se puede: declinar no exige participar en nada.
+        ACEPTAR exige que el evento admita participación en este momento
+        (`invitation_block_reason`, que envuelve la regla de participante). La
+        comprobación va ANTES de tocar la invitación por dos motivos: para
+        explicar el motivo en español —antes salía "No tienes acceso a este
+        evento" desde `register_to_event`— y para no marcar como 'rejected' una
+        invitación que sólo tropezó con algo temporal, como que el evento
+        todavía es borrador.
         """
         from app.models.event import EventInvitation
+        from app.models.user import User
 
         invitation = db.session.get(EventInvitation, invitation_id)
         if not invitation:
@@ -1063,7 +1191,15 @@ class EventsService:
         # Si está accepted y rechaza → cambiar a rejected.
         if invitation.status == 'accepted' and accept:
             return invitation
-        
+
+        if accept:
+            blocked = EventsService.invitation_block_reason(
+                db.session.get(User, user_id),
+                db.session.get(Event, invitation.event_id),
+            )
+            if blocked:
+                raise ValueError(blocked)
+
         invitation.status = 'accepted' if accept else 'rejected'
         invitation.responded_at = now_local()
         
@@ -1125,17 +1261,27 @@ class EventsService:
     @staticmethod
     def get_my_invitations(user_id: int):
         """
-        Obtiene invitaciones pendientes de un usuario
+        Obtiene las invitaciones pendientes que el usuario ya puede responder.
+
+        Una invitación a un evento que todavía es borrador (o que está oculto,
+        cancelado o finalizado) NO se lista: aceptarla fallaría, y ofrecer un
+        botón que no funciona era el callejón sin salida. Sigue viva en la base
+        y reaparece sola en cuanto el organizador publica el evento.
         """
         from app.models.event import EventInvitation
-        
+        from app.models.user import User
+
+        user = db.session.get(User, user_id)
+        if not user:
+            return []
+
         invitations = db.session.query(EventInvitation, Event).join(
             Event, EventInvitation.event_id == Event.id
         ).filter(
             EventInvitation.user_id == user_id,
             EventInvitation.status == 'pending'
         ).order_by(EventInvitation.invited_at.desc()).all()
-        
+
         return [{
             'invitation_id': inv.id,
             'event_id': event.id,
@@ -1145,7 +1291,8 @@ class EventsService:
             'event_date': event.event_date.isoformat() if event.event_date else None,
             'invited_at': inv.invited_at.isoformat(),
             'notes': inv.notes
-        } for inv, event in invitations]
+        } for inv, event in invitations
+            if EventsService.invitation_block_reason(user, event) is None]
     
     @staticmethod
     def get_dashboard_widget(user_id: int) -> dict:
@@ -1154,15 +1301,23 @@ class EventsService:
 
         Returns:
             {
-              'pending_invitations': [{...}],   # status='pending' del usuario
+              'pending_invitations': [{...}],   # status='pending' del usuario, evento ya respondible
               'accepted_invitations': [{...}],  # status='accepted' del usuario, evento futuro
               'upcoming_events': [{...}],       # max 3 eventos públicos visibles, futuros, no registrado
               'my_registrations': [{...}],      # EventAttendance status='registered'/'attended', evento futuro
             }
+
+        Las invitaciones cuyo evento todavía no admite respuesta (borrador,
+        oculto, cancelado o finalizado) se omiten de las dos listas — el mismo
+        criterio que `get_my_invitations` y que `respond_to_invitation`, y el
+        mismo `Event.status == 'published'` que ya filtraba `my_registrations`.
+        El botón "Aceptar" del widget sólo aparece cuando puede funcionar.
         """
         from app.models.event import EventInvitation, EventAttendance, EventImage
+        from app.models.user import User
 
         now = now_local()
+        user = db.session.get(User, user_id)
 
         # Pending + accepted invitations
         invitations_q = db.session.query(EventInvitation, Event).join(
@@ -1174,7 +1329,12 @@ class EventsService:
 
         pending_invitations = []
         accepted_invitations = []
+        # Se alimenta con TODAS las invitaciones, incluidas las que no se
+        # muestran: un evento ya invitado no debe reaparecer como "próximo".
+        invited_event_ids = {ev.id for _, ev in invitations_q}
         for inv, ev in invitations_q:
+            if EventsService.invitation_block_reason(user, ev) is not None:
+                continue
             entry = {
                 'invitation_id': inv.id,
                 'event_id': ev.id,
@@ -1216,10 +1376,8 @@ class EventsService:
                 'attendance_status': att.status,
             })
 
-        # Upcoming events: visibles para el usuario, futuros, sin registrar
-        invited_event_ids = {entry['event_id'] for entry in pending_invitations}
-        invited_event_ids.update(entry['event_id'] for entry in accepted_invitations)
-
+        # Upcoming events: visibles para el usuario, futuros, sin registrar.
+        # `invited_event_ids` se calculó arriba sobre todas las invitaciones.
         upcoming_events = []
         try:
             visible = EventsService.list_public_events(user_id)

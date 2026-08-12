@@ -49,7 +49,15 @@ DOC_TYPE_LABELS = {
 #: claim about whether the number exists, no owner, and — deliberately — not even
 #: the number itself, so that a screenshot or a shared error log leaks nothing.
 #: Every site that rejects on collision must use this exact string; a second,
-#: subtly different wording anywhere re-opens the oracle.
+#: subtly different wording anywhere re-opens the oracle. There are four:
+#:   1. `assign_control_number` (below)
+#:   2. `assign_control_number_admin` (below)
+#:   3. `app/routes/api/admin/users_api.assign_control_number`
+#:   4. `app/services/student_bulk_service.validate_individual` — the batchable
+#:      one: it feeds `/student-bulk/validate` and `/student-bulk/csv/preview`,
+#:      both dry runs that echo row errors verbatim, so one CSV probes N values.
+#:      That site also runs the program-scope check BEFORE this lookup, so a row
+#:      aimed at somebody else's program never reaches the global query at all.
 #:
 #: This does not make the two branches indistinguishable — a free number is
 #: assigned and a taken one is not, and that difference is inherent to a real
