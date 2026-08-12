@@ -122,15 +122,22 @@ class TestPublicEventsApi(unittest.TestCase):
         resp = self.client.get('/api/v1/events/public/99999')
         self.assertEqual(resp.status_code, 404)
 
-    def test_get_public_event_detail_draft_forbidden(self):
+    def test_get_public_event_detail_draft_is_indistinguishable_from_missing(self):
+        # 404, not 403. A draft never appears in any list this student
+        # receives, so answering 403 would confirm the id exists and turn
+        # 1..N into a census of the institution's unpublished events.
         ev = self._make_public_multiple_event(status='draft')
         resp = self.client.get(f'/api/v1/events/public/{ev.id}')
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
+        missing = self.client.get('/api/v1/events/public/99999')
+        self.assertEqual(resp.data, missing.data)
 
-    def test_get_public_event_detail_not_visible_forbidden(self):
+    def test_get_public_event_detail_not_visible_is_indistinguishable_from_missing(self):
         ev = self._make_public_multiple_event(visible_to_students=False)
         resp = self.client.get(f'/api/v1/events/public/{ev.id}')
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
+        missing = self.client.get('/api/v1/events/public/99999')
+        self.assertEqual(resp.data, missing.data)
 
     def test_get_public_event_includes_my_registration_none(self):
         ev = self._make_public_multiple_event()
@@ -138,11 +145,14 @@ class TestPublicEventsApi(unittest.TestCase):
         data = json.loads(resp.data)
         self.assertIsNone(data['my_registration'])
 
-    def test_get_private_event_without_invitation_denied(self):
+    def test_get_private_event_without_invitation_is_indistinguishable_from_missing(self):
         ev = self._make_public_multiple_event(visibility='private')
-        # Student is not creator, not admin, no invitation
+        # Student is not creator, not admin, no invitation. The denial must
+        # not reveal that a private event with this id exists.
         resp = self.client.get(f'/api/v1/events/public/{ev.id}')
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
+        missing = self.client.get('/api/v1/events/public/99999')
+        self.assertEqual(resp.data, missing.data)
 
     def test_get_private_event_with_invitation_allowed(self):
         ev = self._make_public_multiple_event(visibility='private')

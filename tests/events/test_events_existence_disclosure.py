@@ -266,24 +266,46 @@ class TestChildIdsAreNotEnumerable(ExistenceDisclosureBase):
         self.assertIsNotNone(db.session.get(EventImage, self.img_b.id))
 
 
-class TestParticipationReadsStay403(ExistenceDisclosureBase):
+class TestParticipationReadsAreAlsoIndistinguishable(ExistenceDisclosureBase):
     """
-    The other bucket. `ev_b` is public and published, so it reaches every
-    listing the caller legitimately receives; its existence is already known
-    and 403 is the more useful answer. This test exists so the 404 sweep above
-    is never widened onto these routes by accident.
+    The participation routes belong in the SAME bucket, and an earlier revision
+    got this wrong.
+
+    The argument for 403 here was: `ev_b` is public and published, so it
+    reaches every listing the caller legitimately receives, its existence is
+    already known, and 403 is the more useful answer. The argument fails on the
+    only case that matters — the denial. `list_public_events` returns
+    institutional events plus the caller's OWN programme, so a public event of
+    ANOTHER programme never reached this caller in any listing, and neither
+    does a draft or a private one. When the predicate denies, the caller by
+    definition did not already know the id exists, so the 403 was the leak: any
+    authenticated account, with no permission at all, walked 1..N and counted
+    the institution's events.
+
+    The rule, stated once: 403 when the object's existence is already the
+    caller's information; 404 when the act of denying is what would reveal it.
     """
 
-    def test_slots_hosts_and_images_still_403(self):
-        for url in (
-            f'/api/v1/events/{self.ev_b.id}/slots',
-            f'/api/v1/events/{self.ev_b.id}/hosts',
-            f'/api/v1/events/{self.ev_b.id}/images',
-        ):
+    def test_slots_hosts_and_images_deny_as_missing(self):
+        missing = {
+            'slots': self.client_a.get('/api/v1/events/999999/slots'),
+            'hosts': self.client_a.get('/api/v1/events/999999/hosts'),
+            'images': self.client_a.get('/api/v1/events/999999/images'),
+        }
+        for name in ('slots', 'hosts', 'images'):
+            url = f'/api/v1/events/{self.ev_b.id}/{name}'
             resp = self.client_a.get(url)
-            self.assertIn(
-                resp.status_code, (200, 403),
-                f'{url} salió del bucket de participación',
+            if resp.status_code == 200:
+                continue  # the caller may participate; nothing to hide
+            self.assertEqual(
+                resp.status_code, 404,
+                f'{url} devuelve {resp.status_code}: confirma que el id existe',
+            )
+            # Same status is not enough — a different message rebuilds the
+            # oracle one layer down.
+            self.assertEqual(
+                resp.data, missing[name].data,
+                f'{url} se distingue de un id inexistente por el cuerpo',
             )
 
 

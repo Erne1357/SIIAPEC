@@ -248,10 +248,14 @@ class TestPlantedRegistrationGrantsNothing(ParticipationBase):
         ))
         db.session.commit()
 
-    def test_public_detail_still_forbidden(self):
+    def test_public_detail_still_denied_and_indistinguishable(self):
+        # 404, not 403: a private event of another programme never reaches
+        # this student in any listing, so confirming the id exists is itself
+        # the leak. Same body as a genuinely missing id.
         resp = self._get(f'/api/v1/events/public/{self.ev_b_private.id}')
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
         self.assertNotIn(b'Comite secreto', resp.data)
+        self.assertEqual(resp.data, self._get('/api/v1/events/public/999999').data)
 
     def test_private_event_absent_from_public_listing(self):
         events = EventsService.list_public_events(self.student_a.id)
@@ -284,13 +288,15 @@ class TestHostsImagesAndBytes(ParticipationBase):
         folder.mkdir(parents=True, exist_ok=True)
         (folder / 'cover.webp').write_bytes(b'not-really-an-image')
 
-    def test_hosts_of_private_event_are_forbidden(self):
+    def test_hosts_of_private_event_are_denied_as_missing(self):
+        # Matches the bytes route below, which already answered 404: the index
+        # must not confirm what the file server denies.
         resp = self._get(f'/api/v1/events/{self.ev_b_private.id}/hosts')
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
 
-    def test_images_of_private_event_are_forbidden(self):
+    def test_images_of_private_event_are_denied_as_missing(self):
         resp = self._get(f'/api/v1/events/{self.ev_b_private.id}/images')
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
 
     def test_image_bytes_of_private_event_are_404(self):
         self._write_cover(self.ev_b_private.id)

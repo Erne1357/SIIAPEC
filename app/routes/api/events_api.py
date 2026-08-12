@@ -79,11 +79,19 @@ def _check_event_access(event_id: int):
     ids— sin ver ninguno. `invitations_api.cancel_invitation` ya había elegido
     404 por este motivo; ahora el módulo entero dice lo mismo.
 
-    El bucket contrario —403— es para las rutas de PARTICIPACIÓN
-    (`/slots`, `/hosts`, `/images`, `/public/<id>`): allí el evento sí llegó en
-    una lista que el llamante recibió legítimamente, su existencia ya la
-    conoce, y el 403 le dice algo útil ("existe pero no es para ti") en vez de
-    mandarlo a buscar un id que tiene delante.
+    Las rutas de PARTICIPACIÓN (`/slots`, `/hosts`, `/images`, `/public/<id>`)
+    llevaron un 403 durante una revisión, con el argumento de que allí el
+    evento sí llegó en una lista que el llamante recibió legítimamente. El
+    argumento no se sostiene precisamente en el caso que importa: si el
+    predicado de participación DENIEGA, ese evento no estuvo en ninguna lista
+    suya — un borrador o un evento privado de otro posgrado no aparece en
+    ningún listado que él reciba. Así que el 403 sólo le confirmaba que el id
+    existe, y cualquier cuenta autenticada sin un solo permiso podía recorrer
+    1..N y levantar el censo. Ahora las cuatro contestan 404 igual que estas.
+
+    La regla, en una línea: 403 cuando la existencia del objeto ya es
+    información suya; 404 cuando el propio hecho de denegarle prueba que no lo
+    es.
 
     Returns:
         (event, None) si procede; (None, respuesta_error) si no.
@@ -210,7 +218,11 @@ def list_slots(event_id:int):
     # Gestores del programa, o quien pueda participar en el evento (mismo
     # criterio que el detalle público).
     if not (_event_managed_by_current_user(event) or _event_participable_by_current_user(event)):
-        return _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
+        # 404, no 403: mismo cuerpo y mismo codigo que el evento inexistente de
+        # arriba. Un 403 aqui confirma que ese id existe, y quien pregunta no
+        # tiene por que saberlo — recorriendo 1..N obtiene el censo de eventos
+        # privados y en borrador de toda la institucion.
+        return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
     status = request.args.get('status')
     items = EventsService.list_slots(event_id=event_id, status=status)
@@ -675,12 +687,21 @@ def get_public_event_detail(event_id: int):
     from app.models.event import EventAttendance
     from app.models.appointment import Appointment
 
+    # Una sola respuesta para "no existe" y para "no es tuyo": cualquier otra
+    # cosa convierte el id en un oráculo. Con dos códigos distintos, o con dos
+    # mensajes distintos, cualquier cuenta autenticada recorre 1..N y obtiene
+    # el censo de eventos de la institución — cuántos hay, qué ids ocupan y,
+    # por el mensaje, cuáles están en borrador. No se filtra nada personal,
+    # pero se filtra la existencia, y eso basta para preparar el resto.
+    #
+    # Aquí vivía además una comprobación de `visible_to_students` y `status`
+    # ANTES del ACL real de abajo. Era una copia a mano del predicado
+    # compartido, más estricta que él (negaba a quien gestiona su propio
+    # borrador) y era justo la que partía el mensaje en dos. Se va: la regla
+    # la contesta `EventsService`, en un solo sitio.
     event = db.session.get(Event, event_id)
-    if not event:
+    if event is None:
         return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
-
-    if not event.visible_to_students or event.status != 'published':
-        return jsonify({"ok": False, "error": "Evento no disponible"}), 403
 
     # ACL — el creador, quien gestiona el evento, o quien puede participar en
     # él (`EventsService.user_may_participate_in_event`: público de su programa
@@ -705,7 +726,8 @@ def get_public_event_detail(event_id: int):
     ).first() is not None
 
     if not (is_creator or is_admin or _event_participable_by_current_user(event)):
-        return jsonify({"ok": False, "error": "Sin acceso a este evento"}), 403
+        # Mismo cuerpo y mismo código que el evento inexistente de arriba.
+        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
 
     program = db.session.get(Program, event.program_id) if event.program_id else None
 
@@ -923,7 +945,11 @@ def list_event_hosts(event_id: int):
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
     if not (_event_managed_by_current_user(event) or _event_participable_by_current_user(event)):
-        return _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
+        # 404, no 403: mismo cuerpo y mismo codigo que el evento inexistente de
+        # arriba. Un 403 aqui confirma que ese id existe, y quien pregunta no
+        # tiene por que saberlo — recorriendo 1..N obtiene el censo de eventos
+        # privados y en borrador de toda la institucion.
+        return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
     hosts = EventsService.get_event_hosts(event_id, viewer=current_user)
     return jsonify({"ok": True, "hosts": hosts}), 200
@@ -1005,7 +1031,11 @@ def list_event_images(event_id: int):
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
     if not (_event_managed_by_current_user(event) or _event_participable_by_current_user(event)):
-        return _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
+        # 404, no 403: mismo cuerpo y mismo codigo que el evento inexistente de
+        # arriba. Un 403 aqui confirma que ese id existe, y quien pregunta no
+        # tiene por que saberlo — recorriendo 1..N obtiene el censo de eventos
+        # privados y en borrador de toda la institucion.
+        return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
     data = EventsService.get_event_images(event_id)
     return jsonify({"ok": True, **data}), 200
