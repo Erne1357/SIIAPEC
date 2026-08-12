@@ -35,9 +35,14 @@ class Notification(db.Model):
     invitation = db.relationship('EventInvitation', backref='notification_ref', uselist=False)
     
     def to_dict(self):
+        # `id` stays an integer (Notification has no public handle); `user_id`
+        # names a User row and is published as its UUID.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
-            'user_id': self.user_id,
+            'user_id': uuid_for(User, self.user_id),
             'type': self.type,
             'title': self.title,
             'message': self.message,

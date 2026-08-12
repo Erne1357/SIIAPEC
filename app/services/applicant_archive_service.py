@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from app import db
+from app.services import public_id_service
 from app.config import Config
 from app.models.purge_run import PurgeRun, PURGE_TYPES
 from app.models.submission import Submission
@@ -159,7 +160,9 @@ def list_candidates(category: str) -> list:
             )
             result.append({
                 'user_program_id': up.id,
-                'user_id': up.user_id,
+                # Public handle: `user_program_id` sigue siendo entero porque es
+                # lo que la consola devuelve para lanzar la purga.
+                'user_id': public_id_service.user_uuid(up.user_id),
                 'name': _full_name(up.user),
                 'email': up.user.email,
                 'program_name': up.program.name if up.program else None,
@@ -193,7 +196,9 @@ def list_candidates(category: str) -> list:
             count, total = _files_count_for(up)
             result.append({
                 'user_program_id': up.id,
-                'user_id': up.user_id,
+                # Public handle: `user_program_id` sigue siendo entero porque es
+                # lo que la consola devuelve para lanzar la purga.
+                'user_id': public_id_service.user_uuid(up.user_id),
                 'name': _full_name(up.user),
                 'email': up.user.email,
                 'program_name': up.program.name if up.program else None,
@@ -235,7 +240,9 @@ def list_candidates(category: str) -> list:
                 continue
             result.append({
                 'user_program_id': up.id,
-                'user_id': up.user_id,
+                # Public handle: `user_program_id` sigue siendo entero porque es
+                # lo que la consola devuelve para lanzar la purga.
+                'user_id': public_id_service.user_uuid(up.user_id),
                 'name': _full_name(up.user),
                 'email': up.user.email,
                 'program_name': up.program.name if up.program else None,
@@ -245,7 +252,7 @@ def list_candidates(category: str) -> list:
                 'files_count': count,
                 'total_size_bytes': total,
                 'policy': {
-                    'archive_id': policy.archive_id,
+                    'archive_id': public_id_service.archive_uuid(policy.archive_id),
                     'keep_years': policy.keep_years,
                     'apply_after': policy.apply_after,
                 },
@@ -402,6 +409,20 @@ def create_purge_run(
     tmp_path = archive_path.with_suffix('.zip.tmp')
 
     # Construir lista de items (similar al list_candidates pero por id)
+    #
+    # OJO — aquí `user_id` es el ENTERO, a diferencia de `list_candidates`, que
+    # publica el UUID público. Esto no es una omisión:
+    #
+    #   * el ZIP es un artefacto de retención OFFLINE que sobrevive a la fila,
+    #     y sus carpetas se llaman `documents/user_<entero>/` (decisión del
+    #     dueño: los archivos en disco no se mueven ni se renombran). Si el
+    #     manifiesto y el CSV hablaran UUID, no casarían con las carpetas del
+    #     propio ZIP y quien lo abra dentro de cinco años no podría relacionarlos;
+    #   * es un REGISTRO PERSISTIDO, y los registros persistidos conservan el id
+    #     interno igual que el historial, los logs y los argumentos de Celery.
+    #
+    # La legibilidad humana la dan `name` y `email`, que ya viajan en la misma
+    # fila. Lo que sale por la API en vivo (`list_candidates`) sí es el UUID.
     items_meta = []
     for up in ups:
         count, total = _files_count_for(up)

@@ -1,7 +1,9 @@
 {# templates/admin/review/review_detail.html #}
 {% extends 'base.html' %}
 {% from '_macros.html' import data_table_open, data_table_close, status_badge, icon_button, required_mark %}
-{% block title %}Revisión de Documento #{{ sub.id }}{% endblock %}
+{# El id entero dejó de ser público y un uuid no es un título legible: el
+   documento se nombra por lo que es, no por su número de fila. #}
+{% block title %}Revisión de {{ sub.archive.name }}{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/admin/admin_review.css') }}?v={{ static_version }}" rel="stylesheet">
@@ -23,7 +25,7 @@
   </a>
 
   <header class="review-header mb-3">
-    <h1 class="h4 mb-1">Documento #{{ sub.id }} &ndash; {{ sub.archive.name }}</h1>
+    <h1 class="h4 mb-1">{{ sub.archive.name }}</h1>
     <p class="text-muted small mb-2">
       Subido por
       <strong>{{ sub.user.first_name }} {{ sub.user.last_name }}</strong>
@@ -48,8 +50,11 @@
         <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Documento entregado
       </h2>
       {% if sub.file_path %}
+      {# El URL nombra la FILA (uuid público). El nombre del archivo sigue
+         saliendo de la ruta guardada, pero sólo para decidir si se puede
+         previsualizar y para mostrarlo. #}
       {% set filename = sub.file_path.split('/')[-1] %}
-      {% set file_url = url_for('api_files.user_doc', user_id=sub.user_id, phase=phase, filename=filename) %}
+      {% set file_url = url_for('api_files.user_doc', doc_uuid=sub.uuid) %}
       <a class="btn btn-sm btn-outline-primary ms-auto" href="{{ file_url }}" target="_blank" rel="noopener">
         <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Abrir el documento en otra pestaña
       </a>
@@ -58,7 +63,7 @@
     <div class="card-body">
       {% if sub.file_path %}
         {% set filename = sub.file_path.split('/')[-1] %}
-        {% set file_url = url_for('api_files.user_doc', user_id=sub.user_id, phase=phase, filename=filename) %}
+        {% set file_url = url_for('api_files.user_doc', doc_uuid=sub.uuid) %}
         {% if filename.endswith('.pdf') %}
           <iframe class="doc-viewer" src="{{ file_url }}"
                   title="Vista previa del documento {{ sub.archive.name }}"></iframe>
@@ -152,7 +157,10 @@
       </h2>
     </div>
     <div class="card-body">
-      <form id="decisionForm" data-review-form="true" data-sub-id="{{ sub.id }}"
+      {# Identificador PÚBLICO de la fila: es el que viaja en
+         /api/v1/admin/review/submissions/<uuid>/decision y el que llega en el
+         payload de `submission:reviewed`. #}
+      <form id="decisionForm" data-review-form="true" data-sub-id="{{ sub.uuid }}"
             data-next-url="{{ url_for('pages_admin.pages_review.submissions', phase=phase) }}">
         <div class="mb-3">
           <label for="comment" class="form-label">
@@ -208,7 +216,9 @@
       <tbody>
         {% for h in history %}
         <tr>
-          <th scope="row" class="fw-normal">{{ h.id }}</th>
+          {# Contador de la lista, no el id de la fila: el id entero dejó de
+             ser público y un uuid completo no es legible en una columna. #}
+          <th scope="row" class="fw-normal">{{ loop.revindex }}</th>
           <td>{% if h.upload_date %}{{ h.upload_date|fechahora_es('numeric') }}{% else %}—{% endif %}</td>
           <td>{{ status_badge(h.status, size='sm') }}</td>
           <td class="small text-muted">
@@ -217,8 +227,9 @@
           <td class="small">{{ h.reviewer_comment or '—' }}</td>
           <td>
             {% if h.file_path %}
-              {{ icon_button('eye', 'Ver el archivo de la versión #' ~ h.id,
-                             href='/files/doc/' ~ h.file_path, target='_blank', rel='noopener') }}
+              {{ icon_button('eye', 'Ver el archivo de esta versión',
+                             href=url_for('api_files.user_doc', doc_uuid=h.uuid),
+                             target='_blank', rel='noopener') }}
             {% else %}—{% endif %}
           </td>
         </tr>

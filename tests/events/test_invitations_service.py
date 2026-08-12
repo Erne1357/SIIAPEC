@@ -388,7 +388,10 @@ class TestGetMyInvitations(unittest.TestCase):
         db.session.commit()
         result = EventsService.get_event_invitations(self.ev.id)
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['user_id'], self.student.id)
+        # The listing publishes the PUBLIC handle, never the integer primary
+        # key — the console posts this value straight back to the invitation
+        # and attendance endpoints, which resolve UUIDs.
+        self.assertEqual(result[0]['user_id'], str(self.student.uuid))
 
 
 class TestInviteToDraftEvent(unittest.TestCase):

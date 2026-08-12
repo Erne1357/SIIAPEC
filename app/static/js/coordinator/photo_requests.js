@@ -105,7 +105,7 @@
         <td>
           <div class="fw-semibold">${escHtml(it.full_name)}</div>
           ${window.siiapStudentRecordBtn ? `
-            <a href="/students/${it.user_id}/record" class="small text-decoration-none">
+            <a href="/students/${encodeURIComponent(it.user_id)}/record" class="small text-decoration-none">
               <i class="bi bi-folder2-open me-1" aria-hidden="true"></i>Expediente<span class="visually-hidden"> de ${escHtml(it.full_name)}</span>
             </a>` : ''}
         </td>
@@ -134,7 +134,8 @@
     document.querySelectorAll('#photoRequestsTbody [data-action]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const action = btn.dataset.action;
-        const userId = parseInt(btn.dataset.userId, 10);
+        // Identificador PÚBLICO del usuario (UUID): cadena, nunca entero.
+        const userId = btn.dataset.userId;
         if (!userId) return;
         if (action === 'approve') await decide(userId, true);
         else if (action === 'reject') await decide(userId, false);
@@ -149,7 +150,7 @@
       : (prompt('Motivo del rechazo (opcional):') || null);
 
     try {
-      const res = await fetch(`/api/v1/users/${userId}/photo/enable-change`, {
+      const res = await fetch(`/api/v1/users/${encodeURIComponent(userId)}/photo/enable-change`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
         body: JSON.stringify({ approve, reason }),
@@ -173,7 +174,7 @@
     if (!form) return;
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const userId = parseInt(document.getElementById('coordPhotoTargetUserId').value, 10);
+      const userId = document.getElementById('coordPhotoTargetUserId').value;
       const file = document.getElementById('coordPhotoFile').files?.[0];
       if (!userId || !file) return;
 
@@ -181,7 +182,7 @@
       fd.append('photo', file);
 
       try {
-        const res = await fetch(`/api/v1/users/${userId}/photo`, {
+        const res = await fetch(`/api/v1/users/${encodeURIComponent(userId)}/photo`, {
           method: 'POST',
           headers: { 'X-CSRFToken': csrfToken },
           body: fd,

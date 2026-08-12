@@ -69,14 +69,18 @@ def invite_students(event_id: int):
     if not user_ids or not isinstance(user_ids, list):
         return _deny("VALIDATION_ERROR", "user_ids debe ser una lista.", 400)
 
-    try:
-        target_ids = {int(uid) for uid in user_ids}
-    except (TypeError, ValueError):
-        return _deny(
-            "VALIDATION_ERROR",
-            "user_ids debe contener identificadores numéricos.",
-            400,
-        )
+    # `user_ids` es una lista de UUID públicos. Se rechaza la peticion entera
+    # si alguno falla, en vez de invitar a medias.
+    #
+    # Un UUID que no resuelve sale por el MISMO 403 que uno fuera de alcance,
+    # no por un 400 propio: con dos respuestas distintas, quien tuviera un UUID
+    # ajeno averiguaria si señala a alguien real sin llegar nunca a invitarlo.
+    # Se consigue mapeando lo irresoluble a un id imposible, que jamas puede
+    # estar en el alcance de nadie y por tanto arrastra la peticion al 403 de
+    # abajo.
+    from app.models.user import User
+    resolved = [User.by_uuid(raw) for raw in user_ids]
+    target_ids = {row.id if row is not None else -1 for row in resolved}
 
     max_batch = current_app.config.get('MAX_INVITE_BATCH', DEFAULT_MAX_INVITE_BATCH)
     if len(target_ids) > max_batch:

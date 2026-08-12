@@ -44,6 +44,11 @@ class AcademicPeriod(db.Model):
     semester_enrollments = db.relationship('SemesterEnrollment', back_populates='academic_period', lazy='dynamic')
 
     def to_dict(self):
+        # `coordinator_id` / `created_by` name a User row and are published as
+        # that user's UUID handle; the program's own id stays an integer.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
             'code': self.code,
@@ -56,7 +61,7 @@ class AcademicPeriod(db.Model):
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'created_by': self.created_by
+            'created_by': uuid_for(User, self.created_by)
         }
 
     @staticmethod

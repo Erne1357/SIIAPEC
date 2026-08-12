@@ -33,6 +33,11 @@ class Event(db.Model):
     windows = db.relationship('EventWindow', back_populates='event', cascade='all, delete-orphan')
     
     def to_dict(self):
+        # Ids that name a User row are published as their UUID handle;
+        # key names are unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
             'program_id': self.program_id,
@@ -40,7 +45,7 @@ class Event(db.Model):
             'title': self.title,
             'description': self.description,
             'location': self.location,
-            'created_by': self.created_by,
+            'created_by': uuid_for(User, self.created_by),
             'visible_to_students': self.visible_to_students,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
@@ -139,10 +144,15 @@ class EventAttendance(db.Model):
     user = db.relationship('User')
     
     def to_dict(self):
+        # Ids that name a User row are published as their UUID handle;
+        # key names are unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
             'event_id': self.event_id,
-            'user_id': self.user_id,
+            'user_id': uuid_for(User, self.user_id),
             'status': self.status,
             'registered_at': self.registered_at.isoformat() if self.registered_at else None,
             'attended_at': self.attended_at.isoformat() if self.attended_at else None,
@@ -169,11 +179,16 @@ class EventInvitation(db.Model):
     inviter = db.relationship('User', foreign_keys=[invited_by])
     
     def to_dict(self):
+        # Ids that name a User row are published as their UUID handle;
+        # key names are unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
             'event_id': self.event_id,
-            'user_id': self.user_id,
-            'invited_by': self.invited_by,
+            'user_id': uuid_for(User, self.user_id),
+            'invited_by': uuid_for(User, self.invited_by),
             'status': self.status,
             'invited_at': self.invited_at.isoformat() if self.invited_at else None,
             'responded_at': self.responded_at.isoformat() if self.responded_at else None,
@@ -213,10 +228,15 @@ class EventHost(db.Model):
     )
 
     def to_dict(self):
+        # Ids that name a User row are published as their UUID handle;
+        # key names are unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
             'event_id': self.event_id,
-            'user_id': self.user_id,
+            'user_id': uuid_for(User, self.user_id),
             'external_name': self.external_name,
             'external_bio': self.external_bio,
             'external_photo_path': self.external_photo_path,
@@ -283,10 +303,15 @@ class EventReminderLog(db.Model):
     )
 
     def to_dict(self):
+        # Ids that name a User row are published as their UUID handle;
+        # key names are unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
             'event_id': self.event_id,
-            'user_id': self.user_id,
+            'user_id': uuid_for(User, self.user_id),
             'appointment_id': self.appointment_id,
             'reminder_type': self.reminder_type,
             'sent_at': self.sent_at.isoformat() if self.sent_at else None,

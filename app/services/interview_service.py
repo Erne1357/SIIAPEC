@@ -156,8 +156,10 @@ class InterviewEligibilityService:
                 ).scalar_one_or_none()
 
                 archive_status = {
+                    # Handle público del Archive; `archive.id` interno se sigue
+                    # usando arriba para la consulta de Submission.
                     "archive_name": archive.name,
-                    "archive_id": archive.id,
+                    "archive_id": str(archive.uuid) if archive.uuid else None,
                     "has_submission": bool(submission),
                     "status": submission.status if submission else "missing",
                     "is_valid": False,
@@ -249,7 +251,10 @@ class InterviewEligibilityService:
 
             if eligibility["eligible"]:
                 eligible_students.append({
-                    "id": user.id,
+                    # Public handle: la consola de entrevistas lo devuelve como
+                    # `applicant_id` al asignar una cita, y esa ruta ya resuelve
+                    # el UUID público.
+                    "id": str(user.uuid) if user.uuid else None,
                     "full_name": f"{user.first_name} {user.last_name}",
                     "email": user.email,
                     "eligibility": eligibility

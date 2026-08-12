@@ -1079,7 +1079,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let _permCurrentConacyt = false;
 
   async function viewPermanenceDetails(studentId) {
-    _permCurrentStudentId = parseInt(studentId);
+    // Identificador público del estudiante (UUID): se guarda como cadena.
+    // Con parseInt quedaba NaN y `viewStudentDetails(NaN)` pedía
+    // /api/v1/coordinator/student/NaN/details.
+    _permCurrentStudentId = studentId;
 
     // Resetear modal
     document.getElementById('permModalAvatar').src = '/static/assets/images/default.jpg';

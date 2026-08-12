@@ -21,10 +21,17 @@ class UserHistory(db.Model):
     admin = db.relationship('User', foreign_keys=[admin_id])
     
     def to_dict(self):
+        # `id` stays an integer — UserHistory has no public handle and its id
+        # never leaves the server as an addressable identifier. `user_id` and
+        # `admin_id` DO name User rows, so they go out as UUIDs; the stored
+        # columns are untouched, this is a projection only.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
-            'user_id': self.user_id,
-            'admin_id': self.admin_id,
+            'user_id': uuid_for(User, self.user_id),
+            'admin_id': uuid_for(User, self.admin_id),
             'admin_name': f"{self.admin.first_name} {self.admin.last_name}" if self.admin else "Sistema",
             'action': self.action,
             'action_label': self.get_action_label(),

@@ -652,7 +652,8 @@
         const payload = {
             event_id: el('assignEventId').value,
             slot_id: el('assignSlotId').value,
-            applicant_id: parseInt(el('assignStudentId').value),
+            // Identificador público del aspirante (UUID): cadena, no entero.
+            applicant_id: el('assignStudentId').value || null,
             notes: el('assignNotes').value
         };
         if (!payload.applicant_id) {
@@ -1958,7 +1959,8 @@
         dropdown.querySelectorAll('button[data-user-id]').forEach(btn => {
             btn.addEventListener('click', () => {
                 showSelectedUser({
-                    id: parseInt(btn.dataset.userId),
+                    // Identificador público del usuario (UUID): cadena.
+                    id: btn.dataset.userId,
                     full_name: btn.dataset.fullName,
                     email: btn.dataset.email,
                     role: btn.dataset.role,
@@ -1980,7 +1982,9 @@
         }
         let hostObj = { role_label: roleLabel };
         if (isInternal) {
-            const userId = parseInt(el('hostUserId').value);
+            // El ponente interno se nombra con el UUID público del usuario;
+            // `replace_hosts` lo resuelve al id interno en el servidor.
+            const userId = el('hostUserId').value.trim();
             if (!userId) {
                 C.flash('Selecciona un usuario del sistema', 'warning');
                 return;
@@ -2263,9 +2267,11 @@
             const att = e.target.closest('.btn-mark-attended');
             const ns = e.target.closest('.btn-mark-no-show');
             const undo = e.target.closest('.btn-undo-attendance');
-            if (att) markAttendance(parseInt(att.dataset.userId), true);
-            if (ns) markAttendance(parseInt(ns.dataset.userId), false);
-            if (undo) undoAttendance(parseInt(undo.dataset.userId));
+            // `data-user-id` lleva el identificador público (UUID): se pasa
+            // tal cual, sin parseInt, que daría NaN.
+            if (att) markAttendance(att.dataset.userId, true);
+            if (ns) markAttendance(ns.dataset.userId, false);
+            if (undo) undoAttendance(undo.dataset.userId);
         });
 
         // Invitations
@@ -2290,7 +2296,10 @@
         el('inviteUsersGrid')?.addEventListener('change', (e) => {
             const cb = e.target.closest('.invite-check');
             if (!cb) return;
-            const id = parseInt(cb.dataset.userId);
+            // El conjunto se indexa por el identificador público (UUID en
+            // cadena), igual que `inviteSelected.has(u.id)` al pintar. Con
+            // parseInt todas las claves colapsaban en NaN.
+            const id = cb.dataset.userId;
             if (cb.checked) inviteSelected.add(id);
             else inviteSelected.delete(id);
             const card = cb.closest('.invite-user-card');

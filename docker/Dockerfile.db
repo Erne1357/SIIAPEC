@@ -2,8 +2,10 @@
 # ─────────────────────
 # Imagen base actualizada (alpine ↓30–60 MB)
 
-FROM postgres:16-alpine
-# Postgres 16 estará soportado hasta nov-2028
+FROM postgres:18-alpine
+# Postgres 18 estará soportado hasta nov-2030.
+# El volumen pgdata de un clúster 16 NO es legible por 18: el cambio de imagen
+# exige dump -> volumen nuevo -> restore. Ver el runbook en las notas de despliegue.
 
 # Configura la zona horaria de Ciudad Juárez
 ENV TZ=America/Ciudad_Juarez

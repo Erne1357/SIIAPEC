@@ -247,9 +247,9 @@ class TestListPendingPhotoRequests(unittest.TestCase):
         items_b = svc.list_pending_photo_requests(self.coord_b.id)
 
         self.assertEqual(len(items_a), 1)
-        self.assertEqual(items_a[0]['user_id'], self.student_a.id)
+        self.assertEqual(items_a[0]['user_id'], str(self.student_a.uuid))
         self.assertEqual(len(items_b), 1)
-        self.assertEqual(items_b[0]['user_id'], self.student_b.id)
+        self.assertEqual(items_b[0]['user_id'], str(self.student_b.uuid))
 
 
 if __name__ == '__main__':

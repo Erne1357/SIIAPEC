@@ -97,7 +97,9 @@
               <div class="flex-grow-1">
                 <p class="acceptance-doc__title">Carta de aceptación</p>
                 {% if letter %}
-                <a href="/files/doc/{{ letter.file_path }}" target="_blank" rel="noopener"
+                {# `file_url` lo construye AcceptanceDocument.to_dict(): nombra
+                   la fila, nunca la ruta en disco. #}
+                <a href="{{ letter.file_url }}" target="_blank" rel="noopener"
                    class="btn btn-sm btn-outline-success mt-1">
                   <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar
                   <span class="visually-hidden">carta de aceptación (se abre en una pestaña nueva)</span>
@@ -114,7 +116,7 @@
               <div class="flex-grow-1">
                 <p class="acceptance-doc__title">Tira de materias</p>
                 {% if schedule %}
-                <a href="/files/doc/{{ schedule.file_path }}" target="_blank" rel="noopener"
+                <a href="{{ schedule.file_url }}" target="_blank" rel="noopener"
                    class="btn btn-sm btn-outline-success mt-1">
                   <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar
                   <span class="visually-hidden">tira de materias (se abre en una pestaña nueva)</span>
@@ -140,7 +142,7 @@
                   <br><em>{{ dictamen.review_notes }}</em>
                   {% endif %}
                 </p>
-                <a href="/files/doc/{{ dictamen.file_path }}" target="_blank" rel="noopener"
+                <a href="{{ dictamen.file_url }}" target="_blank" rel="noopener"
                    class="btn btn-sm btn-outline-warning">
                   <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar dictamen
                   <span class="visually-hidden">(se abre en una pestaña nueva)</span>
@@ -604,7 +606,8 @@
 {{ super() }}
 <script>
   window.SIIAP_ADMISSION = {
-    userId:    {{ current_user.id|tojson }},
+    {# Identificador PÚBLICO del usuario. #}
+    userId:    {{ (current_user.uuid|string)|tojson }},
     programId: {{ (program.id if program else 0)|tojson }}
   };
 </script>

@@ -98,7 +98,7 @@
                 {% for file in ps.step.archives %}
                 <li>
                   {% if file.is_downloadable and file.file_path %}
-                  <a href="{{ url_for('api_archives.download_template', archive_id=file.id) }}"
+                  <a href="{{ url_for('api_archives.download_template', archive_uuid=file.uuid) }}"
                      target="_blank" rel="noopener"
                      class="document-link">
                     <i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>{{ file.name }}

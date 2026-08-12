@@ -216,7 +216,7 @@ class AcceptanceManager {
                 this.showDeferModal(data.userId, data.programId, data.applicantName);
                 break;
             case 'review-receipt':
-                this.showReviewModal(data.docId, data.applicantName, data.filePath);
+                this.showReviewModal(data.docId, data.applicantName, data.fileUrl);
                 break;
             case 'assign-control-number':
                 this.showAssignControlNumberModal(data.userId, data.programId, data.applicantName);
@@ -449,7 +449,7 @@ class AcceptanceManager {
                                 data-action="review-receipt"
                                 data-doc-id="${SIIAP.escapeAttr(receiptDoc.id)}"
                                 data-applicant-name="${SIIAP.escapeAttr(user.full_name)}"
-                                data-file-path="${SIIAP.escapeAttr(receiptDoc.file_path)}">
+                                data-file-url="${SIIAP.escapeAttr(receiptDoc.file_url || '')}">
                             <i class="bi bi-eye"></i> Revisar
                         </button>
                     </td>
@@ -649,7 +649,7 @@ class AcceptanceManager {
         }
     }
 
-    showReviewModal(docId, applicantName, filePath) {
+    showReviewModal(docId, applicantName, fileUrl) {
         document.getElementById('reviewReceiptDocId').value = docId;
         document.getElementById('reviewReceiptApplicantName').textContent = applicantName;
         document.getElementById('reviewReceiptNotes').value = '';
@@ -658,16 +658,12 @@ class AcceptanceManager {
         // Reset radios
         document.querySelectorAll('input[name="reviewReceiptStatus"]').forEach(r => r.checked = false);
 
-        // Construir URL de descarga del archivo
-        if (filePath) {
-            // filePath tiene formato: user_id/acceptance/filename.pdf
-            // Cada segmento se codifica por separado: el nombre del archivo lo
-            // controla quien lo sube y puede traer ?, # o espacios.
-            const parts = String(filePath).split('/');
-            const userId = parts[0];
-            const phase = parts[1];
-            const filename = parts.slice(2).map(encodeURIComponent).join('/');
-            const downloadUrl = `/files/doc/${encodeURIComponent(userId)}/${encodeURIComponent(phase)}/${filename}`;
+        // El URL de descarga lo publica el servidor (`file_url`) y nombra la
+        // FILA con un identificador opaco. Antes se armaba aquí a partir de
+        // `<user_id>/<fase>/<archivo>`, lo que obligaba a publicar el id
+        // entero del aspirante y la ruta exacta del documento en el payload.
+        if (fileUrl) {
+            const downloadUrl = fileUrl;
             const viewBtn = document.getElementById('viewReceiptBtn');
             viewBtn.href = downloadUrl;
             viewBtn.classList.remove('disabled');
@@ -687,7 +683,12 @@ class AcceptanceManager {
         const status = document.querySelector('input[name="reviewReceiptStatus"]:checked')?.value;
         const notes = document.getElementById('reviewReceiptNotes').value.trim();
 
-        if (!docId || docId === 'undefined' || docId === 'null' || !/^\d+$/.test(docId)) {
+        // El identificador del documento es un UUID público: la validación
+        // deja de ser «sólo dígitos» (que ahora rechazaría TODO identificador
+        // válido) y pasa a comprobar la forma canónica. Un UUID que no exista
+        // lo contesta el backend con el mismo 404 que uno fuera de alcance.
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!docId || !UUID_RE.test(docId)) {
             showFlash('danger', 'Documento inválido — recarga la página e intenta de nuevo.');
             return;
         }

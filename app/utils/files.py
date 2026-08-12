@@ -57,8 +57,20 @@ def _validate_ext(name: str, allowed: set[str]) -> str:
         abort(400, "Extensión no permitida")
     return ext
 
-def abs_path_from_db(relative_path: str, base_folder: Path) -> Path:
-    """Convierte '42/avatar.webp' ➜ <Path …/uploads/avatars/42/avatar.webp>"""
+def abs_path_from_db(relative_path: str, base_folder: Path):
+    """
+    Convierte '42/avatar.webp' ➜ '…/uploads/avatars/42/avatar.webp'.
+
+    DEVUELVE None si la ruta se sale de `base_folder`. `werkzeug.safe_join` no
+    lanza en ese caso: retorna None. Todo llamador tiene que comprobarlo —
+    `Path(None)` es un TypeError, es decir un 500 donde correspondía un 404.
+    El único llamador (`files_api._send_safe`) lo comprueba explícitamente.
+
+    Las rutas que entran aquí vienen SIEMPRE de la base de datos (columna
+    `file_path` y compañía), nunca del URL: desde el corte a identificadores
+    opacos el cliente no aporta ningún segmento de ruta. Esto es defensa en
+    profundidad sobre un valor almacenado, no validación de entrada.
+    """
     return safe_join(base_folder, relative_path)  # evita ../ traversal
 
 

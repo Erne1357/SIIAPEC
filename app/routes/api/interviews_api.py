@@ -13,9 +13,12 @@ compliance detail and one of them writes a state that feeds eligibility.
 from flask import Blueprint, current_app, jsonify
 from flask_login import login_required, current_user
 
+from app.models.user import User
+from app.routes._public_id import resolved_id
 from app.utils.permissions import (
     permission_required,
     program_scope_required,
+    guard_user_scope,
     current_accessible_program_ids,
 )
 from app.services.interview_service import InterviewEligibilityService
@@ -25,11 +28,11 @@ api_interviews = Blueprint('api_interviews', __name__, url_prefix='/api/v1/inter
 _SERVER_ERROR_MESSAGE = 'Ocurrió un error al procesar la solicitud'
 
 
-@api_interviews.route('/eligibility/<int:student_id>/<int:program_id>', methods=['GET'])
+@api_interviews.route('/eligibility/<uuid:student_uuid>/<int:program_id>', methods=['GET'])
 @login_required
 @permission_required('interviews.api.check_eligibility')
-@program_scope_required(program_id_kwarg='program_id', user_id_kwarg='student_id')
-def check_eligibility(student_id: int, program_id: int):
+@program_scope_required(program_id_kwarg='program_id')
+def check_eligibility(student_uuid, program_id: int):
     """
     Verifica si un estudiante específico es elegible para entrevista.
 
@@ -39,12 +42,22 @@ def check_eligibility(student_id: int, program_id: int):
     applicant must belong to one of the caller's programs. That also closes the
     enumeration oracle — an unknown student_id and an out-of-scope one both
     answer 403, so ids are no longer walkable 1..N.
+
+    The applicant half of that guard is now imperative because the URL carries
+    a UUID: `guard_user_scope(None)` fails closed, so an unknown identifier and
+    an out-of-scope one still produce the byte-identical 403.
     """
+    student = User.by_uuid(student_uuid)
+    denied = guard_user_scope(resolved_id(student))
+    if denied:
+        return denied
+    student_id = student.id
+
     try:
         eligibility = InterviewEligibilityService.check_student_eligibility(student_id, program_id)
         return jsonify({
             "ok": True,
-            "student_id": student_id,
+            "student_id": str(student.uuid) if student.uuid else None,
             "program_id": program_id,
             "eligibility": eligibility
         }), 200
@@ -149,19 +162,26 @@ def list_all_eligible_students():
         }), 500
 
 
-@api_interviews.route('/mark-profile-complete/<int:user_id>', methods=['POST'])
+@api_interviews.route('/mark-profile-complete/<uuid:user_uuid>', methods=['POST'])
 @login_required
 @permission_required('interviews.api.manage')
-@program_scope_required(user_id_kwarg='user_id', allow_self=False)
-def mark_profile_complete(user_id: int):
+def mark_profile_complete(user_uuid):
     """
     Marca el perfil de un usuario como completo (uso administrativo).
 
     `profile_completed` is criterion #1 of interview eligibility, so this is a
     program-scoped WRITE: the target applicant must belong to one of the
     caller's programs. `allow_self=False` because no holder of
-    `interviews.api.manage` is their own applicant.
+    `interviews.api.manage` is their own applicant. The guard is imperative
+    now that the URL carries a UUID; `guard_user_scope(None)` fails closed, so
+    unknown and out-of-scope answer identically.
     """
+    target = User.by_uuid(user_uuid)
+    denied = guard_user_scope(resolved_id(target), allow_self=False)
+    if denied:
+        return denied
+    user_id = target.id
+
     try:
         result = InterviewEligibilityService.mark_profile_complete(
             user_id=user_id,

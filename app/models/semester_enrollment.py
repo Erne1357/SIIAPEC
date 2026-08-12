@@ -1,9 +1,10 @@
 # app/models/semester_enrollment.py
 from app import db
+from app.models.mixins import PublicUUIDMixin
 from app.utils.datetime_utils import now_local
 
 
-class SemesterEnrollment(db.Model):
+class SemesterEnrollment(PublicUUIDMixin, db.Model):
     """
     Registro de inscripcion semestral del estudiante.
 
@@ -16,6 +17,14 @@ class SemesterEnrollment(db.Model):
     - completed: Semestre terminado exitosamente
     - on_leave:  Baja temporal (permiso)
     - dropped:   Baja definitiva del semestre
+
+    Why this row carries a public UUID handle
+    -----------------------------------------
+    It is the SIXTH model with `PublicUUIDMixin`, and the reason is narrow: it
+    owns two served files (`payment_proof_path`, `schedule_path`) and
+    `/files/doc/<handle>/<slot>` needs an opaque way to name the row. Nothing
+    else about this model became public — `id` stays an integer in `to_dict()`
+    because no route is addressed by it and no payload key names it.
     """
     __tablename__ = 'semester_enrollment'
 
@@ -65,6 +74,14 @@ class SemesterEnrollment(db.Model):
     confirmed_by_user = db.relationship('User', foreign_keys=[confirmed_by])
 
     def to_dict(self):
+        # `payment_proof_path` / `schedule_path` are published as the BASENAME
+        # only. The stored value starts with `<user_id>/`, so publishing it raw
+        # handed every consumer the integer id of the student — the exact leak
+        # the opaque URL exists to close. The basename is what the UI actually
+        # shows ("Comprobante_marzo.pdf"); the `_url` keys are the only way to
+        # reach the bytes and they name the ROW, never the path.
+        from app.services import file_access_service
+
         return {
             'id': self.id,
             'user_program_id': self.user_program_id,
@@ -75,10 +92,12 @@ class SemesterEnrollment(db.Model):
             'confirmed_by': self.confirmed_by,
             'confirmed_at': self.confirmed_at.isoformat() if self.confirmed_at else None,
             'notes': self.notes,
-            'payment_proof_path': self.payment_proof_path,
-            'payment_proof_url': f'/files/doc/{self.payment_proof_path}' if self.payment_proof_path else None,
-            'schedule_path': self.schedule_path,
-            'schedule_url': f'/files/doc/{self.schedule_path}' if self.schedule_path else None,
+            'payment_proof_path': file_access_service.document_download_name(
+                self.payment_proof_path),
+            'payment_proof_url': file_access_service.enrollment_payment_proof_url(self),
+            'schedule_path': file_access_service.document_download_name(
+                self.schedule_path),
+            'schedule_url': file_access_service.enrollment_schedule_url(self),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

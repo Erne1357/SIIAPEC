@@ -9,6 +9,21 @@
  *   siiap:notification:new     → { notification: {...} }
  *   siiap:deliberation:updated → { user_id, user_name, program_id, status }
  *   siiap:email:queue_update   → { pending, failed }
+ *
+ * TIPO DE LOS IDENTIFICADORES EN TODOS LOS PAYLOADS DE ABAJO
+ * ----------------------------------------------------------
+ * `user_id`, `applicant_id`, `submission_id`, `archive_id` y `requested_by`
+ * nombran una fila de User / Submission / Archive: viajan como el UUID
+ * PÚBLICO en cadena, exactamente igual que en las respuestas REST. Cualquier
+ * comparación con un valor sacado de un `data-*` debe hacerse como cadena;
+ * `parseInt` sobre uno de ellos da NaN y la comparación es siempre falsa.
+ *
+ * El resto de ids (`program_id`, `event_id`, `slot_id`, `appointment_id`,
+ * `extension_request_id`, `notification.id`…) siguen siendo enteros: esos
+ * modelos no tienen identificador público.
+ *
+ * La SALA (`user:{id}`) sigue usando el id interno, pero eso no es público:
+ * el servidor la resuelve desde el handshake y el cliente nunca la nombra.
  */
 
 (function () {

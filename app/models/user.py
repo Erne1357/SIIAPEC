@@ -2,6 +2,7 @@ from app import db
 from flask import url_for, g
 from flask_login import UserMixin
 from datetime import datetime, timezone
+from app.models.mixins import PublicUUIDMixin
 from app.utils.datetime_utils import now_local
 from werkzeug.security import generate_password_hash
 
@@ -65,9 +66,9 @@ SELF_SERVICE_PERMISSIONS = frozenset({
 })
 
 
-class User(db.Model, UserMixin):
+class User(PublicUUIDMixin, db.Model, UserMixin):
     __tablename__ = 'user'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
@@ -195,8 +196,13 @@ class User(db.Model, UserMixin):
 
     @property
     def avatar_url(self):
+        # El URL lleva el identificador público de la fila y NADA más: ni el id
+        # entero (enumerable) ni el nombre del archivo (que tampoco aportaba —
+        # cada cuenta tiene una sola foto y la fila ya dice cuál). Esta
+        # propiedad alimenta ~15 payloads, así que es el único sitio donde
+        # cambiarlo.
         if self.avatar and self.avatar != 'default.jpg':
-            return url_for('api_files.avatar', user_id=self.id, filename=self.avatar)
+            return url_for('api_files.avatar', user_uuid=self.uuid)
         return url_for('static', filename='assets/images/default.jpg')
     
     # ─── Permissions ─────────────────────────────────────────────────────────
@@ -436,8 +442,12 @@ class User(db.Model, UserMixin):
         return not has_submissions  # and not has_appointments
 
     def to_dict(self, include_sensitive=False):
+        # `id` is the public UUID handle, never the integer primary key —
+        # the integer stays internal (foreign keys, service arguments, history
+        # rows, Celery arguments). The key name stays `id` on purpose:
+        # `CROSS_PROGRAM_SUMMARY_FIELDS` allow-lists by key name.
         user_data = {
-            'id': self.id,
+            'id': str(self.uuid) if self.uuid else None,
             'first_name': self.first_name,
             'last_name': self.last_name,
             'mother_last_name': self.mother_last_name,

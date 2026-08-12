@@ -62,8 +62,12 @@
             return;
         }
         tbody.innerHTML = policies.map(p => {
-            const a = archives.find(x => x.id === p.archive_id);
-            const archiveName = a ? a.name : `Archivo ${p.archive_id}`;
+            // Ambos lados son ya el identificador público (UUID en cadena),
+            // así que la comparación estricta sigue siendo la correcta.
+            const a = archives.find(x => String(x.id) === String(p.archive_id));
+            // Sin coincidencia no se imprime el identificador: un UUID en una
+            // celda no le dice nada a nadie y antes era un entero legible.
+            const archiveName = a ? a.name : "Archivo no disponible";
             const applyAfter = APPLY_AFTER_LABEL[p.apply_after] || p.apply_after || "—";
             return `
         <tr data-id="${SIIAP.escapeAttr(p.id)}">
@@ -117,7 +121,10 @@
     form.addEventListener("submit", async (ev) => {
         ev.preventDefault();
         const body = {
-            archive_id: Number(polArchive.value),
+            // `archive_id` es el identificador público del archivo (UUID): se
+            // envía tal cual. Con Number() salía NaN, que JSON serializa como
+            // null y el backend leía como «sin archivo».
+            archive_id: polArchive.value || null,
             keep_forever: polForever.checked,
             keep_years: polForever.checked ? null : Number(polYears.value || 0),
             apply_after: polAfter.value

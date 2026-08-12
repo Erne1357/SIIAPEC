@@ -14,6 +14,7 @@ Variables adicionales para payment_reference:
   {{semester_number}}, {{payment_amount}}, {{payment_reference}}, {{due_date}}
 """
 from app import db
+from app.models.mixins import PublicUUIDMixin
 from app.utils.datetime_utils import now_local
 
 # Tipos de documento soportados
@@ -28,7 +29,7 @@ DOCUMENT_TYPES = {
 TEMPLATE_FILE_TYPES = ('html', 'docx')
 
 
-class DocumentTemplate(db.Model):
+class DocumentTemplate(PublicUUIDMixin, db.Model):
     """
     Plantilla de documento asociada a un programa (o global si program_id es NULL).
     La plantilla con program_id específico tiene prioridad sobre la global.
@@ -66,8 +67,12 @@ class DocumentTemplate(db.Model):
     creator = db.relationship('User', foreign_keys=[created_by])
 
     def to_dict(self):
+        # `id` and `created_by` go out as UUIDs; `program_id` stays an integer.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
-            'id': self.id,
+            'id': str(self.uuid) if self.uuid else None,
             'program_id': self.program_id,
             'program_name': self.program.name if self.program else None,
             'document_type': self.document_type,
@@ -78,7 +83,7 @@ class DocumentTemplate(db.Model):
             'description': self.description,
             'is_active': self.is_active,
             'is_global': self.program_id is None,
-            'created_by': self.created_by,
+            'created_by': uuid_for(User, self.created_by),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

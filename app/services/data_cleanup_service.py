@@ -9,6 +9,8 @@ Este servicio sólo sirve para previsualizar candidatos desde la UI.
 """
 from typing import List, Dict
 
+from app.services import public_id_service
+
 
 class DataCleanupService:
 
@@ -61,7 +63,7 @@ class DataCleanupService:
             )
 
             result.append({
-                'user_id': up.user_id,
+                'user_id': public_id_service.user_uuid(up.user_id),
                 'user_program_id': up.id,
                 'name': f"{up.user.first_name} {up.user.last_name} {up.user.mother_last_name or ''}".strip(),
                 'email': up.user.email,
@@ -103,7 +105,7 @@ class DataCleanupService:
                 continue
 
             result.append({
-                'user_id': up.user_id,
+                'user_id': public_id_service.user_uuid(up.user_id),
                 'user_program_id': up.id,
                 'name': f"{up.user.first_name} {up.user.last_name} {up.user.mother_last_name or ''}".strip(),
                 'email': up.user.email,

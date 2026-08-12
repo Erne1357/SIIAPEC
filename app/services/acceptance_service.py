@@ -12,6 +12,7 @@ Flujo:
 """
 
 from app import db
+from app.services import public_id_service
 from app.models import UserProgram, User, Program, ExtensionRequest, Submission, ProgramStep
 from app.models.acceptance_document import AcceptanceDocument
 from app.services.notification_service import NotificationService
@@ -80,6 +81,16 @@ class ApplicantNotFound(AcceptanceError):
     pass
 
 
+#: Denial text for "that applicant/document is not here". Deliberately carries
+#: NO id: the routes now speak UUIDs, so echoing the internal integer would
+#: hand it straight back out, and a message that varies with the cause
+#: ("no such user" vs "user exists but not in this program") is exactly the
+#: enumeration oracle the 404 policy exists to close. One string, every cause.
+APPLICANT_NOT_FOUND_MESSAGE = 'No se encontró al aspirante.'
+DOCUMENT_NOT_FOUND_MESSAGE = 'Documento no encontrado'
+USER_PROGRAM_NOT_FOUND_MESSAGE = 'No se encontró el proceso de admisión.' 
+
+
 class InvalidDocumentType(AcceptanceError):
     pass
 
@@ -101,14 +112,14 @@ class DocumentDebtError(AcceptanceError):
 def _get_user_program(user_id: int, program_id: int) -> UserProgram:
     up = UserProgram.query.filter_by(user_id=user_id, program_id=program_id).first()
     if not up:
-        raise ApplicantNotFound(f"No se encontro al aspirante {user_id} en el programa {program_id}")
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
     return up
 
 
 def _get_user_program_by_id(user_program_id: int) -> UserProgram:
     up = UserProgram.query.get(user_program_id)
     if not up:
-        raise ApplicantNotFound(f"No se encontro UserProgram {user_program_id}")
+        raise ApplicantNotFound(USER_PROGRAM_NOT_FOUND_MESSAGE)
     return up
 
 
@@ -195,7 +206,9 @@ def get_accepted_applicants(program_id: int):
         result.append({
             'user_program': up.to_dict(include_deliberation=True),
             'user': {
-                'id': user.id,
+                # Public handle: la consola de aceptación construye
+                # `/api/v1/acceptance/user/<uuid>/program/<id>/…` con este valor.
+                'id': str(user.uuid) if user.uuid else None,
                 'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
                 'email': user.email,
                 'curp': user.curp,
@@ -348,14 +361,14 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
     try:
         from app.extensions import socketio
         socketio.emit('acceptance:updated', {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'action': f'{document_type}_uploaded',
             'document_type': document_type,
         }, room=f'user:{user_id}')
         # También notificar a coordinadores del programa para que refresquen sus tablas
         socketio.emit('acceptance:updated', {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'action': f'{document_type}_uploaded',
             'document_type': document_type,
@@ -446,7 +459,7 @@ def submit_enrollment_receipt(user_id: int, program_id: int,
         # program-scoped, no `role:coordinator` (que es toda la institución).
         from app.sockets.emitters import emit_to_coordinators
         emit_to_coordinators('acceptance:updated', {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'action': 'receipt_submitted',
         }, program_id)
@@ -477,7 +490,7 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
 
     doc = AcceptanceDocument.query.get(doc_id)
     if not doc:
-        raise ApplicantNotFound(f"Documento {doc_id} no encontrado")
+        raise ApplicantNotFound(DOCUMENT_NOT_FOUND_MESSAGE)
 
     if doc.document_type != 'enrollment_receipt':
         raise InvalidDocumentType("Solo se puede revisar documentos de tipo enrollment_receipt")
@@ -561,7 +574,7 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
     try:
         from app.extensions import socketio
         socketio.emit('acceptance:updated', {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': up.program_id,
             'action': f'receipt_{status}',
         }, room=f'user:{user_id}')
@@ -580,7 +593,7 @@ def delete_coordinator_doc(doc_id: int, coordinator_id: int) -> None:
     """
     doc = AcceptanceDocument.query.get(doc_id)
     if not doc:
-        raise ApplicantNotFound(f"Documento {doc_id} no encontrado")
+        raise ApplicantNotFound(DOCUMENT_NOT_FOUND_MESSAGE)
 
     if doc.document_type not in COORDINATOR_DOC_TYPES:
         raise InvalidDocumentType("Solo se pueden eliminar carta de aceptacion o tira de materias")
@@ -704,7 +717,7 @@ def assign_control_number(user_id: int, program_id: int,
 
     user = UserModel.query.get(user_id)
     if not user:
-        raise ApplicantNotFound(f"Usuario {user_id} no encontrado")
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
 
     program = Program.query.get(program_id)
 
@@ -759,7 +772,7 @@ def assign_control_number(user_id: int, program_id: int,
     try:
         from app.extensions import socketio
         socketio.emit('acceptance:updated', {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'action': 'control_number_assigned',
         }, room=f'user:{user_id}')
@@ -822,7 +835,7 @@ def assign_control_number_admin(user_id: int, program_id: int,
 
     user = UserModel.query.get(user_id)
     if not user:
-        raise ApplicantNotFound(f"Usuario {user_id} no encontrado")
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
 
     program = Program.query.get(program_id)
 
@@ -879,7 +892,7 @@ def assign_control_number_admin(user_id: int, program_id: int,
     try:
         from app.extensions import socketio
         socketio.emit('acceptance:updated', {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'action': 'control_number_assigned_admin',
         }, room=f'user:{user_id}')

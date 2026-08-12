@@ -20,6 +20,7 @@ import logging
 from typing import Optional
 
 from app import db
+from app.services import public_id_service
 from app.models import UserProgram, User, Program, AcademicPeriod
 from app.models.semester_enrollment import SemesterEnrollment
 from app.models.enrollment_deferral import EnrollmentDeferral
@@ -316,7 +317,7 @@ def _build_student_row(up: UserProgram, source_period_id: int, target_period_id:
     return {
         'user_program': up.to_dict(),
         'user': {
-            'id': user.id,
+            'id': public_id_service.user_uuid(user.id),
             'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
             'email': user.email,
             'control_number': getattr(user, 'control_number', None),
@@ -389,7 +390,7 @@ def _build_admission_rows(
         base_row = {
             'user_program': up.to_dict(),
             'user': {
-                'id': user.id,
+                'id': public_id_service.user_uuid(user.id),
                 'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
                 'email': user.email,
                 'control_number': getattr(user, 'control_number', None),
@@ -490,7 +491,7 @@ def preview_program(
             on_leave.append({
                 'user_program': up.to_dict(),
                 'user': {
-                    'id': user.id,
+                    'id': public_id_service.user_uuid(user.id),
                     'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
                     'email': user.email,
                     'control_number': getattr(user, 'control_number', None),

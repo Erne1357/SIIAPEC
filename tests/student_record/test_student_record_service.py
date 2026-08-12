@@ -72,16 +72,16 @@ class TestGetFullRecord(unittest.TestCase):
         self.assertIn('deferrals', rec)
         self.assertIn('history', rec)
         self.assertIn('editable_fields', rec)
-        self.assertEqual(rec['user']['id'], self.student.id)
+        self.assertEqual(rec['user']['id'], str(self.student.uuid))
         self.assertEqual(rec['user']['email'], self.student.email)
 
     def test_postgraduate_admin_sees_any_student(self):
         rec = svc.get_full_record(self.other_student.id, requester=self.pg_admin)
-        self.assertEqual(rec['user']['id'], self.other_student.id)
+        self.assertEqual(rec['user']['id'], str(self.other_student.uuid))
 
     def test_program_admin_sees_only_their_students(self):
         rec = svc.get_full_record(self.student.id, requester=self.coord)
-        self.assertEqual(rec['user']['id'], self.student.id)
+        self.assertEqual(rec['user']['id'], str(self.student.uuid))
 
     def test_program_admin_blocked_for_other_program(self):
         with self.assertRaises(svc.AccessDenied):
@@ -89,7 +89,7 @@ class TestGetFullRecord(unittest.TestCase):
 
     def test_self_can_see_own_record(self):
         rec = svc.get_full_record(self.student.id, requester=self.student)
-        self.assertEqual(rec['user']['id'], self.student.id)
+        self.assertEqual(rec['user']['id'], str(self.student.uuid))
 
     def test_unknown_user_raises(self):
         with self.assertRaises(svc.StudentNotFound):

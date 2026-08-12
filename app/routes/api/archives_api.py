@@ -227,7 +227,7 @@ def list_archives():
     if include_step:
         j = join(Archive, Step, Archive.step_id == Step.id)
         sel = select(
-            Archive.id, Archive.name, Archive.description,
+            Archive.id, Archive.uuid, Archive.name, Archive.description,
             Archive.is_uploadable, Archive.is_downloadable,
             Archive.step_id, Step.name.label("step_name"),
             Archive.file_path,
@@ -243,9 +243,11 @@ def list_archives():
         rows = db.session.execute(sel).all()
         items = []
         for r in rows:
-            (aid, name, desc, up, down, step_id, step_name, fpath, allow_coord, allow_ext) = r
+            (aid, auuid, name, desc, up, down, step_id, step_name, fpath, allow_coord, allow_ext) = r
+            public_id = str(auuid) if auuid else None
             items.append({
-                "id": aid,
+                # Public handle — it is what the browser puts back in the URL.
+                "id": public_id,
                 "name": name,
                 "description": desc,
                 "is_uploadable": bool(up),
@@ -255,7 +257,7 @@ def list_archives():
                 "step_id": step_id,
                 "step_name": step_name,
                 "can_manage": exclusive is None or step_id in exclusive,
-                "template_url": f"/api/v1/archives/{aid}/template" if fpath else None,
+                "template_url": f"/api/v1/archives/{public_id}/template" if fpath else None,
                 "template_name": os.path.basename(fpath) if fpath else None
             })
         return jsonify({"ok": True, "items": items}), 200
@@ -272,7 +274,7 @@ def list_archives():
     for a in archives:
         allow_ext = getattr(a, "allow_extension_request", False)
         items.append({
-            "id": a.id,
+            "id": str(a.uuid) if a.uuid else None,
             "name": a.name,
             "description": a.description,
             "is_uploadable": a.is_uploadable,
@@ -281,7 +283,7 @@ def list_archives():
             "allow_extension_request": bool(allow_ext),
             "step_id": a.step_id,
             "can_manage": exclusive is None or a.step_id in exclusive,
-            "template_url": f"/api/v1/archives/{a.id}/template" if a.file_path else None,
+            "template_url": f"/api/v1/archives/{a.uuid}/template" if a.file_path else None,
             "template_name": os.path.basename(a.file_path) if a.file_path else None
         })
     return jsonify({"ok": True, "items": items}), 200
@@ -381,19 +383,22 @@ def create_archive():
     except Exception as e:
         current_app.logger.error(f"Error al registrar creación de archivo en historial: {e}")
     
-    return jsonify({"ok": True, "id": a.id}), 201
+    return jsonify({"ok": True, "id": str(a.uuid) if a.uuid else None}), 201
 
 # =========================
 # Actualizar (toggles + meta + mover de step)
 # =========================
-@api_archives.route("/<int:archive_id>", methods=["PUT", "PATCH"])
+@api_archives.route("/<uuid:archive_uuid>", methods=["PUT", "PATCH"])
 @login_required
 @permission_required('archives.api.update')
-def update_archive(archive_id: int):
+def update_archive(archive_uuid):
     data = request.get_json() or {}
-    a = db.session.get(Archive, archive_id)
+    # Identificador desconocido o malformado: el mismo 404 que un archive
+    # inexistente. El alcance de escritura se resuelve después, por step.
+    a = Archive.by_uuid(archive_uuid)
     if not a:
         return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
+    archive_id = a.id
 
     # Alcance de escritura sobre el step actual Y sobre el destino si cambia.
     denied = _archive_write_denied(a.step_id)
@@ -476,7 +481,8 @@ def update_archive(archive_id: int):
             except Exception as e:
                 current_app.logger.error(f"Error al registrar actualización de archivo en historial: {e}")
         
-        return jsonify({"ok": True, "id": a.id}), 200
+        # Handle público, nunca la clave primaria entera.
+        return jsonify({"ok": True, "id": str(a.uuid) if a.uuid else None}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"ok": False, "error": str(e)}), 400
@@ -484,14 +490,18 @@ def update_archive(archive_id: int):
 # =========================
 # Borrar archivo (con seguridad)
 # =========================
-@api_archives.route("/<int:archive_id>", methods=["DELETE"])
+@api_archives.route("/<uuid:archive_uuid>", methods=["DELETE"])
 @login_required
 @permission_required('archives.api.delete')
-def delete_archive(archive_id: int):
+def delete_archive(archive_uuid):
     force = request.args.get("force") in ("1", "true", "True", "yes")
-    a = db.session.get(Archive, archive_id)
+    a = Archive.by_uuid(archive_uuid)
     if not a:
         return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
+    # El id interno sigue mandando en disco: `_templates_dir_for` y las rutas
+    # de plantilla usan el entero, y los archivos NO se mueven.
+    archive_id = a.id
+    archive_public_id = str(a.uuid) if a.uuid else None
 
     # Alcance de escritura por step. El borrado arrastra las entregas de todos
     # los programas que usan esa etapa, así que exige step exclusivo.
@@ -531,7 +541,7 @@ def delete_archive(archive_id: int):
             force
         )
         
-        return jsonify({"ok": True, "deleted": archive_id}), 200
+        return jsonify({"ok": True, "deleted": archive_public_id}), 200
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error en delete_archive para el id {archive_id}: {e}")
@@ -540,13 +550,14 @@ def delete_archive(archive_id: int):
 # =========================
 # Plantillas
 # =========================
-@api_archives.route("/<int:archive_id>/template", methods=["POST"])
+@api_archives.route("/<uuid:archive_uuid>/template", methods=["POST"])
 @login_required
 @permission_required('archives.api.manage_template')
-def upload_template(archive_id: int):
-    a = db.session.get(Archive, archive_id)
+def upload_template(archive_uuid):
+    a = Archive.by_uuid(archive_uuid)
     if not a:
         return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
+    archive_id = a.id
 
     # Alcance de escritura por step: sin esto un coordinador sobrescribía la
     # plantilla oficial que descargan los aspirantes de otro programa. Como el
@@ -576,17 +587,21 @@ def upload_template(archive_id: int):
             had_previous_template
         )
         
-        return jsonify({"ok": True, "id": a.id, "template_url": f"/api/v1/archives/{a.id}/template", "template_name": fname}), 200
+        public_id = str(a.uuid) if a.uuid else None
+        return jsonify({"ok": True, "id": public_id, "template_url": f"/api/v1/archives/{public_id}/template", "template_name": fname}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"ok": False, "error": str(e)}), 400
 
-@api_archives.route("/<int:archive_id>/template", methods=["GET"])
+@api_archives.route("/<uuid:archive_uuid>/template", methods=["GET"])
 @login_required
-def download_template(archive_id: int):
-    a = db.session.get(Archive, archive_id)
+def download_template(archive_uuid):
+    # Identificador desconocido, archive sin plantilla y plantilla fuera del
+    # alcance: los tres devuelven el mismo 404 con el mismo texto.
+    a = Archive.by_uuid(archive_uuid)
     if not a or not a.file_path:
         return jsonify({"ok": False, "error": "Plantilla no disponible"}), 404
+    archive_id = a.id
 
     # `is_downloadable` marca las plantillas publicadas: son formatos en
     # blanco que la página del programa ofrece a cualquier interesado, así que

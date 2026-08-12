@@ -401,7 +401,10 @@
     btn.disabled = true;
 
     try {
-      const body = { user_id: Number(userId), program_id: Number(programId), document_type: docType };
+      // `user_id` es el identificador público del estudiante (UUID) y viaja
+      // como cadena; `program_id` y `period_id` siguen siendo enteros porque
+      // esos modelos no tienen handle público.
+      const body = { user_id: userId, program_id: Number(programId), document_type: docType };
       if (periodId) body.period_id = Number(periodId);
 
       const res = await fetch(`${API}/generate`, {

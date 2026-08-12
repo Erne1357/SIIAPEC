@@ -18,6 +18,18 @@ api_appointments = Blueprint('api_appointments', __name__, url_prefix='/api/v1/a
 _STAFF_PERMISSION = 'appointments.api.assign'
 
 
+def _public_user_id(user_id):
+    """
+    Internal user id → the public UUID a payload may publish.
+
+    The Socket.IO ROOM argument keeps the integer: rooms are resolved
+    server-side from the session and never come from the client.
+    """
+    from app.models.user import User
+    from app.services.public_id_service import uuid_for
+    return uuid_for(User, user_id)
+
+
 def _deny(code: str, message: str, status: int):
     """Respuesta de denegación con el envelope del proyecto (mensaje en español)."""
     return jsonify({
@@ -135,10 +147,17 @@ def assign():
         denied = _event_manage_denied(event)
         if denied:
             return denied
-        try:
-            applicant_id = int(data.get('applicant_id') or current_user.id)
-        except (TypeError, ValueError):
-            return _deny("VALIDATION_ERROR", "applicant_id inválido.", 400)
+        # `applicant_id` viaja en el CUERPO como UUID público. Antes se leía
+        # con int(); hoy un valor no resoluble deja `applicant_id` en None y la
+        # guarda de alcance falla cerrado con el mismo 403 que un aspirante de
+        # otro programa.
+        from app.models.user import User as _User
+        raw_applicant = data.get('applicant_id')
+        if raw_applicant:
+            _target = _User.by_uuid(raw_applicant)
+            applicant_id = _target.id if _target else None
+        else:
+            applicant_id = current_user.id
         # …y sólo sobre aspirantes de esos mismos programas.
         denied = guard_user_scope(applicant_id)
         if denied:
@@ -215,7 +234,7 @@ def assign():
                     'appointment_id': appt.id,
                     'event_id': appt.event_id,
                     'slot_id': appt.slot_id,
-                    'applicant_id': appt.applicant_id,
+                    'applicant_id': _public_user_id(appt.applicant_id),
                 },
                 appt.applicant_id,
                 event.program_id,
@@ -294,7 +313,7 @@ def cancel(appointment_id:int):
                     'appointment_id': appt.id,
                     'event_id': appt.event_id,
                     'slot_id': appt.slot_id,
-                    'applicant_id': appt.applicant_id,
+                    'applicant_id': _public_user_id(appt.applicant_id),
                 },
                 appt.applicant_id,
                 ctx.get('program_id'),
@@ -336,7 +355,7 @@ def request_change(appointment_id:int):
                 {
                     'change_request_id': acr.id,
                     'appointment_id': appointment_id,
-                    'requested_by': current_user.id,
+                    'requested_by': _public_user_id(current_user.id),
                 },
                 ctx.get('program_id'),
             )
@@ -396,7 +415,11 @@ def appointment_details(appointment_id: int):
                 "description": event.description
             },
             "assigned_by": {
-                "id": assigner.id,
+                # Handle publico, como los demas de este archivo. Era la unica
+                # clave de la API que seguia republicando la clave primaria
+                # entera de un usuario, justo el identificador enumerable que
+                # el cambio a UUID existe para retirar.
+                "id": _public_user_id(assigner.id),
                 "name": f"{assigner.first_name} {assigner.last_name}"
             } if assigner else None
         }
@@ -489,7 +512,7 @@ def get_change_requests_by_event(event_id: int):
                 "id": req.id,
                 "appointment_id": appt.id,
                 "student": {
-                    "id": user.id,
+                    "id": str(user.uuid) if user.uuid else None,
                     "full_name": f"{user.first_name} {user.last_name}",
                     "email": user.email
                 },
@@ -604,10 +627,10 @@ def get_appointment_by_slot(slot_id: int):
             "id": appointment.id,
             "status": appointment.status,
             "student": {
-                "id": student.id,
+                "id": str(student.uuid) if student.uuid else None,
                 "full_name": f"{student.first_name} {student.last_name}"
             } if student else None,
-            "assigned_by": appointment.assigned_by,
+            "assigned_by": _public_user_id(appointment.assigned_by),
             "created_at": appointment.created_at.isoformat()
         }
     }), 200
@@ -724,7 +747,7 @@ def cancel_appointment_by_coordinator(appointment_id: int):
                     'appointment_id': appt.id,
                     'event_id': appt.event_id,
                     'slot_id': appt.slot_id,
-                    'applicant_id': appt.applicant_id,
+                    'applicant_id': _public_user_id(appt.applicant_id),
                     'cancelled_by_coordinator': True,
                 },
                 appt.applicant_id,

@@ -11,6 +11,8 @@ from app.utils.permissions import (
     program_scope_required,
     guard_program_scope,
 )
+from app.models.archive import Archive
+from app.models.submission import Submission
 from app.models.user_program import UserProgram
 from app.services import permanence_service as svc
 from app.services import program_scope_service as scope_service
@@ -455,7 +457,10 @@ def api_create_deadline(program_id):
     """Crea una ventana de entrega. Body: {archive_id, label, sequence, academic_period_id, opens_at?, closes_at?}"""
     from datetime import datetime
     data = request.get_json() or {}
-    archive_id = data.get('archive_id')
+    # `archive_id` viaja en el cuerpo como UUID público; el servicio sigue
+    # recibiendo el entero.
+    archive = Archive.by_uuid(data.get('archive_id'))
+    archive_id = archive.id if archive else None
     label = (data.get('label') or '').strip()
     sequence = data.get('sequence', 1)
     academic_period_id = data.get('academic_period_id')
@@ -752,10 +757,10 @@ def api_get_pending_documents(program_id):
         return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
 
 
-@api_permanence.post('/submissions/<int:submission_id>/review')
+@api_permanence.post('/submissions/<uuid:submission_uuid>/review')
 @login_required
 @permission_required('permanence.api.review_doc')
-def api_review_permanence_document(submission_id):
+def api_review_permanence_document(submission_uuid):
     """Aprueba o rechaza un documento. Body: {status: 'approved'|'rejected', notes?: str}"""
     data = request.get_json() or {}
     status = (data.get('status') or '').strip()
@@ -770,6 +775,10 @@ def api_review_permanence_document(submission_id):
         }), 400
 
     # Alcance: la submission debe pertenecer a un programa del coordinador.
+    # Un UUID desconocido llega aquí como None y `get_submission_scope(None)`
+    # devuelve None, que la guarda traduce al MISMO 404 que una entrega ajena.
+    row = Submission.by_uuid(submission_uuid)
+    submission_id = row.id if row else None
     denied = _guard_object_scope(
         svc.get_submission_scope(submission_id), "Documento no encontrado"
     )
@@ -896,10 +905,10 @@ def api_submit_leave_request(user_program_id):
                         "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
 
 
-@api_permanence.post('/submissions/<int:submission_id>/leave-request')
+@api_permanence.post('/submissions/<uuid:submission_uuid>/leave-request')
 @login_required
 @permission_required('permanence.api.review_doc')
-def api_process_leave_request(submission_id):
+def api_process_leave_request(submission_uuid):
     """Aprueba o rechaza una solicitud de baja temporal. Body: {approve: bool, notes?: str}"""
     data = request.get_json() or {}
     approve = data.get('approve')
@@ -914,6 +923,10 @@ def api_process_leave_request(submission_id):
         }), 400
 
     # Alcance: la solicitud debe pertenecer a un programa del coordinador.
+    # Un UUID desconocido llega aquí como None y `get_submission_scope(None)`
+    # devuelve None, que la guarda traduce al MISMO 404 que una entrega ajena.
+    row = Submission.by_uuid(submission_uuid)
+    submission_id = row.id if row else None
     denied = _guard_object_scope(
         svc.get_submission_scope(submission_id), "Solicitud no encontrada"
     )

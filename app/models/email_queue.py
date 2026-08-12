@@ -50,9 +50,14 @@ class EmailQueue(db.Model):
         read the attribute either: callers defer that column at query time so
         the body does not leave PostgreSQL for a listing.
         """
+        # Public payload: ids that name a User, a Submission or an Archive go
+        # out as their UUID handle. Key names are unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
-            'user_id': self.user_id,
+            'user_id': uuid_for(User, self.user_id),
             'notification_id': self.notification_id,
             'recipient_email': self.recipient_email,
             'subject': self.subject,

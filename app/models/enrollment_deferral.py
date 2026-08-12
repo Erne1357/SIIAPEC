@@ -76,6 +76,11 @@ class EnrollmentDeferral(db.Model):
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def to_dict(self):
+        # Public payload: ids that name a User, a Submission or an Archive go
+        # out as their UUID handle. Key names are unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
             'user_program_id': self.user_program_id,
@@ -87,9 +92,9 @@ class EnrollmentDeferral(db.Model):
             ),
             'deferral_number': self.deferral_number,
             'status': self.status,
-            'requested_by': self.requested_by,
+            'requested_by': uuid_for(User, self.requested_by),
             'reason': self.reason,
-            'reviewed_by_id': self.reviewed_by_id,
+            'reviewed_by_id': uuid_for(User, self.reviewed_by_id),
             'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
             'review_notes': self.review_notes,
             'created_at': self.created_at.isoformat() if self.created_at else None,

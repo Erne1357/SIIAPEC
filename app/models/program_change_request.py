@@ -67,14 +67,19 @@ class ProgramChangeRequest(db.Model):
         return value
 
     def to_dict(self):
+        # Public payload: ids that name a User, a Submission or an Archive go
+        # out as their UUID handle. Key names are unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
-            'applicant_id': self.applicant_id,
+            'applicant_id': uuid_for(User, self.applicant_id),
             'from_program_id': self.from_program_id,
             'to_program_id': self.to_program_id,
             'reason': self.reason,
             'status': self.status,
-            'decided_by': self.decided_by,
+            'decided_by': uuid_for(User, self.decided_by),
             'decided_at': self.decided_at.isoformat() if self.decided_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None

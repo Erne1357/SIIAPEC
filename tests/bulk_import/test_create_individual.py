@@ -18,7 +18,8 @@ def test_create_individual_creates_user_up_and_ses(app, periods, program,
     assert result['user_program_id'] is not None
     assert result['sems_created'] == 3
 
-    user = User.query.get(result['user_id'])
+    # `user_id` del resultado es el identificador PÚBLICO (UUID).
+    user = User.by_uuid(result['user_id'])
     assert user.email == 'pedro.lopez@test.local'
     assert user.control_number == 'M22110099'
     assert user.username == 'M22110099'
@@ -103,7 +104,7 @@ def test_create_logs_history(app, periods, program, postgrad_admin, valid_payloa
     result = svc.create_student_individual(valid_payload, created_by_id=postgrad_admin.id)
 
     log = UserHistory.query.filter_by(
-        user_id=result['user_id'],
+        user_id=User.by_uuid(result['user_id']).id,
         action='enrolled_via_bulk_import',
     ).first()
     assert log is not None

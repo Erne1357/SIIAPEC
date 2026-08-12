@@ -182,24 +182,24 @@ class DocumentTemplateCatalogScopeTest(unittest.TestCase):
     # ── detail ──────────────────────────────────────────────────────────────
     def test_detail_of_another_programs_template_is_404(self):
         self._login_as(self.coord_a)
-        res = self.client.get(f'/api/admin/document-templates/{self.tpl_b.id}')
+        res = self.client.get(f'/api/admin/document-templates/{self.tpl_b.uuid}')
         self.assertEqual(res.status_code, 404)
 
     def test_detail_of_the_global_template_needs_global_scope(self):
         self._login_as(self.coord_a)
         self.assertEqual(
             self.client.get(
-                f'/api/admin/document-templates/{self.tpl_global.id}'
+                f'/api/admin/document-templates/{self.tpl_global.uuid}'
             ).status_code, 404)
         self._login_as(self.postgrad)
         self.assertEqual(
             self.client.get(
-                f'/api/admin/document-templates/{self.tpl_global.id}'
+                f'/api/admin/document-templates/{self.tpl_global.uuid}'
             ).status_code, 200)
 
     def test_detail_of_own_template_still_works(self):
         self._login_as(self.coord_a)
-        res = self.client.get(f'/api/admin/document-templates/{self.tpl_a.id}')
+        res = self.client.get(f'/api/admin/document-templates/{self.tpl_a.uuid}')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.get_json()['data']['name'], 'Carta A')
 
@@ -207,7 +207,7 @@ class DocumentTemplateCatalogScopeTest(unittest.TestCase):
     def test_cannot_patch_another_programs_template(self):
         self._login_as(self.coord_a)
         res = self.client.patch(
-            f'/api/admin/document-templates/{self.tpl_b.id}',
+            f'/api/admin/document-templates/{self.tpl_b.uuid}',
             json={'name': 'Secuestrada'},
             headers=self._csrf_headers,
         )
@@ -219,7 +219,7 @@ class DocumentTemplateCatalogScopeTest(unittest.TestCase):
     def test_cannot_delete_the_global_template_without_global_scope(self):
         self._login_as(self.coord_a)
         res = self.client.delete(
-            f'/api/admin/document-templates/{self.tpl_global.id}',
+            f'/api/admin/document-templates/{self.tpl_global.uuid}',
             headers=self._csrf_headers)
         self.assertEqual(res.status_code, 404)
         self.assertIsNotNone(db.session.get(DocumentTemplate, self.tpl_global.id))
@@ -263,7 +263,7 @@ class DocumentTemplateCatalogScopeTest(unittest.TestCase):
     def test_coordinator_can_still_patch_their_own_template(self):
         self._login_as(self.coord_a)
         res = self.client.patch(
-            f'/api/admin/document-templates/{self.tpl_a.id}',
+            f'/api/admin/document-templates/{self.tpl_a.uuid}',
             json={'name': 'Carta A (v2)'},
             headers=self._csrf_headers,
         )

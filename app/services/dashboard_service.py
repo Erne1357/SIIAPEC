@@ -342,7 +342,8 @@ class DashboardService:
         result = []
         for sub in submissions:
             result.append({
-                'id': sub.id,
+                # Public handle of the submission.
+                'id': str(sub.uuid) if sub.uuid else None,
                 'user_name': f"{sub.user.first_name} {sub.user.last_name}",
                 'archive_name': sub.archive.name if sub.archive else 'N/A',
                 'status': sub.status,
@@ -474,7 +475,8 @@ class DashboardService:
         result = []
         for sub in submissions:
             result.append({
-                'id': sub.id,
+                # Public handle of the submission.
+                'id': str(sub.uuid) if sub.uuid else None,
                 'user_name': f"{sub.user.first_name} {sub.user.last_name}",
                 'archive_name': sub.archive.name if sub.archive else 'N/A',
                 'program_name': sub.program_step.program.name,

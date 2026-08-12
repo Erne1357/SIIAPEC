@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from app.utils.datetime_utils import now_local
 from sqlalchemy.exc import IntegrityError
 from app import db
+from app.services import public_id_service
 from app.models.extension_request import ExtensionRequest
 from app.models.archive import Archive
 from app.models.program_step import ProgramStep
@@ -122,9 +123,9 @@ class ExtensionsService:
         emit_user_and_coordinators(
             'extension:decided',
             {
-                'user_id': er.user_id,
+                'user_id': public_id_service.user_uuid(er.user_id),
                 'extension_request_id': er.id,
-                'archive_id': er.archive_id,
+                'archive_id': public_id_service.archive_uuid(er.archive_id),
                 'program_id': program_id,
                 'status': status,
                 'granted_until': er.granted_until.isoformat() if er.granted_until else None,

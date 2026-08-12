@@ -73,7 +73,8 @@
           <select name="applicant_id" id="filterApplicantId" class="form-select">
             <option value="">Todos</option>
             {% for user in applicants %}
-            <option value="{{ user.id }}" {% if filters.applicant_id==user.id %}selected{% endif %}>
+            {# El filtro viaja como UUID público, igual que en la API. #}
+            <option value="{{ user.uuid }}" {% if filters.applicant_id == user.uuid|string %}selected{% endif %}>
               {{ user.first_name }} {{ user.last_name }}
             </option>
             {% endfor %}
@@ -135,7 +136,9 @@
                         wrapper_class='siiap-table-wrapper--sticky-head') }}
         <thead class="table-light">
           <tr>
-            <th scope="col">ID</th>
+            {# Contador de la lista. El id entero dejó de ser público y un uuid
+               completo no cabe ni se lee en una columna. #}
+            <th scope="col">#</th>
             <th scope="col">{{ 'Aspirante' if current_phase == 'admission' else 'Estudiante' }}</th>
             <th scope="col">Programa</th>
             <th scope="col">Documento</th>
@@ -148,7 +151,7 @@
           {% for sub in submissions %}
           {% set is_own_program = not is_program_admin or sub.program_step.program.id in managed_program_ids %}
           <tr class="{% if not is_own_program %}table-secondary{% endif %}">
-            <th scope="row" class="fw-normal">{{ sub.id }}</th>
+            <th scope="row" class="fw-normal">{{ loop.index }}</th>
             <td>{{ sub.user.first_name }} {{ sub.user.last_name }}</td>
             <td>
               {{ sub.program_step.program.name }}
@@ -161,7 +164,7 @@
             <td>{% if sub.upload_date %}{{ sub.upload_date|fechahora_es('numeric') }}{% else %}—{% endif %}</td>
             <td>{{ status_badge(sub.status, size='sm') }}</td>
             <td>
-              <a href="{{ url_for('pages_admin.pages_review.submission_detail', sub_id=sub.id) }}"
+              <a href="{{ url_for('pages_admin.pages_review.submission_detail', sub_uuid=sub.uuid) }}"
                 class="btn btn-sm btn-outline-primary">
                 <i class="bi bi-eye me-1" aria-hidden="true"></i>{% if is_own_program %}Revisar{% else %}Ver{% endif %}
               </a>

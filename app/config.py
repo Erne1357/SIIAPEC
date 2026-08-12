@@ -62,7 +62,7 @@ _require_production_base_url()
 
 class Config:
     # Versión estática (actualízala cuando cambies CSS/JS)
-    STATIC_VERSION = '1.0.42081102'
+    STATIC_VERSION = '1.0.42081201'
     
     # Directorios base
     BASE_DIR = Path(__file__).resolve().parent.parent

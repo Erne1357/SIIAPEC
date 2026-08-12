@@ -4,6 +4,7 @@ from flask import current_app
 from sqlalchemy.orm import selectinload
 from sqlalchemy import and_, or_, select
 from app import db
+from app.services import public_id_service
 from app.models import Step, ProgramStep, Phase, Submission, ExtensionRequest
 from app.models.event import Event, EventSlot, EventAttendance, EventWindow
 from datetime import datetime, timezone
@@ -441,7 +442,7 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
         # Campos de deliberación para mostrar estado al aspirante
         'admission_status': up.admission_status,
         'decision_notes': up.decision_notes,
-        'correction_required': up.correction_required,
+        'correction_required': public_id_service.correction_required_to_public(up.correction_required),
         'rejection_type': up.rejection_type,
         'deliberation_started_at': up.deliberation_started_at,
         'decision_at': up.decision_at,

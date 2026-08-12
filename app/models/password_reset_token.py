@@ -98,13 +98,18 @@ class PasswordResetToken(db.Model):
     # ------------------------------------------------------------------
 
     def to_dict(self):
+        # Public payload: ids that name a User, a Submission or an Archive go
+        # out as their UUID handle. Key names are unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
-            'user_id': self.user_id,
+            'user_id': uuid_for(User, self.user_id),
             'purpose': self.purpose,
             'expires_at': self.expires_at.isoformat() if self.expires_at else None,
             'used_at': self.used_at.isoformat() if self.used_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'created_by': self.created_by,
+            'created_by': uuid_for(User, self.created_by),
             'is_valid': self.is_valid,
         }

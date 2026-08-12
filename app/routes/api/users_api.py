@@ -7,7 +7,9 @@ from datetime import datetime
 from app.models.user_history import UserHistory
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
-from app.utils.permissions import permission_required, program_scope_required
+from app.models.user import User
+from app.routes._public_id import resolved_id
+from app.utils.permissions import guard_user_scope, permission_required
 from app.utils.validators import (
     InputValidationError,
     validate_person_name,
@@ -31,7 +33,8 @@ def _has_text(value) -> bool:
 def me():
     u = current_user
     data = {
-        "id": u.id,
+        # Public handle, never the integer primary key.
+        "id": str(u.uuid) if u.uuid else None,
         "first_name": u.first_name,
         "last_name": u.last_name,
         "mother_last_name": u.mother_last_name,
@@ -259,7 +262,7 @@ def user_history():
         },
         "error": None,
         "meta": {
-            "user_id": current_user.id,
+            "user_id": str(current_user.uuid) if current_user.uuid else None,
             "ordered_by": "timestamp_desc",
             "limit_applied": limit
         }
@@ -447,19 +450,26 @@ def list_photo_requests():
     return jsonify({"data": items, "error": None, "meta": {"count": len(items)}}), 200
 
 
-@api_users.post('/<int:user_id>/photo/enable-change')
+@api_users.post('/<uuid:user_uuid>/photo/enable-change')
 @login_required
 @permission_required('profile.api.enable_photo_change')
-@program_scope_required(user_id_kwarg='user_id')
-def enable_photo_change(user_id):
+def enable_photo_change(user_uuid):
     """
     Coordinator approves or rejects a photo-change request.
 
-    El permiso dice QUÉ; `program_scope_required` dice SOBRE QUIÉN: sólo
-    estudiantes de los programas del solicitante (el jefe de posgrado, todos).
+    El permiso dice QUÉ; el alcance dice SOBRE QUIÉN: sólo estudiantes de los
+    programas del solicitante (el jefe de posgrado, todos). La guarda es
+    imperativa porque el URL trae un UUID; con None falla cerrado, así que un
+    identificador desconocido responde el mismo 403 que uno fuera de alcance.
     """
     from app.services import profile_photo_service as photo_svc
     from app.services.program_scope_service import ProgramScopeDenied
+
+    target = User.by_uuid(user_uuid)
+    denied = guard_user_scope(resolved_id(target))
+    if denied:
+        return denied
+    user_id = target.id
 
     payload = request.get_json(silent=True) or {}
     approve = bool(payload.get('approve', True))
@@ -507,11 +517,10 @@ def enable_photo_change(user_id):
         }), 500
 
 
-@api_users.post('/<int:user_id>/photo')
+@api_users.post('/<uuid:user_uuid>/photo')
 @login_required
 @permission_required('profile.api.upload_photo_for_student')
-@program_scope_required(user_id_kwarg='user_id')
-def coordinator_upload_photo(user_id):
+def coordinator_upload_photo(user_uuid):
     """
     Coordinator uploads a photo on behalf of a student.
 
@@ -521,6 +530,12 @@ def coordinator_upload_photo(user_id):
     """
     from app.services import profile_photo_service as photo_svc
     from app.services.program_scope_service import ProgramScopeDenied
+
+    target = User.by_uuid(user_uuid)
+    denied = guard_user_scope(resolved_id(target))
+    if denied:
+        return denied
+    user_id = target.id
 
     file_storage = request.files.get('photo')
     if not file_storage:
@@ -539,7 +554,7 @@ def coordinator_upload_photo(user_id):
             is_self=False,
         )
         return jsonify({
-            "data": {"user_id": user_id},
+            "data": {"user_id": str(target.uuid) if target.uuid else None},
             "flash": [{"level": "success", "message": "Foto del estudiante actualizada"}],
             "error": None,
             "meta": {}

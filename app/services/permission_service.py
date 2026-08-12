@@ -8,6 +8,7 @@ Cubre:
 """
 
 from app import db
+from app.services import public_id_service
 from app.models.permission import Permission
 from app.models.role_permission import RolePermission, RolePermissionOverride
 from app.models.role_permission_audit import RolePermissionAudit
@@ -635,7 +636,7 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
         emit_admin_user_change(
             {
                 'action': 'created',
-                'user_id': new_user.id,
+                'user_id': public_id_service.user_uuid(new_user.id),
                 'role': 'social_service',
                 'email': new_user.email,
                 'full_name': f'{new_user.first_name} {new_user.last_name}',

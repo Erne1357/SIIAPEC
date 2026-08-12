@@ -64,6 +64,15 @@ class UserProgram(db.Model):
         # Si no existen registros aun (pre-Fase 6), se usa el valor en columna
         # (= 1, asignado al momento de la transicion a estudiante).
         from app.models.semester_enrollment import SemesterEnrollment
+        # `user_id` / `decision_by` name User rows and are published as UUIDs;
+        # `id`, `program_id` and `admission_period_id` stay integers (no public
+        # handle on those models). Key names unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import (
+            correction_required_to_public,
+            uuid_for,
+        )
+
         last_se = (SemesterEnrollment.query
                    .filter_by(user_program_id=self.id)
                    .order_by(SemesterEnrollment.semester_number.desc())
@@ -72,7 +81,7 @@ class UserProgram(db.Model):
 
         data = {
             'id': self.id,
-            'user_id': self.user_id,
+            'user_id': uuid_for(User, self.user_id),
             'program_id': self.program_id,
             'enrollment_date': self.enrollment_date.isoformat() if self.enrollment_date else None,
             'current_semester': current_sem,
@@ -86,10 +95,10 @@ class UserProgram(db.Model):
             data.update({
                 'deliberation_started_at': self.deliberation_started_at.isoformat() if self.deliberation_started_at else None,
                 'decision_at': self.decision_at.isoformat() if self.decision_at else None,
-                'decision_by': self.decision_by,
+                'decision_by': uuid_for(User, self.decision_by),
                 'decision_notes': self.decision_notes,
                 'rejection_type': self.rejection_type,
-                'correction_required': self.correction_required
+                'correction_required': correction_required_to_public(self.correction_required)
             })
 
         return data

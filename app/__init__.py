@@ -132,6 +132,29 @@ def create_app(test_config=None):
 
     @app.errorhandler(404)
     def page_not_found(e):
+        """
+        404 — including the one Werkzeug raises BEFORE any view runs when a
+        `<uuid:...>` path segment is malformed.
+
+        API callers get the standard JSON envelope, like 400 and 403 already
+        do; without this an XHR against a mistyped identifier received an HTML
+        page and the frontend's `response.json()` blew up with a parse error
+        instead of showing the message.
+
+        The message is a FIXED generic string, never `e.description`: a
+        malformed identifier, an unknown one and a row the caller may not see
+        must be indistinguishable. Routes that need to say something more
+        specific return their own 404 body from inside the view.
+        """
+        if request.path.startswith('/api/') or request.is_json or \
+                request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            message = "Recurso no encontrado."
+            return jsonify({
+                "data": None,
+                "flash": [{"level": "danger", "message": message}],
+                "error": {"code": "NOT_FOUND", "message": message},
+                "meta": {}
+            }), 404
         return render_template('404.html', error=e), 404
 
     @app.errorhandler(500)

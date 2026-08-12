@@ -249,7 +249,9 @@ class PermanenceManager {
           this.toggleConacyt(parseInt(d.userProgramId, 10), d.newValue === '1');
           break;
         case 'show-expediente':
-          this.showStudentExpediente(parseInt(d.studentId, 10));
+          // `studentId` es el identificador PÚBLICO del alumno (UUID): va
+          // literal en el URL. Con parseInt salía NaN.
+          this.showStudentExpediente(d.studentId);
           break;
         case 'confirm-enrollment':
           this.showConfirmModal(
@@ -260,8 +262,9 @@ class PermanenceManager {
           this.markCompletedFromOverview(parseInt(d.enrollmentId, 10), d.studentName);
           break;
         case 'review-leave':
+          // `submissionId` es el identificador PÚBLICO de la entrega (UUID).
           this.showLeaveModal(
-            parseInt(d.submissionId, 10), d.studentName,
+            d.submissionId, d.studentName,
             parseInt(d.semester, 10) || 0, d.fileUrl || ''
           );
           break;
@@ -781,8 +784,9 @@ class PermanenceManager {
 
       // Comprobante PDF subido por el estudiante (si existe)
       const ceProofUrl = r.current_enrollment?.payment_proof_url || '';
-      // Ruta construida por el servidor (/files/doc/…): sólo hay que cerrarla
-      // para el contexto de atributo, no re-codificarla como componente de URL.
+      // URL opaco construido por el servidor (nombra la FILA, no la ruta en
+      // disco): sólo hay que cerrarlo para el contexto de atributo, no
+      // re-codificarlo como componente de URL.
       const proofUrlAttr = SIIAP.escapeAttr(ceProofUrl);
 
       // Columnas variables según modo
@@ -938,7 +942,8 @@ class PermanenceManager {
     modal.show();
 
     try {
-      const res = await fetch(`/api/v1/coordinator/student/${studentId}/permanence-details`);
+      const res = await fetch(
+        `/api/v1/coordinator/student/${encodeURIComponent(studentId)}/permanence-details`);
       const json = await res.json();
       if (!res.ok || json.ok === false) {
         showFlash('danger', json.error || 'Error al cargar expediente');
@@ -1221,7 +1226,7 @@ class PermanenceManager {
       const uploadDate = SIIAP.formatDate(sub.upload_date, 'short', '—');
       const nameText = SIIAP.escapeHtml(r.user.full_name);
       const nameAttr = SIIAP.escapeAttr(r.user.full_name);
-      // Ruta servida por el backend (/files/doc/…): sólo se cierra el atributo.
+      // URL opaco servido por el backend: sólo se cierra el atributo.
       const fileUrlAttr = SIIAP.escapeAttr(r.file_url || '');
       return `
         <div class="border rounded p-3 mb-2 d-flex flex-wrap align-items-center gap-3">
@@ -1370,7 +1375,9 @@ class PermanenceManager {
   }
 
   async submitCreateDeadline() {
-    const archiveId = parseInt(document.getElementById('deadlineArchiveId').value);
+    // Identificador público del archivo (UUID): cadena. `sequence` y
+    // `academic_period_id` siguen siendo enteros.
+    const archiveId = document.getElementById('deadlineArchiveId').value;
     const label = document.getElementById('deadlineLabel').value.trim();
     const sequence = parseInt(document.getElementById('deadlineSequence').value) || 1;
     const periodId = parseInt(document.getElementById('deadlinePeriodId').value);
@@ -1528,10 +1535,13 @@ class PermanenceManager {
   }
 
   async submitReview(status) {
-    const subId = parseInt(document.getElementById('reviewDocSubmissionId').value);
+    // Identificador público de la entrega (UUID): cadena. La validación deja
+    // de ser numérica; basta con que venga algo, porque un identificador que
+    // no resuelve lo contesta el backend con el mismo 404 que uno ajeno.
+    const subId = (document.getElementById('reviewDocSubmissionId').value || '').trim();
     const notes = document.getElementById('reviewDocNotes').value.trim();
 
-    if (!Number.isInteger(subId) || subId <= 0) {
+    if (!subId) {
       showFlash('danger', 'Submission inválida — recarga la página e intenta de nuevo.');
       return;
     }

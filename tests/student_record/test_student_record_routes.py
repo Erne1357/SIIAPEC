@@ -18,6 +18,7 @@ import unittest
 from flask import g
 
 from app import create_app, db
+from app.utils.uuid7 import uuid7
 from app.models.user import User
 
 from tests.student_record.conftest import (
@@ -26,7 +27,13 @@ from tests.student_record.conftest import (
 )
 
 
-UNKNOWN_ID = 99999
+#: Identificador que no nombra ninguna fila. Con enteros bastaba "un número
+#: más grande"; con UUIDv7 no existe tal cosa, así que se genera uno. Es la
+#: pieza que sostiene toda la suite de no-divulgación: sin un identificador
+#: ausente pero BIEN FORMADO no se puede comprobar que "no existe" y "no es
+#: tuyo" responden lo mismo (un UUID malformado lo rechaza el enrutador antes
+#: de llegar a la vista, que es otro caso distinto).
+UNKNOWN_ID = str(uuid7())
 
 
 class StudentRecordRoutesTest(unittest.TestCase):
@@ -62,10 +69,13 @@ class StudentRecordRoutesTest(unittest.TestCase):
         make_user_program(self.student_b, self.program_b, period)
         db.session.commit()
 
-        self.page_url = f'/students/{self.student_b.id}/record'
-        self.api_url = f'/api/v1/students/{self.student_b.id}/record'
+        # Las URLs hablan UUID público; las comprobaciones contra la BD
+        # siguen usando el id interno.
+        student_b_uuid = str(self.student_b.uuid)
+        self.page_url = f'/students/{student_b_uuid}/record'
+        self.api_url = f'/api/v1/students/{student_b_uuid}/record'
         self.pdf_url = f'{self.api_url}/pdf'
-        self.patch_url = f'/api/v1/students/{self.student_b.id}/personal-info'
+        self.patch_url = f'/api/v1/students/{student_b_uuid}/personal-info'
 
     def tearDown(self):
         db.session.remove()

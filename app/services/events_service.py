@@ -911,9 +911,12 @@ class EventsService:
             EventAttendance.event_id == event_id
         ).order_by(EventAttendance.registered_at.desc()).all()
 
+        # `id` del EventAttendance sigue siendo entero (no tiene handle
+        # público); `user_id` nombra un User y sale como UUID — es el mismo
+        # valor que la consola devuelve en el cuerpo de `mark-attendance`.
         return [{
             'id': attendance.id,
-            'user_id': user.id,
+            'user_id': str(user.uuid) if user.uuid else None,
             'full_name': f"{user.first_name} {user.last_name}",
             'email': user.email,
             'status': attendance.status,
@@ -1245,8 +1248,10 @@ class EventsService:
         for invitation, user in invitations:
             inviter = db.session.get(User, invitation.invited_by) if invitation.invited_by else None
             result.append({
+                # `id` de la invitación sigue siendo entero (no tiene handle
+                # público); `user_id` nombra un User y sale como UUID.
                 'id': invitation.id,
-                'user_id': user.id,
+                'user_id': str(user.uuid) if user.uuid else None,
                 'full_name': f"{user.first_name} {user.last_name}",
                 'email': user.email,
                 'status': invitation.status,
@@ -1705,6 +1710,8 @@ class EventsService:
         """
         Reemplaza atómicamente la lista de hosts de un evento.
         hosts_data: [{user_id?, external_name?, external_bio?, external_photo_path?, role_label, display_order?}]
+        `user_id` llega como UUID público (lo publica `_build_hosts_payload`) y
+        se resuelve aquí al id interno antes de validarlo o guardarlo.
         Cada item debe tener `user_id` O `external_name`.
 
         `acting_user` es OBLIGATORIO para registrar ponentes internos: cada
@@ -1714,9 +1721,22 @@ class EventsService:
         """
         from app.models.event import EventHost
 
+        from app.models.user import User as _User
+
         event = db.session.get(Event, event_id)
         if not event:
             raise ValueError("Evento no encontrado")
+
+        # UUID público → id interno, una sola vez. Un UUID que no resuelve deja
+        # `user_id` en None: el item queda como externo o, si tampoco trae
+        # `external_name`, lo rechaza la validación de abajo.
+        hosts_data = [dict(item) for item in (hosts_data or [])]
+        for item in hosts_data:
+            raw = item.get('user_id')
+            if raw is None or isinstance(raw, int):
+                continue
+            row = _User.by_uuid(raw)
+            item['user_id'] = row.id if row is not None else None
 
         # Validar antes de borrar
         for idx, item in enumerate(hosts_data):
@@ -1826,8 +1846,10 @@ class EventsService:
                     photo_url = None
 
             result.append({
+                # `id` del EventHost sigue siendo entero (no tiene handle
+                # público); `user_id` nombra un User y sale como UUID.
                 'id': h.id,
-                'user_id': h.user_id,
+                'user_id': str(user.uuid) if (h.user_id and user and user.uuid) else None,
                 'name': name,
                 'full_name': name,
                 'email': email,

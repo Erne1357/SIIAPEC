@@ -111,8 +111,10 @@
         statusHtml = badge('review', 'En revisión');
       } else if (sub.status === 'approved') {
         statusHtml = badge('approved', 'Aprobado');
-        if (sub.file_path) {
-          actionHtml = `<a href="/files/doc/${escHtml(sub.file_path)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success">
+        // `file_url` lo construye el servidor y nombra la fila; `file_path` ya
+        // sólo trae el nombre humano del archivo, no una ruta.
+        if (sub.file_url) {
+          actionHtml = `<a href="${escHtml(sub.file_url)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success">
             <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver documento
           </a>`;
         }
@@ -247,7 +249,9 @@
     const ref    = paymentRef.reference || null;
     const amount = paymentRef.amount    || data.payment_amount     || null;
     const due    = paymentRef.due_date  || data.payment_due_date   || null;
-    const proof  = data.payment_proof_path || null;
+    // URL opaco servido por el backend; `payment_proof_path` ya sólo es el
+    // nombre humano del archivo.
+    const proof  = data.payment_proof_url || null;
 
     let refHtml = '';
     if (ref) {
@@ -280,7 +284,7 @@
       proofHtml = `
         <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
           ${badge('review', 'Pendiente de confirmación por el coordinador')}
-          <a href="/files/doc/${escHtml(proof)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+          <a href="${escHtml(proof)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver comprobante actual
           </a>
         </div>`;

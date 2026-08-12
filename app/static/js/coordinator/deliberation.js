@@ -251,7 +251,10 @@ class DeliberationManager {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
 
-            const userId = Number(btn.dataset.userId);
+            // `userId` es el identificador PÚBLICO del aspirante (UUID) y va
+            // literal en el URL: con Number() salía NaN y la petición pedía
+            // /api/v1/deliberation/user/NaN/…  `programId` sigue siendo entero.
+            const userId = btn.dataset.userId;
             const programId = Number(btn.dataset.programId);
             const applicantName = btn.dataset.applicantName || '';
 
@@ -822,7 +825,10 @@ class DeliberationManager {
                 const archiveName = archiveSelect?.options[archiveSelect.selectedIndex]?.dataset?.name;
                 if (archiveId && archiveName) {
                     correctionRequired = JSON.stringify({
-                        archive_id: parseInt(archiveId),
+                        // Identificador público del archivo (UUID). El backend
+                        // lo traduce al id interno antes de persistirlo
+                        // (`correction_required_to_internal`).
+                        archive_id: archiveId,
                         archive_name: archiveName,
                         notes: correctionText
                     });

@@ -29,7 +29,7 @@
       <p class="coord-page__subtitle small" id="recordHeaderMeta">{{ target_user.email }}</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-      <a href="{{ url_for('api_student_record.export_record_pdf', user_id=target_user.id) }}"
+      <a href="{{ url_for('api_student_record.export_record_pdf', user_uuid=target_user.uuid) }}"
          target="_blank" rel="noopener"
          class="btn btn-outline-primary btn-sm">
         <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Exportar PDF
@@ -320,7 +320,8 @@
 {{ super() }}
 <script>
   window.SIIAP_RECORD = {
-    userId: {{ target_user.id | tojson }},
+    {# Identificador PÚBLICO: es el que viaja en /api/v1/students/<uuid>/… #}
+    userId: {{ (target_user.uuid|string) | tojson }},
   };
 </script>
 <script src="{{ url_for('static', filename='js/coordinator/student_record/index.js') }}?v={{ static_version }}"></script>

@@ -427,8 +427,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Caso 1: estamos en la página de detalle de la misma submission
     const decisionForm = document.querySelector('[data-review-form]');
     if (decisionForm) {
-      const subId = parseInt(decisionForm.dataset.subId);
-      if (subId === data.submission_id) {
+      // El identificador de la submission es un UUID: se compara como cadena.
+      // Con parseInt daba NaN y `NaN === '<uuid>'` es siempre falso, así que
+      // la fila abierta nunca se enteraba de que otro revisor ya había
+      // decidido.
+      const subId = decisionForm.dataset.subId;
+      if (subId && subId === String(data.submission_id)) {
         emitFlash('warning', 'Otro revisor ya decidió este documento. Redirigiendo al listado...');
         setTimeout(() => {
           const next = decisionForm.dataset.nextUrl || '/admin/submissions';

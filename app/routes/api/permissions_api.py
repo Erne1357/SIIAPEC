@@ -9,6 +9,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
 from app.models.role import Role
+from app.models.user import User
 from app.models.permission import Permission
 import app.services.permission_service as svc
 
@@ -42,10 +43,10 @@ def delegatable_permissions():
 # Permisos de un usuario específico (vista admin)
 # ===========================================================================
 
-@api_permissions.get('/user/<int:user_id>')
+@api_permissions.get('/user/<uuid:user_uuid>')
 @login_required
 @permission_required('permissions.api.list_user_permissions')
-def user_permissions(user_id):
+def user_permissions(user_uuid):
     """
     Delegaciones (activas e inactivas) de un usuario, recortadas al alcance
     del solicitante.
@@ -54,8 +55,16 @@ def user_permissions(user_id):
     sobre qué programas: es el paso previo a elegir una delegación que revocar
     o a diseñar una escalada. El jefe de posgrado ve todo; un coordinador ve
     sólo lo que otorgó él y lo que cae en sus programas.
+
+    Un UUID desconocido devuelve una lista VACÍA, exactamente igual que una
+    cuenta sin delegaciones visibles para el llamador: el recorte ya hacía
+    indistinguibles ambos casos y el cambio de identificador no lo rompe.
     """
-    delegations = svc.get_user_delegations_for_viewer(current_user, user_id)
+    target = User.by_uuid(user_uuid)
+    delegations = (
+        svc.get_user_delegations_for_viewer(current_user, target.id)
+        if target is not None else []
+    )
     return jsonify({
         'data': [d.to_dict() for d in delegations],
         'error': None,
@@ -75,14 +84,17 @@ def delegate():
     Delega un permiso a otro usuario.
 
     Body JSON:
-      grantee_id   : int       — ID del usuario destino
+      grantee_id   : str       — UUID público del usuario destino
       codename     : str       — permiso a delegar
       program_id   : int|null  — scope de programa (opcional)
       note         : str|null  — razón de la delegación
       expires_at   : str|null  — ISO 8601 timestamp de vencimiento
     """
     data = request.get_json(force=True) or {}
-    grantee_id = data.get('grantee_id')
+    # `grantee_id` llega como UUID público; el servicio sigue recibiendo el id
+    # interno, como todo lo que se persiste.
+    grantee = User.by_uuid(data.get('grantee_id'))
+    grantee_id = grantee.id if grantee else None
     codename   = data.get('codename')
 
     if not grantee_id or not codename:

@@ -71,6 +71,7 @@ import io
 import logging
 
 from app import db
+from app.services import public_id_service
 from app.models import (
     User, UserProgram, Program, AcademicPeriod, Role
 )
@@ -719,7 +720,8 @@ def create_student_individual(payload: dict, created_by_id: int,
         db.session.commit()
 
         return {
-            'user_id': user.id,
+            # Public handle: the bulk console echoes this back in its report.
+            'user_id': public_id_service.user_uuid(user.id),
             'user_program_id': up.id,
             'sems_created': sems_created,
             'email': user.email,

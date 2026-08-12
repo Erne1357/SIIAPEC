@@ -90,7 +90,9 @@
 {% if has_perm('programs.api.enroll') %}
   <script>
     window.SIIAP_APPLICANT_DASH = {
-      userId:          {{ current_user.id|tojson }},
+      {# Identificador PÚBLICO del usuario. `userProgramId` y `programId`
+         siguen siendo enteros: esos modelos no tienen handle público. #}
+      userId:          {{ (current_user.uuid|string)|tojson }},
       userProgramId:   {{ (user_program_id or 0)|tojson }},
       admissionStatus: {{ (admission_status or '')|tojson }},
       programId:       {{ (program.id if program else 0)|tojson }}

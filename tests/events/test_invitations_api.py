@@ -114,7 +114,7 @@ class TestInviteStudents(TestInvitationsApiBase):
         mock_notif.return_value = MagicMock(id=1)
         resp = self._admin_post(
             f'/api/v1/invitations/event/{self.ev.id}/invite',
-            {'user_ids': [self.student.id]},
+            {'user_ids': [str(self.student.uuid)]},
         )
         self.assertEqual(resp.status_code, 201)
         data = json.loads(resp.data)
@@ -131,7 +131,7 @@ class TestInviteStudents(TestInvitationsApiBase):
     def test_invite_event_not_found_returns_404(self):
         resp = self._admin_post(
             '/api/v1/invitations/event/99999/invite',
-            {'user_ids': [self.student.id]},
+            {'user_ids': [str(self.student.uuid)]},
         )
         self.assertEqual(resp.status_code, 404)
 
@@ -144,7 +144,7 @@ class TestInviteStudents(TestInvitationsApiBase):
         inject_csrf(client2)
         resp = client2.post(
             f'/api/v1/invitations/event/{self.ev.id}/invite',
-            data=json.dumps({'user_ids': [self.student.id]}),
+            data=json.dumps({'user_ids': [str(self.student.uuid)]}),
             content_type='application/json',
             headers={'X-CSRFToken': 'test-csrf-token'},
         )
@@ -398,7 +398,7 @@ class TestInstitutionalEventScope(TestInvitationsApiBase):
         self._clear_login_cache()
         resp = self._admin_post(
             f'/api/v1/invitations/event/{self.inst_ev.id}/invite',
-            {'user_ids': [self.student.id]},
+            {'user_ids': [str(self.student.uuid)]},
         )
         self.assertEqual(resp.status_code, 403)
         self.assertEqual(EventInvitation.query.count(), 0)
@@ -473,7 +473,7 @@ class TestInviteRecipientScope(TestInvitationsApiBase):
             del g._login_user
         resp = self._admin_post(
             f'/api/v1/invitations/event/{self.ev.id}/invite',
-            {'user_ids': [self.foreign_student.id]},
+            {'user_ids': [str(self.foreign_student.uuid)]},
         )
         self.assertEqual(resp.status_code, 403)
         self.assertEqual(EventInvitation.query.count(), 0)

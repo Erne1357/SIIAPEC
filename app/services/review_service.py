@@ -23,6 +23,7 @@ import logging
 from sqlalchemy.orm import joinedload
 
 from app import db
+from app.services import public_id_service
 from app.models import Program, ProgramStep, Submission, User
 from app.models.archive import Archive
 from app.models.phase import Phase
@@ -333,9 +334,9 @@ def decide_submission(reviewer, submission_id, action, comment=''):
     emit_user_and_coordinators(
         'submission:reviewed',
         {
-            'user_id': submission.user_id,
-            'submission_id': submission.id,
-            'archive_id': submission.archive_id,
+            'user_id': public_id_service.user_uuid(submission.user_id),
+            'submission_id': public_id_service.submission_uuid(submission.id),
+            'archive_id': public_id_service.archive_uuid(submission.archive_id),
             'program_id': program_id,
             'status': submission.status,
         },

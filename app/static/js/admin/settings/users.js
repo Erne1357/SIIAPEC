@@ -638,7 +638,7 @@
         };
         
         try {
-            const res = await fetch(`${API_BASE}/${userId}`, {
+            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -764,7 +764,7 @@
         }
         
         try {
-            const res = await fetch(`${API_BASE}/${userId}/assign-control-number`, {
+            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}/assign-control-number`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

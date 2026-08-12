@@ -1,9 +1,10 @@
 # app/models/acceptance_document.py
 from app import db
+from app.models.mixins import PublicUUIDMixin
 from app.utils.datetime_utils import now_local
 
 
-class AcceptanceDocument(db.Model):
+class AcceptanceDocument(PublicUUIDMixin, db.Model):
     """
     Documentos de aceptacion e inscripcion.
 
@@ -43,15 +44,26 @@ class AcceptanceDocument(db.Model):
     reviewed_by = db.relationship('User', foreign_keys=[reviewed_by_id])
 
     def to_dict(self):
+        # `id`, `uploaded_by_id` and `reviewed_by_id` are published as UUIDs;
+        # `user_program_id` stays an integer (UserProgram carries no public
+        # handle). Key names are deliberately unchanged — see Submission.to_dict.
+        # `file_path` publica sólo el basename y `file_url` nombra la fila —
+        # mismo razonamiento que en Submission.to_dict: el valor almacenado
+        # empieza por `<user_id>/`.
+        from app.models.user import User
+        from app.services import file_access_service
+        from app.services.public_id_service import uuid_for
+
         return {
-            'id': self.id,
+            'id': str(self.uuid) if self.uuid else None,
             'user_program_id': self.user_program_id,
             'document_type': self.document_type,
-            'file_path': self.file_path,
-            'uploaded_by_id': self.uploaded_by_id,
+            'file_path': file_access_service.document_download_name(self.file_path),
+            'file_url': file_access_service.acceptance_document_url(self),
+            'uploaded_by_id': uuid_for(User, self.uploaded_by_id),
             'uploaded_at': self.uploaded_at.isoformat() if self.uploaded_at else None,
             'status': self.status,
-            'reviewed_by_id': self.reviewed_by_id,
+            'reviewed_by_id': uuid_for(User, self.reviewed_by_id),
             'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
             'review_notes': self.review_notes,
         }

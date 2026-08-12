@@ -106,6 +106,11 @@ class Program(db.Model):
                 setattr(self, key, value)
 
     def to_dict(self):
+        # `coordinator_id` / `created_by` name a User row and are published as
+        # that user's UUID handle; the program's own id stays an integer.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
             'name': self.name,
@@ -163,9 +168,9 @@ class Program(db.Model):
             'meta_keywords': self.meta_keywords,
 
             # Coordinador
-            'coordinator_id': self.coordinator_id,
+            'coordinator_id': uuid_for(User, self.coordinator_id),
             'coordinator': {
-                'id': self.coordinator.id,
+                'id': str(self.coordinator.uuid) if self.coordinator.uuid else None,
                 'name': f"{self.coordinator.first_name} {self.coordinator.last_name}",
                 'email': self.coordinator.email
             } if self.coordinator else None,

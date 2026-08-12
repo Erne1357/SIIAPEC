@@ -22,6 +22,7 @@ from typing import Optional
 from flask import current_app
 
 from app import db
+from app.services import public_id_service
 from app.models import UserProgram, User, AcademicPeriod
 from app.models.acceptance_document import AcceptanceDocument
 from app.models.enrollment_deferral import EnrollmentDeferral
@@ -53,6 +54,13 @@ class DeferralNotFound(DeferralError):
     pass
 
 
+#: Denial text for -that applicant/deferral is not here-. Carries no id: the
+#: routes speak UUIDs now, so echoing the internal integer would hand it back
+#: out, and a message that varies with the cause is an enumeration oracle.
+DEFERRAL_NOT_FOUND_MESSAGE = 'No se encontró el proceso del aspirante.'
+DEFERRAL_ROW_NOT_FOUND_MESSAGE = 'Diferimiento no encontrado.' 
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers privados
 # ─────────────────────────────────────────────────────────────────────────────
@@ -60,9 +68,7 @@ class DeferralNotFound(DeferralError):
 def _get_user_program(user_id: int, program_id: int) -> UserProgram:
     up = UserProgram.query.filter_by(user_id=user_id, program_id=program_id).first()
     if not up:
-        raise DeferralNotFound(
-            f"No se encontró el proceso del aspirante {user_id} en el programa {program_id}"
-        )
+        raise DeferralNotFound(DEFERRAL_NOT_FOUND_MESSAGE)
     return up
 
 
@@ -253,7 +259,7 @@ def defer_applicant(user_id: int, program_id: int,
     emit_user_and_coordinators(
         'deferral:applied',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'deferral_id': deferral.id,
             'admission_status': 'deferred',
@@ -345,7 +351,7 @@ def request_deferral(user_id: int, program_id: int,
     emit_user_and_coordinators(
         'deferral:requested',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'deferral_id': deferral.id,
             'requested_by': 'applicant',
@@ -363,7 +369,7 @@ def approve_deferral(deferral_id: int, coordinator_id: int,
     """
     deferral = EnrollmentDeferral.query.get(deferral_id)
     if not deferral:
-        raise DeferralNotFound(f"Diferimiento {deferral_id} no encontrado.")
+        raise DeferralNotFound(DEFERRAL_ROW_NOT_FOUND_MESSAGE)
 
     if deferral.status != 'pending':
         raise DeferralNotAllowed(
@@ -381,7 +387,7 @@ def approve_deferral(deferral_id: int, coordinator_id: int,
     emit_user_and_coordinators(
         'deferral:approved',
         {
-            'user_id': up.user_id,
+            'user_id': public_id_service.user_uuid(up.user_id),
             'program_id': up.program_id,
             'deferral_id': deferral.id,
             'admission_status': 'deferred',
@@ -399,7 +405,7 @@ def reject_deferral(deferral_id: int, coordinator_id: int,
     """
     deferral = EnrollmentDeferral.query.get(deferral_id)
     if not deferral:
-        raise DeferralNotFound(f"Diferimiento {deferral_id} no encontrado.")
+        raise DeferralNotFound(DEFERRAL_ROW_NOT_FOUND_MESSAGE)
 
     if deferral.status != 'pending':
         raise DeferralNotAllowed(
@@ -439,7 +445,7 @@ def reject_deferral(deferral_id: int, coordinator_id: int,
     emit_user_and_coordinators(
         'deferral:rejected',
         {
-            'user_id': up.user_id,
+            'user_id': public_id_service.user_uuid(up.user_id),
             'program_id': up.program_id,
             'deferral_id': deferral.id,
         },
@@ -519,7 +525,7 @@ def reactivate_deferred(user_id: int, program_id: int,
     emit_user_and_coordinators(
         'deferral:reactivated',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'admission_status': 'accepted',
             'admission_period_id': up.admission_period_id,
@@ -607,7 +613,9 @@ def get_deferred_applicants(program_id: int) -> list:
         result.append({
             'user_program': up.to_dict(include_deliberation=True),
             'user': {
-                'id': up.user.id,
+                # Handle público: la consola de aceptación lo devuelve en el
+                # URL de `.../user/<uuid>/program/<id>/reactivate`.
+                'id': public_id_service.public_id(up.user),
                 'full_name': (
                     f"{up.user.first_name} {up.user.last_name} "
                     f"{up.user.mother_last_name or ''}"
@@ -650,7 +658,9 @@ def get_pending_deferral_requests(program_id: int) -> list:
             'deferral': d.to_dict(),
             'user_program': up.to_dict(),
             'user': {
-                'id': up.user.id,
+                # Handle público: la consola de aceptación lo devuelve en el
+                # URL de `.../user/<uuid>/program/<id>/reactivate`.
+                'id': public_id_service.public_id(up.user),
                 'full_name': (
                     f"{up.user.first_name} {up.user.last_name} "
                     f"{up.user.mother_last_name or ''}"

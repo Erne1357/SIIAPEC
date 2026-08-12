@@ -23,6 +23,7 @@ from app.models.archive import Archive
 from app.models.step import Step
 from app.models.phase import Phase
 from app.models.event import Event, EventAttendance
+from app.services import file_access_service
 from app.utils.datetime_utils import now_local
 
 
@@ -66,7 +67,8 @@ def _format_submission_item(s: Submission) -> dict:
         'title': f'Documento subido: {archive_name}',
         'description': f'Estado: {label}',
         'timestamp': s.upload_date.isoformat() if s.upload_date else None,
-        'url': f'/files/doc/{s.file_path}' if s.file_path else None,
+        # URL opaco: nombra la fila, no la ruta en disco.
+        'url': file_access_service.submission_file_url(s),
     }
 
 
@@ -216,7 +218,8 @@ def get_user_documents_grouped(user_id: int) -> dict:
         phase = _phase_name_for_submission(s)
         item = s.to_dict()
         item['archive_name'] = s.archive.name if s.archive else 'Documento'
-        item['file_url'] = f'/files/doc/{s.file_path}' if s.file_path else None
+        # URL opaco: nombra la fila, no la ruta en disco.
+        item['file_url'] = file_access_service.submission_file_url(s)
 
         if phase == 'admission':
             grouped['admission'].append(item)

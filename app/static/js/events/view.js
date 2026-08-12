@@ -497,10 +497,11 @@
     }
 
     /**
-     * Construye URL de foto de host.
-     * Interno: `/files/avatar/<user_id>/<filename>` requiere user_id — si el backend
-     * pasa `photo_path` como "42/avatar.webp" intentamos usarlo.
-     * Externo: `/files/event/<event_id>/hosts/<filename>`.
+     * URL de la foto del ponente. Siempre la publica el servidor:
+     * interno → `/files/avatar/<uuid del usuario>` (opaco, sin nombre de
+     * archivo); externo → `/files/event/<event_id>/hosts/<filename>`, donde el
+     * nombre ya es un uuid4 inadivinable que genera `save_event_image`.
+     * El cliente nunca arma ninguna de las dos.
      */
     function resolveHostPhotoUrl(eventId, host) {
         return host.photo_url || host.avatar_url || '';

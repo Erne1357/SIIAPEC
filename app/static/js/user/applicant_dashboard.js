@@ -15,10 +15,11 @@
   if (!userId || !userProgramId) return;
 
   // ── Helpers ──────────────────────────────────────────────────────────────
-  function buildDownloadUrl(filePath) {
-    if (!filePath) return '#';
-    const parts = filePath.split('/');
-    return '/files/doc/' + parts[0] + '/' + parts[1] + '/' + parts.slice(2).join('/');
+  // El cliente ya no arma URLs de archivos. El servidor publica `file_url`,
+  // que nombra la FILA con un identificador opaco; `file_path` quedó reducido
+  // al nombre humano del archivo y no sirve para construir una ruta.
+  function docUrl(doc) {
+    return (doc && doc.file_url) || '#';
   }
 
   function getCsrf() {
@@ -62,8 +63,8 @@
         return;
       }
       const letter = result.data?.acceptance_letter;
-      if (letter && letter.file_path) {
-        const url = buildDownloadUrl(letter.file_path);
+      if (letter && letter.file_url) {
+        const url = docUrl(letter);
         container.innerHTML = `
           <a href="${escHtml(url)}" target="_blank" rel="noopener" class="btn btn-outline-success btn-sm">
             <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar carta de aceptación
@@ -115,8 +116,8 @@
       const schedule = docs.course_schedule;
       const receipt = docs.enrollment_receipt;
 
-      const hasLetter   = letter   && letter.file_path;
-      const hasSchedule = schedule && schedule.file_path;
+      const hasLetter   = letter   && letter.file_url;
+      const hasSchedule = schedule && schedule.file_url;
       const receiptApproved = receipt && receipt.status === 'approved';
       const receiptRejected = receipt && receipt.status === 'rejected';
       const receiptUploaded = receipt && receipt.status === 'uploaded';
@@ -124,13 +125,13 @@
       const letterCard = buildDocCard(
         'Carta de Aceptación', 'bi-file-earmark-text',
         hasLetter, 'Para formalizar tu admisión al programa',
-        hasLetter ? buildDownloadBtn(buildDownloadUrl(letter.file_path)) : ''
+        hasLetter ? buildDownloadBtn(docUrl(letter)) : ''
       );
 
       const scheduleCard = buildDocCard(
         'Tira de Materias', 'bi-list-check',
         hasSchedule, 'Materias que cursarás este semestre',
-        hasSchedule ? buildDownloadBtn(buildDownloadUrl(schedule.file_path)) : ''
+        hasSchedule ? buildDownloadBtn(docUrl(schedule)) : ''
       );
 
       let receiptAction = '';

@@ -2,6 +2,8 @@
 from flask import Blueprint, abort, render_template, request, redirect, url_for
 from flask_login import login_required, current_user
 
+from app.models.submission import Submission
+from app.models.user import User
 from app.utils.permissions import permission_required, guard_program_scope
 from app.services import review_service
 from app.services.review_service import SubmissionNotFound
@@ -29,7 +31,11 @@ def submissions():
     información prohibida entre programas, así que ya no existe el
     interruptor "ver documentos de otros programas".
     """
-    applicant_id = request.args.get('applicant_id', type=int)
+    # `applicant_id` llega por query string como UUID público. `type=int` lo
+    # habría leído como None en silencio y el listado habría salido SIN filtrar.
+    _applicant_raw = request.args.get('applicant_id')
+    applicant = User.by_uuid(_applicant_raw)
+    applicant_id = applicant.id if applicant else (-1 if _applicant_raw else None)
     program_id   = request.args.get('program_id',   type=int)
     status       = request.args.get('status',       'pending', type=str)
     sort         = request.args.get('sort',         'asc',     type=str)  # FIFO: más antiguos primero
@@ -57,7 +63,9 @@ def submissions():
     context = {
         'submissions': submissions_list,
         'filters': {
-            'applicant_id': applicant_id,
+            # El filtro vuelve a la plantilla con el identificador PÚBLICO, que
+            # es el que el <select> vuelve a enviar.
+            'applicant_id': _applicant_raw or None,
             'program_id': program_id,
             'status': status,
             'sort': sort,
@@ -79,18 +87,19 @@ def submissions():
     return render_template("admin/review/submissions_list.html", **context)
 
 
-@pages_review.route("/submission/<int:sub_id>")
+@pages_review.route("/submission/<uuid:sub_uuid>")
 @login_required
 @permission_required('admin_review.page.view')
-def submission_detail(sub_id: int):
+def submission_detail(sub_uuid):
     """
     Detalle de una entrega. La plantilla expone la URL del archivo, así que
     una entrega de otro programa responde 404 (no 403): el revisor no debe
     saber siquiera que existe.
     """
+    row = Submission.by_uuid(sub_uuid)
     try:
         sub = review_service.get_submission_for_review(
-            current_user, sub_id, detailed=True
+            current_user, row.id if row else None, detailed=True
         )
     except SubmissionNotFound:
         abort(404)

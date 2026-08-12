@@ -162,7 +162,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const payload = {
-        archive_id: parseInt(archiveId),
+        // Identificador público del archivo (UUID): cadena, no entero.
+        archive_id: archiveId,
         requested_until: requestedUntil,
         reason: reason
       };

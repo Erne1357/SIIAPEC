@@ -21,6 +21,7 @@ from pathlib import Path
 from flask import current_app
 
 from app import db
+from app.services import public_id_service
 from app.models.user import User
 from app.models.program import Program
 from app.models.user_program import UserProgram
@@ -205,7 +206,11 @@ def request_photo_change(user_id: int, reason: str = None) -> User:
                 + (f' Motivo: {reason}' if reason else '')
             ),
             priority='normal',
-            action_url=f'/students/{user_id}/record',
+            # La página del expediente se direcciona por el identificador
+            # PÚBLICO (`/students/<uuid>/record`). Con el entero el enlace de
+            # la notificación devolvía 404 — y las notificaciones se guardan,
+            # así que un enlace roto sobrevive al despliegue que lo rompió.
+            action_url=f'/students/{public_id_service.public_id(user)}/record',
         )
 
     db.session.commit()
@@ -322,7 +327,9 @@ def list_pending_photo_requests(coordinator_id: int) -> list:
 
     return [
         {
-            'user_id': u.id,
+            # Public handle — the console puts it straight back in the URL of
+            # `POST /api/v1/users/<uuid>/photo/enable-change`.
+            'user_id': str(u.uuid) if u.uuid else None,
             'full_name': f"{u.first_name} {u.last_name} {u.mother_last_name or ''}".strip(),
             'email': u.email,
             'avatar_url': u.avatar_url,

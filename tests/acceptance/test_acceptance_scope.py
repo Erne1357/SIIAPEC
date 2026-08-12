@@ -19,6 +19,7 @@ import unittest
 
 from app import create_app, db
 from app.models.acceptance_document import AcceptanceDocument
+from app.utils.uuid7 import uuid7
 from app.models.enrollment_deferral import EnrollmentDeferral
 from app.models.permission import Permission
 from app.models.role_permission import RolePermission
@@ -110,6 +111,10 @@ class AcceptanceScopeTest(unittest.TestCase):
 
         self.receipt_id = self.receipt.id
         self.deferral_id = self.deferral.id
+        # URLs hablan UUID público; las comprobaciones contra la BD siguen
+        # usando el id interno, que no cambió.
+        self.receipt_uuid = str(self.receipt.uuid)
+        self.applicant_uuid = str(self.applicant.uuid)
 
     def tearDown(self):
         db.session.remove()
@@ -162,7 +167,7 @@ class AcceptanceScopeTest(unittest.TestCase):
     def test_other_program_receipt_review_is_404_and_changes_nothing(self):
         self._login(self.coord_b)
         res = self.client.post(
-            f'/api/v1/acceptance/document/{self.receipt_id}/review',
+            f'/api/v1/acceptance/document/{self.receipt_uuid}/review',
             json={'status': 'approved'}, headers=self._csrf,
         )
         self.assertEqual(res.status_code, 404)
@@ -175,7 +180,7 @@ class AcceptanceScopeTest(unittest.TestCase):
     def test_own_program_receipt_review_still_works(self):
         self._login(self.coord_a)
         res = self.client.post(
-            f'/api/v1/acceptance/document/{self.receipt_id}/review',
+            f'/api/v1/acceptance/document/{self.receipt_uuid}/review',
             json={'status': 'approved'}, headers=self._csrf,
         )
         self.assertEqual(res.status_code, 200)
@@ -185,7 +190,7 @@ class AcceptanceScopeTest(unittest.TestCase):
     def test_other_program_document_delete_is_404(self):
         self._login(self.coord_b)
         res = self.client.delete(
-            f'/api/v1/acceptance/document/{self.receipt_id}',
+            f'/api/v1/acceptance/document/{self.receipt_uuid}',
             headers=self._csrf,
         )
         self.assertEqual(res.status_code, 404)
@@ -217,11 +222,13 @@ class AcceptanceScopeTest(unittest.TestCase):
     def test_unknown_document_and_foreign_document_are_indistinguishable(self):
         self._login(self.coord_b)
         foreign = self.client.post(
-            f'/api/v1/acceptance/document/{self.receipt_id}/review',
+            f'/api/v1/acceptance/document/{self.receipt_uuid}/review',
             json={'status': 'approved'}, headers=self._csrf,
         )
         missing = self.client.post(
-            '/api/v1/acceptance/document/999999/review',
+            # Un UUID bien formado que no existe: mismo cuerpo y mismo código
+            # que un documento de otro programa.
+            f'/api/v1/acceptance/document/{uuid7()}/review',
             json={'status': 'approved'}, headers=self._csrf,
         )
         self.assertEqual(foreign.status_code, missing.status_code)
@@ -232,7 +239,7 @@ class AcceptanceScopeTest(unittest.TestCase):
     def test_other_program_defer_applicant_is_403(self):
         self._login(self.coord_b)
         res = self.client.post(
-            f'/api/v1/acceptance/user/{self.applicant.id}'
+            f'/api/v1/acceptance/user/{self.applicant_uuid}'
             f'/program/{self.program_a.id}/defer',
             json={'reason': 'motivo'}, headers=self._csrf,
         )
@@ -245,7 +252,7 @@ class AcceptanceScopeTest(unittest.TestCase):
     def test_other_program_acceptance_status_is_403(self):
         self._login(self.coord_b)
         res = self.client.get(
-            f'/api/v1/acceptance/user/{self.applicant.id}'
+            f'/api/v1/acceptance/user/{self.applicant_uuid}'
             f'/program/{self.program_a.id}/status'
         )
         self.assertEqual(res.status_code, 403)
@@ -253,7 +260,7 @@ class AcceptanceScopeTest(unittest.TestCase):
     def test_applicant_still_reads_own_acceptance_status(self):
         self._login(self.applicant)
         res = self.client.get(
-            f'/api/v1/acceptance/user/{self.applicant.id}'
+            f'/api/v1/acceptance/user/{self.applicant_uuid}'
             f'/program/{self.program_a.id}/status'
         )
         self.assertEqual(res.status_code, 200)

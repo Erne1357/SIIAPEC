@@ -10,6 +10,8 @@ Flujo por semestre:
 """
 
 from app import db
+from app.services import file_access_service
+from app.services import public_id_service
 from app.models import UserProgram, User, Program, AcademicPeriod
 from app.models.semester_enrollment import SemesterEnrollment
 from app.services.notification_service import NotificationService
@@ -93,7 +95,10 @@ def get_submission_scope(submission_id: int):
     """
     from app.models.submission import Submission
 
-    sub = db.session.get(Submission, submission_id)
+    # `submission_id` puede llegar como None cuando la ruta no pudo resolver el
+    # UUID público: mismo resultado que "no existe", y la guarda que consume
+    # esto responde el mismo 404 en ambos casos.
+    sub = db.session.get(Submission, submission_id) if submission_id is not None else None
     if not sub:
         return None
 
@@ -162,7 +167,7 @@ def get_enrolled_students(program_id: int) -> list:
         result.append({
             'user_program': up.to_dict(),
             'user': {
-                'id': user.id,
+                'id': public_id_service.user_uuid(user.id),
                 'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
                 'email': user.email,
                 'control_number': user.control_number,
@@ -402,7 +407,7 @@ def confirm_semester_enrollment(
     emit_user_and_coordinators(
         'permanence:status_changed',
         {
-            'user_id': user.id,
+            'user_id': public_id_service.user_uuid(user.id),
             'user_program_id': up.id,
             'program_id': up.program_id,
             'action': 'semester_confirmed',
@@ -606,7 +611,7 @@ def reinstate_from_leave(
     emit_user_and_coordinators(
         'permanence:status_changed',
         {
-            'user_id': user.id,
+            'user_id': public_id_service.user_uuid(user.id),
             'user_program_id': up.id,
             'program_id': up.program_id,
             'action': 'reinstated',
@@ -666,7 +671,7 @@ def get_enrollment_overview(program_id: int) -> dict:
         return {
             'user_program': up.to_dict(),
             'user': {
-                'id': u.id,
+                'id': public_id_service.user_uuid(u.id),
                 'full_name': f"{u.first_name} {u.last_name} {u.mother_last_name or ''}".strip(),
                 'email': u.email,
                 'control_number': u.control_number,
@@ -1188,8 +1193,8 @@ def submit_permanence_document(
         # de programa: va sólo a quien tiene alcance sobre el programa.
         from app.sockets.emitters import emit_to_coordinators
         emit_to_coordinators('submission:new', {
-            'user_id': student_id,
-            'submission_id': sub.id,
+            'user_id': public_id_service.user_uuid(student_id),
+            'submission_id': public_id_service.submission_uuid(sub.id),
             'archive_name': dl.archive.name,
             'program_id': up.program_id,
             'context': 'permanence',
@@ -1232,7 +1237,7 @@ def get_pending_documents(program_id: int) -> list:
         result.append({
             'submission': sub.to_dict(),
             'user': {
-                'id': user.id,
+                'id': public_id_service.user_uuid(user.id),
                 'full_name': (
                     f"{user.first_name} {user.last_name} "
                     f"{user.mother_last_name or ''}".strip()
@@ -1243,7 +1248,8 @@ def get_pending_documents(program_id: int) -> list:
                 sub.document_deadline.label if sub.document_deadline else sub.archive.name
             ),
             'archive_name': sub.archive.name if sub.archive else None,
-            'file_url': f'/files/doc/{sub.file_path}' if sub.file_path else None,
+            # URL opaco: nombra la fila, no la ruta en disco.
+            'file_url': file_access_service.submission_file_url(sub),
         })
     return result
 
@@ -1336,8 +1342,8 @@ def review_permanence_document(
     emit_user_and_coordinators(
         'permanence:status_changed',
         {
-            'user_id': sub.user_id,
-            'submission_id': sub.id,
+            'user_id': public_id_service.user_uuid(sub.user_id),
+            'submission_id': public_id_service.submission_uuid(sub.id),
             'program_id': program_id,
             'action': 'doc_reviewed',
             'status': status,
@@ -1382,7 +1388,7 @@ def get_student_leave_request(user_program_id: int) -> dict:
     )
     return {
         'archive_available': True,
-        'archive_id': archive.id,
+        'archive_id': public_id_service.archive_uuid(archive.id),
         'submission': sub.to_dict() if sub else None,
     }
 
@@ -1490,8 +1496,8 @@ def submit_leave_request(
         # atado a un user_id no sale del alcance del programa.
         from app.sockets.emitters import emit_to_coordinators
         emit_to_coordinators('submission:new', {
-            'user_id': student_id,
-            'submission_id': sub.id,
+            'user_id': public_id_service.user_uuid(student_id),
+            'submission_id': public_id_service.submission_uuid(sub.id),
             'archive_name': archive.name,
             'program_id': up.program_id,
             'context': 'leave_request',
@@ -1552,9 +1558,10 @@ def get_pending_leave_requests(program_id: int) -> list:
         up = ups_by_user_id.get(user.id)
         result.append({
             'submission': sub.to_dict(),
-            'file_url': f'/files/doc/{sub.file_path}' if sub.file_path else None,
+            # URL opaco: nombra la fila, no la ruta en disco.
+            'file_url': file_access_service.submission_file_url(sub),
             'user': {
-                'id': user.id,
+                'id': public_id_service.user_uuid(user.id),
                 'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
                 'control_number': user.control_number,
             },
@@ -1672,8 +1679,8 @@ def process_leave_request(
     emit_user_and_coordinators(
         'permanence:status_changed',
         {
-            'user_id': sub.user_id,
-            'submission_id': sub.id,
+            'user_id': public_id_service.user_uuid(sub.user_id),
+            'submission_id': public_id_service.submission_uuid(sub.id),
             'program_id': program_id,
             'action': 'leave_decided',
             'approved': bool(approve),
@@ -1885,7 +1892,7 @@ def set_conacyt_scholarship(
         emit_user_and_coordinators(
             'permanence:scholarship_changed',
             {
-                'user_id': up.user_id,
+                'user_id': public_id_service.user_uuid(up.user_id),
                 'program_id': up.program_id,
                 'has_conacyt_scholarship': new_value,
             },
@@ -1897,7 +1904,7 @@ def set_conacyt_scholarship(
 
     return {
         'has_conacyt_scholarship': new_value,
-        'user_id': up.user_id,
+        'user_id': public_id_service.user_uuid(up.user_id),
         'program_id': up.program_id,
     }
 

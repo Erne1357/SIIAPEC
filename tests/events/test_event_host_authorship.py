@@ -246,7 +246,9 @@ class TestHostAvatarIsNotSelfGranted(HostAuthorshipBase):
                 self.ev_a.id, viewer=self.student_a)
 
         self.assertIsNone(as_manager[0]['photo_url'])
-        self.assertIn(f'/files/avatar/{self.staff_other.id}/foto.webp',
+        # El URL de la foto nombra la FILA del usuario, no su id entero ni el
+        # nombre del archivo.
+        self.assertIn(f'/files/avatar/{self.staff_other.uuid}',
                       as_attendee[0]['photo_url'])
         # The name and the role label — what the chip is for — survive for both.
         self.assertEqual(as_manager[0]['name'], as_attendee[0]['name'])
@@ -294,7 +296,7 @@ class TestExploitOverHttp(HostAuthorshipBase):
 
         self._clear_login_cache()
         resp = self.client.get(
-            f'/files/avatar/{self.student_b.id}/foto.webp')
+            f'/files/avatar/{self.student_b.uuid}')
         self.assertEqual(resp.status_code, 404)
 
     def test_a_planted_row_does_not_open_the_avatar_either(self):
@@ -308,7 +310,7 @@ class TestExploitOverHttp(HostAuthorshipBase):
 
         self._clear_login_cache()
         resp = self.client.get(
-            f'/files/avatar/{self.student_b.id}/foto.webp')
+            f'/files/avatar/{self.student_b.uuid}')
         self.assertEqual(resp.status_code, 404)
 
     def test_legitimate_host_list_still_saves(self):
@@ -352,11 +354,14 @@ class TestAttendeeStillSeesTheCartel(HostAuthorshipBase):
         self.assertEqual(resp.status_code, 200)
         hosts = json.loads(resp.data)['hosts']
         self.assertEqual(len(hosts), 2)
-        self.assertTrue(hosts[0]['photo_url'].endswith('foto.webp'))
+        # El URL termina en el handle de la fila; el nombre del archivo
+        # dejó de viajar en el URL.
+        self.assertTrue(
+            hosts[0]['photo_url'].endswith(str(self.staff_other.uuid)))
         self.assertEqual(hosts[1]['name'], 'Dra. Externa')
 
     def test_host_avatar_bytes_are_served_to_the_attendee(self):
-        resp = self._get(f'/files/avatar/{self.staff_other.id}/foto.webp')
+        resp = self._get(f'/files/avatar/{self.staff_other.uuid}')
         self.assertEqual(resp.status_code, 200)
 
 

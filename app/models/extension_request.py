@@ -48,17 +48,23 @@ class ExtensionRequest(db.Model):
         self.updated_at = now_local()
     
     def to_dict(self):
+        # Public payload: ids that name a User, a Submission or an Archive go
+        # out as their UUID handle. Key names are unchanged on purpose.
+        from app.models.archive import Archive
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
-            'user_id': self.user_id,
-            'archive_id': self.archive_id,
+            'user_id': uuid_for(User, self.user_id),
+            'archive_id': uuid_for(Archive, self.archive_id),
             'program_step_id': self.program_step_id,
-            'requested_by': self.requested_by,
+            'requested_by': uuid_for(User, self.requested_by),
             'role': self.role,
             'reason': self.reason,
             'requested_until': self.requested_until.isoformat() if self.requested_until else None,
             'status': self.status,
-            'decided_by': self.decided_by,
+            'decided_by': uuid_for(User, self.decided_by),
             'decided_at': self.decided_at.isoformat() if self.decided_at else None,
             'granted_until': self.granted_until.isoformat() if self.granted_until else None,
             'condition_text': self.condition_text,

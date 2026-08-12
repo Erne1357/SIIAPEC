@@ -157,7 +157,7 @@ class AppointmentEventReadACLTestCase(unittest.TestCase):
         return self._post(
             self.client_coord_a, self.csrf_coord_a, '/api/v1/appointments',
             {'event_id': event.id, 'slot_id': slot.id,
-             'applicant_id': self.applicant_a.id},
+             'applicant_id': str(self.applicant_a.uuid)},
         )
 
     def _assert_created(self, resp):

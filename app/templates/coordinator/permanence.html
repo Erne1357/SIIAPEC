@@ -554,8 +554,10 @@
           <label class="form-label fw-bold" for="deadlineArchiveId">Documento{{ required_mark() }}</label>
           <select class="form-select" id="deadlineArchiveId" required aria-required="true">
             <option value="">— Selecciona un documento —</option>
+            {# El valor es el identificador PÚBLICO del archivo (uuid): es el
+               que el JS envía como `archive_id` al crear la ventana. #}
             {% for archive in permanence_archives %}
-            <option value="{{ archive.id }}" data-name="{{ archive.name }}">
+            <option value="{{ archive.uuid }}" data-name="{{ archive.name }}">
               {{ archive.name }}
             </option>
             {% endfor %}

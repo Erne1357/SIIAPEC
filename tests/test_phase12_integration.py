@@ -23,6 +23,11 @@ import unittest
 from datetime import timedelta
 
 from app import create_app, db
+from app.models.archive import Archive
+from app.models.phase import Phase
+from app.models.program_step import ProgramStep
+from app.models.step import Step
+from app.models.submission import Submission
 from app.models.user import User, GLOBAL_SCOPE_PERMISSION
 from app.models.role import Role
 from app.models.permission import Permission
@@ -668,25 +673,72 @@ class DashboardDispatchTest(Phase12Base):
 
 class FileAccessPermissionTest(Phase12Base):
     """
-    /files/doc/<user_id>/<phase>/<filename> (blueprint prefix /files, no /api):
-      - user_id == self → pasa el check (la vista rompe al leer config;
-        para aislar el check, usamos rutas que no hacen I/O real: fs missing)
-      - user_id != self y sin permiso → 403 (vía AJAX) ó 302 (redirect page)
-      - user_id != self y con permiso → pasa el check
+    `GET /files/doc/<uuid de la fila>` (blueprint con prefijo /files, no /api):
+      - dueño                              → pasa la puerta de permiso
+      - no dueño y sin permiso             → 403 (vía AJAX) ó 302 (página)
+      - no dueño y con permiso (rol o
+        delegación)                        → pasa la puerta de permiso
 
     Como el blueprint no está bajo /api/, el 403 se maneja por el errorhandler
     de página (flash+redirect 302). Enviamos header X-Requested-With para
     forzar la rama JSON y recibir 403 real.
+
+    POR QUÉ ESTA CLASE MONTA FILAS REALES Y ANTES NO
+    ------------------------------------------------
+    El URL era `/files/doc/<user_id>/<fase>/<archivo>` y el dueño salía del
+    PROPIO URL, así que la puerta de permiso podía comprobarse contra una ruta
+    inventada: bastaba con teclear el id de la víctima. Ahora el URL nombra una
+    FILA y el dueño se resuelve leyéndola, de modo que sin fila no hay a quién
+    comparar y la respuesta es 404 antes de llegar a la puerta.
+
+    Eso NO relaja nada —el orden es resolver fila → 404, puerta de permiso →
+    403, alcance de programa → 404—, pero sí significa que para ejercitar la
+    puerta hay que tener un documento de verdad. De ahí el andamio de abajo.
+    Probar el 403 contra una ruta inexistente ya sólo probaba que el servidor
+    sabía leer un entero del URL.
     """
 
-    URL_TMPL = '/files/doc/{uid}/admission/test.pdf'
     AJAX = {'X-Requested-With': 'XMLHttpRequest'}
 
     def setUp(self):
         super().setUp()
-        # Stubear config para evitar KeyError cuando el check pasa y la vista
-        # intenta resolver la ruta del archivo (no nos interesa servir aquí).
+        # No se sirven bytes en esta clase: el interés es la puerta de permiso.
+        # Con la carpeta vacía, todo lo que pasa los controles termina en 404
+        # («la fila existe, los bytes no»), que es justo lo que se afirma.
         self.app.config['USER_DOCS_FOLDER'] = '/tmp/siiap_test_user_docs'
+
+        # Cadena mínima para poder crear Submissions reales.
+        phase = Phase(name='admission', description='Admisión')
+        db.session.add(phase)
+        db.session.flush()
+        step = Step(name='Documentos', description='Docs', phase_id=phase.id)
+        db.session.add(step)
+        db.session.flush()
+        self.archive = Archive(name='Acta', description='Acta de nacimiento',
+                               file_path=None, step_id=step.id)
+        db.session.add(self.archive)
+        program = _program('Programa Docs', self.coord, slug='prog-docs')
+        self.pstep = ProgramStep(sequence=1, program_id=program.id,
+                                 step_id=step.id)
+        db.session.add(self.pstep)
+        db.session.flush()
+
+        self.applicant_doc = self._make_doc(self.applicant)
+        self.social_doc = self._make_doc(self.social)
+        db.session.commit()
+
+    def _make_doc(self, owner):
+        sub = Submission(
+            file_path=f'{owner.id}/admission/test.pdf', status='pending',
+            user_id=owner.id, archive_id=self.archive.id,
+            program_step_id=self.pstep.id, semester=None,
+        )
+        db.session.add(sub)
+        db.session.flush()
+        return sub
+
+    def _url(self, submission):
+        return f'/files/doc/{submission.uuid}'
 
     def _grant_doc_others(self, user):
         up = UserPermission(
@@ -698,39 +750,35 @@ class FileAccessPermissionTest(Phase12Base):
         db.session.commit()
 
     def test_owner_passes_permission_check(self):
-        """user_id == current_user.id → check pasa; archivo no existe → 404."""
+        """Dueño → la puerta pasa; los bytes no están en disco → 404."""
         self._login_as(self.applicant)
-        resp = self.client.get(self.URL_TMPL.format(uid=self.applicant.id),
-                               headers=self.AJAX)
+        resp = self.client.get(self._url(self.applicant_doc), headers=self.AJAX)
         self.assertNotEqual(resp.status_code, 403)
         self.assertEqual(resp.status_code, 404)
 
     def test_non_owner_without_permission_receives_403(self):
-        """applicant intenta ver doc de otro usuario → 403."""
+        """applicant intenta ver el documento de otro usuario → 403."""
         self._login_as(self.applicant)
-        resp = self.client.get(self.URL_TMPL.format(uid=self.social.id),
-                               headers=self.AJAX)
+        resp = self.client.get(self._url(self.social_doc), headers=self.AJAX)
         self.assertEqual(resp.status_code, 403)
 
     def test_non_owner_with_role_permission_passes(self):
-        """program_admin (rol trae files.api.view_doc_others) pasa el check."""
+        """program_admin (el rol trae files.api.view_doc_others) pasa la puerta."""
         self._login_as(self.coord)
-        resp = self.client.get(self.URL_TMPL.format(uid=self.applicant.id),
-                               headers=self.AJAX)
+        resp = self.client.get(self._url(self.applicant_doc), headers=self.AJAX)
         self.assertNotEqual(resp.status_code, 403)
         self.assertEqual(resp.status_code, 404)
 
     def test_social_service_without_delegation_denied(self):
-        """social_service sin UserPermission ni rol que lo grant → 403."""
+        """social_service sin UserPermission ni rol que lo otorgue → 403."""
         self._login_as(self.social)
-        resp = self.client.get(self.URL_TMPL.format(uid=self.applicant.id),
-                               headers=self.AJAX)
+        resp = self.client.get(self._url(self.applicant_doc), headers=self.AJAX)
         self.assertEqual(resp.status_code, 403)
 
     def test_social_service_with_delegation_passes(self):
         """
         social_service con UserPermission delegado de files.api.view_doc_others
-        pasa el check (archivo no existe → 404).
+        pasa la puerta (los bytes no existen → 404).
 
         Nota: hacemos la delegación ANTES del primer request para evitar que
         la caché de permisos en flask.g (app-context de setUp) almacene False
@@ -739,9 +787,19 @@ class FileAccessPermissionTest(Phase12Base):
         self._grant_doc_others(self.social)
 
         self._login_as(self.social)
-        resp = self.client.get(self.URL_TMPL.format(uid=self.applicant.id),
-                               headers=self.AJAX)
+        resp = self.client.get(self._url(self.applicant_doc), headers=self.AJAX)
         self.assertNotEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_unknown_row_is_404_before_the_permission_gate(self):
+        """
+        Un identificador que no nombra ninguna fila contesta 404 aunque quien
+        pregunte no tenga el permiso: sin fila no hay dueño contra quien
+        comparar, y un 403 aquí distinguiría «no existe» de «no puedes».
+        """
+        import uuid as _uuid
+        self._login_as(self.applicant)
+        resp = self.client.get(f'/files/doc/{_uuid.uuid4()}', headers=self.AJAX)
         self.assertEqual(resp.status_code, 404)
 
 

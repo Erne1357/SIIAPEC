@@ -428,7 +428,9 @@
     const payload = {
       event_id: document.getElementById('assignEventId').value,
       slot_id: document.getElementById('assignSlotId').value,
-      applicant_id: parseInt(document.getElementById('assignStudentId').value),
+      // Identificador público del aspirante (UUID): se envía tal cual. Con
+      // parseInt salía NaN → null, y el backend lo leía como «sin aspirante».
+      applicant_id: document.getElementById('assignStudentId').value || null,
       notes: document.getElementById('assignNotes').value
     };
     

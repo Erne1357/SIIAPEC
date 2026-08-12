@@ -1,9 +1,10 @@
 from app import db
+from app.models.mixins import PublicUUIDMixin
 from app.utils.datetime_utils import now_local
 
-class Archive(db.Model):
+class Archive(PublicUUIDMixin, db.Model):
     __tablename__ = 'archive'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
@@ -34,8 +35,10 @@ class Archive(db.Model):
         self.is_uploadable = is_uploadable
     
     def to_dict(self):
+        # `id` is the public UUID handle; `step_id` stays an integer because
+        # Step carries no public handle. Key names unchanged on purpose.
         return {
-            'id': self.id,
+            'id': str(self.uuid) if self.uuid else None,
             'name': self.name,
             'description': self.description,
             'is_downloadable': self.is_downloadable,

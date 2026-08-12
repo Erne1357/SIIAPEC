@@ -76,9 +76,15 @@ class DocumentDeadline(db.Model):
         return True
 
     def to_dict(self):
+        # Public payload: ids that name a User, a Submission or an Archive go
+        # out as their UUID handle. Key names are unchanged on purpose.
+        from app.models.archive import Archive
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
-            'archive_id': self.archive_id,
+            'archive_id': uuid_for(Archive, self.archive_id),
             'archive_name': self.archive.name if self.archive else None,
             'program_id': self.program_id,
             'academic_period_id': self.academic_period_id,
@@ -90,8 +96,8 @@ class DocumentDeadline(db.Model):
             'is_currently_open': self.is_currently_open,
             'is_archived': self.is_archived,
             'archived_at': self.archived_at.isoformat() if self.archived_at else None,
-            'archived_by': self.archived_by,
-            'created_by': self.created_by,
+            'archived_by': uuid_for(User, self.archived_by),
+            'created_by': uuid_for(User, self.created_by),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

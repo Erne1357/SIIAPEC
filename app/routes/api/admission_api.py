@@ -20,9 +20,11 @@ def admission_state(slug: str):
     state = get_admission_state(current_user.id, program.id, up)
     # mapear a JSON “limpio”
     def sub_info(aid):
+        # `aid` sigue siendo el id INTERNO del Archive: es la clave con la que
+        # `get_admission_state` indexó `subs`. Lo que sale al JSON es el UUID.
         s = state["subs"].get(aid)
         return None if not s else {
-            "id": s.id,
+            "id": str(s.uuid) if s.uuid else None,
             "status": s.status,
             "file_path": s.file_path,
             "upload_date": s.upload_date.isoformat() if s.upload_date else None,
@@ -39,8 +41,16 @@ def admission_state(slug: str):
             "phase": getattr(step.phase, "name", None),
             "locked": bool(state["lock_info"].get(step.id)),
             "state": state["step_states"].get(step.id),
+            # `id` del Archive es su handle público: el formulario de subida lo
+            # devuelve tal cual como `archive_id`, y esa ruta ya resuelve el
+            # UUID. `step.id` y `program.id` siguen siendo enteros (Step y
+            # Program no tienen handle público).
             "archives": [
-                {"id": a.id, "name": a.name, "submission": sub_info(a.id)}
+                {
+                    "id": str(a.uuid) if a.uuid else None,
+                    "name": a.name,
+                    "submission": sub_info(a.id),
+                }
                 for a in step.archives
             ],
         })

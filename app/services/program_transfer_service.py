@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 from app.utils.datetime_utils import now_local
 from typing import Dict, Iterable, List, Optional, Tuple
 from app import db
+from app.services import public_id_service
 from app.models.user_program import UserProgram
 from app.models.program import Program
 from app.models.program_change_request import ProgramChangeRequest
@@ -293,8 +294,9 @@ class ProgramTransferService:
                 to_arch = db.session.get(Archive, to_archive_id)
                 
                 reusable.append({
-                    'archive_id': from_archive_id,
-                    'target_archive_id': to_archive_id,
+                    # Public handles — the transfer console sends them back.
+                    'archive_id': public_id_service.archive_uuid(from_archive_id),
+                    'target_archive_id': public_id_service.archive_uuid(to_archive_id),
                     'name': from_arch.name,
                     'from_step': from_arch.step.name,
                     'to_step': to_arch.step.name,
@@ -307,7 +309,7 @@ class ProgramTransferService:
             if archive_id not in mapping['equivalent']:
                 arch = db.session.get(Archive, archive_id)
                 incompatible.append({
-                    'archive_id': archive_id,
+                    'archive_id': public_id_service.archive_uuid(archive_id),
                     'name': arch.name,
                     'file_path': sub.file_path,
                     'step_name': arch.step.name
@@ -321,7 +323,7 @@ class ProgramTransferService:
             if arch.id not in mapping['equivalent'].values():
                 # Este archivo no tiene equivalente en origen
                 missing.append({
-                    'archive_id': arch.id,
+                    'archive_id': public_id_service.archive_uuid(arch.id),
                     'name': arch.name,
                     'step_name': arch.step.name
                 })

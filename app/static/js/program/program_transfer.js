@@ -264,6 +264,11 @@
               <tbody>
       `;
 
+      // Estas tres listas mostraban el id entero del archivo («ID: 42 → 87»).
+      // Ese id dejó de ser público y su reemplazo es un UUID, que no le dice
+      // nada a un aspirante y sólo añade ruido: el nombre del documento y el
+      // paso ya lo identifican. `doc.archive_id` sigue viajando en el payload
+      // para quien lo necesite, pero no se pinta.
       analysis.reusable_docs.forEach(doc => {
         // Mismo componente que emite Jinja: nunca `badge bg-*` para un estado.
         const statusBadge = doc.status === 'approved'
@@ -280,7 +285,6 @@
           <tr>
             <td>
               ${SIIAP.escapeHtml(doc.name)} ${matchType}
-              <div class="small text-muted">ID: ${SIIAP.escapeHtml(doc.archive_id)} → ${SIIAP.escapeHtml(doc.target_archive_id)}</div>
             </td>
             <td>${statusBadge}</td>
             <td class="small text-muted">${SIIAP.escapeHtml(doc.from_step)}</td>
@@ -324,7 +328,6 @@
             <div>
               <strong>${SIIAP.escapeHtml(doc.name)}</strong>
               <div class="small text-muted">Paso: ${SIIAP.escapeHtml(doc.step_name)}</div>
-              <div class="small text-muted">ID: ${SIIAP.escapeHtml(doc.archive_id)}</div>
             </div>
             <i class="bi bi-trash text-danger" aria-hidden="true"></i>
           </li>
@@ -357,7 +360,6 @@
           <li class="list-group-item">
             <strong>${SIIAP.escapeHtml(doc.name)}</strong>
             <div class="small text-muted">${SIIAP.escapeHtml(doc.step_name)}</div>
-            <div class="small text-muted">ID requerido: ${SIIAP.escapeHtml(doc.archive_id)}</div>
           </li>
         `;
       });

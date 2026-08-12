@@ -210,7 +210,8 @@ def api_login():
 
     # NUEVO: Verificar si debe cambiar contraseña
     response_data = {
-        "id": user.id, 
+        # Public handle, never the integer primary key.
+        "id": str(user.uuid) if user.uuid else None,
         "username": user.username, 
         "role": getattr(getattr(user, "role", None), "name", None),
         "must_change_password": user.must_change_password,  # Flag importante
@@ -341,7 +342,7 @@ def change_password():
     
     return jsonify({
         "data": {
-            "user_id": current_user.id,
+            "user_id": str(current_user.uuid) if current_user.uuid else None,
             "username": current_user.username,
             "password_changed": True
         },
@@ -398,8 +399,8 @@ def api_me():
     
     return jsonify({
         "data": {
-            "id": u.id, 
-            "username": u.username, 
+            "id": str(u.uuid) if u.uuid else None,
+            "username": u.username,
             "email": u.email,
             "first_name": u.first_name, 
             "last_name": u.last_name,

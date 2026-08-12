@@ -189,9 +189,11 @@ class HistoryEndpointGuardTest(HistoryWorldMixin, unittest.TestCase):
         body = res.get_json()
         self.assertTrue(body['meta']['scoped'])
         self.assertLessEqual(body['meta']['limit'], UserHistoryService.MAX_ACTIVITY_LIMIT)
+        # El payload publica el identificador PÚBLICO del usuario, no el
+        # entero: el id interno ya no sale de la aplicación.
         self.assertEqual(
             {row['user_id'] for row in body['data']},
-            {self.student_a.id, self.coord_a.id},
+            {str(self.student_a.uuid), str(self.coord_a.uuid)},
         )
 
     def test_recent_is_unscoped_for_the_global_admin(self):

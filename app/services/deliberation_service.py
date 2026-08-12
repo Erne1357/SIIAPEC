@@ -21,6 +21,7 @@ protegida no puede tocar el expediente de otro programa.
 import json
 
 from app import db
+from app.services import public_id_service
 from app.models import UserProgram, User, Program, Submission, ProgramStep
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
@@ -31,6 +32,13 @@ from sqlalchemy import and_, or_
 class DeliberationError(Exception):
     """Error base para operaciones de deliberacion."""
     pass
+
+
+#: Denial text for "that applicant is not in this program". Carries no id: the
+#: routes speak UUIDs now, so echoing the internal integer would hand it back
+#: out, and a message that varies with the cause ("no such user" vs "user
+#: exists but is not in this program") is an enumeration oracle.
+APPLICANT_NOT_FOUND_MESSAGE = 'No se encontró al aspirante en este programa.'
 
 
 class ApplicantNotFound(DeliberationError):
@@ -107,7 +115,7 @@ def get_user_program(user_id: int, program_id: int):
     ).first()
 
     if not up:
-        raise ApplicantNotFound(f"No se encontro al aspirante {user_id} en el programa {program_id}")
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
 
     return up
 
@@ -177,7 +185,7 @@ def mark_interview_completed(user_id: int, program_id: int, coordinator_id: int 
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'interview_completed',
         },
@@ -237,7 +245,7 @@ def start_deliberation(user_id: int, program_id: int, coordinator_id: int):
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'deliberation',
         },
@@ -344,7 +352,7 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
         socketio.emit(
             'deliberation:updated',
             {
-                'user_id': user_id,
+                'user_id': public_id_service.user_uuid(user_id),
                 'user_name': f'{user.first_name} {user.last_name}',
                 'program_id': program_id,
                 'status': 'accepted',
@@ -358,7 +366,7 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     emit_to_coordinators(
         'deliberation:updated',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'user_name': f'{user.first_name} {user.last_name}',
             'program_id': program_id,
             'status': 'accepted',
@@ -369,7 +377,7 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'accepted',
             'decision_notes': notes,
@@ -479,7 +487,7 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
         socketio.emit(
             'deliberation:updated',
             {
-                'user_id': user_id,
+                'user_id': public_id_service.user_uuid(user_id),
                 'user_name': f'{user.first_name} {user.last_name}',
                 'program_id': program_id,
                 'status': deliberation_status,
@@ -493,7 +501,7 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
     emit_to_coordinators(
         'deliberation:updated',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'user_name': f'{user.first_name} {user.last_name}',
             'program_id': program_id,
             'status': deliberation_status,
@@ -504,7 +512,7 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'rejected',
             'rejection_type': rejection_type,
@@ -581,7 +589,7 @@ def reset_to_in_progress(user_id: int, program_id: int, admin_id: int, reason: s
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'in_progress',
         },
@@ -644,7 +652,7 @@ def force_reset_applicant(user_id: int, program_id: int, admin_id: int, reason: 
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'in_progress',
             'forced_reset': True,

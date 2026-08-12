@@ -9,7 +9,8 @@ from app.models.program import Program
 from app.models.user_program import UserProgram
 from app.services.user_history_service import UserHistoryService
 from app.services import program_scope_service as scope_service
-from app.utils.permissions import permission_required, program_scope_required
+from app.utils.permissions import guard_user_scope, permission_required
+from app.routes._public_id import resolved_id
 from app.utils.validators import (
     EMAIL_MAX_LENGTH,
     InputValidationError,
@@ -268,10 +269,10 @@ def list_users():
     }), 200
 
 
-@api_admin_users.get("/<int:user_id>")
+@api_admin_users.get("/<uuid:user_uuid>")
 @login_required
 @permission_required('admin_users.api.list')
-def get_user(user_id):
+def get_user(user_uuid):
     """
     Obtiene información detallada de un usuario específico.
 
@@ -279,7 +280,9 @@ def get_user(user_id):
     correo, sin historial (prohibido entre programas), sin número de control y
     sin foto.
     """
-    user = User.query.get(user_id)
+    # Identificador desconocido o malformado: mismo 404 que un usuario
+    # inexistente — el UUID nunca se distingue de la ausencia de la fila.
+    user = User.by_uuid(user_uuid)
     if not user:
         return jsonify({
             "data": None,
@@ -287,6 +290,7 @@ def get_user(user_id):
             "error": {"code": "NOT_FOUND", "message": "Usuario no existe"},
             "meta": {}
         }), 404
+    user_id = user.id
 
     # Obtener programa
     user_program = UserProgram.query.filter_by(user_id=user_id).first()
@@ -333,24 +337,25 @@ def get_user(user_id):
     }), 200
 
 
-@api_admin_users.patch("/<int:user_id>")
+@api_admin_users.patch("/<uuid:user_uuid>")
 @login_required
 @permission_required('admin_users.api.update')
 # allow_self=True (por omisión) a propósito, pero sólo para el NOMBRE: editarse
 # el propio nombre ya es autoservicio en `PATCH /api/v1/users/me`, así que
 # negarlo aquí sólo sería incoherente. El correo es otra cosa y lo rechaza el
 # cuerpo de la vista con un mensaje específico — ver ahí el porqué.
-@program_scope_required(user_id_kwarg='user_id')
-def update_user(user_id):
+def update_user(user_uuid):
     """Actualiza información básica del usuario"""
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Usuario no encontrado."}],
-            "error": {"code": "NOT_FOUND", "message": "Usuario no existe"},
-            "meta": {}
-        }), 404
+    # El decorador `@program_scope_required(user_id_kwarg=...)` leía el id del
+    # URL; con UUID el destino se resuelve aquí y la MISMA regla se aplica con
+    # la guarda imperativa. `guard_user_scope(None)` falla cerrado, así que un
+    # identificador desconocido y uno fuera de alcance devuelven exactamente el
+    # mismo 403: no hay oráculo de existencia en la puerta nueva.
+    user = User.by_uuid(user_uuid)
+    denied = guard_user_scope(resolved_id(user))
+    if denied:
+        return denied
+    user_id = user.id
     
     payload = request.get_json(silent=True) or {}
     changed_fields = {}
@@ -466,7 +471,9 @@ def update_user(user_id):
             role_name = user.role.name if user.role else None
             payload_ws = {
                 'action': 'updated',
-                'user_id': user.id,
+                # Public handle: the browser matches this against the `id` the
+                # listing payloads publish, which is also the UUID.
+                'user_id': str(user.uuid) if user.uuid else None,
                 'role': role_name,
                 'email': user.email,
                 'full_name': f'{user.first_name} {user.last_name}',
@@ -492,13 +499,12 @@ def update_user(user_id):
 
 # ESTA ES LA CONTINUACIÓN - PEGAR DESPUÉS DE LA PARTE 1
 
-@api_admin_users.post("/<int:user_id>/reset-password")
+@api_admin_users.post("/<uuid:user_uuid>/reset-password")
 @login_required
 @permission_required('admin_users.api.reset_password')
 # allow_self=True a propósito: la acción sobre uno mismo la rechaza el cuerpo de
 # la vista con un mensaje específico, no con el 403 genérico de alcance.
-@program_scope_required(user_id_kwarg='user_id')
-def reset_password(user_id):
+def reset_password(user_uuid):
     """
     Invalida la contraseña del usuario y le envía por correo un enlace de un
     solo uso para que defina una nueva.
@@ -507,6 +513,13 @@ def reset_password(user_id):
     por defecto en el sistema.
     """
     from app.services import password_reset_service as prs
+
+    # Misma regla de alcance que antes, ahora imperativa (ver `update_user`).
+    user = User.by_uuid(user_uuid)
+    denied = guard_user_scope(resolved_id(user))
+    if denied:
+        return denied
+    user_id = user.id
 
     # No permitir resetear la propia contraseña
     if user_id == current_user.id:
@@ -555,21 +568,21 @@ def reset_password(user_id):
     }), 200
 
 
-@api_admin_users.patch("/<int:user_id>/toggle-active")
+@api_admin_users.patch("/<uuid:user_uuid>/toggle-active")
 @login_required
 @permission_required('admin_users.api.update')
-@program_scope_required(user_id_kwarg='user_id')
-def toggle_active(user_id):
+def toggle_active(user_uuid):
     """Activa o desactiva un usuario"""
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Usuario no encontrado."}],
-            "error": {"code": "NOT_FOUND", "message": "Usuario no existe"},
-            "meta": {}
-        }), 404
-    
+    # No hay rama 404 aquí a propósito: `guard_user_scope(None)` ya falla
+    # cerrado, así que un identificador desconocido sale con el MISMO 403 que
+    # uno fuera de alcance y nunca llega hasta aquí. Añadir un 404 después de
+    # la guarda volvería a distinguir "no existe" de "no es tuyo".
+    user = User.by_uuid(user_uuid)
+    denied = guard_user_scope(resolved_id(user))
+    if denied:
+        return denied
+    user_id = user.id
+
     # No permitir desactivarse a sí mismo
     if user_id == current_user.id:
         return jsonify({
@@ -606,20 +619,17 @@ def toggle_active(user_id):
     }), 200
 
 
-@api_admin_users.post("/<int:user_id>/assign-control-number")
+@api_admin_users.post("/<uuid:user_uuid>/assign-control-number")
 @login_required
 @permission_required('admin_users.api.assign_control_number')
-@program_scope_required(user_id_kwarg='user_id', allow_self=False)
-def assign_control_number(user_id):
+def assign_control_number(user_uuid):
     """Asigna un número de control al usuario"""
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Usuario no encontrado."}],
-            "error": {"code": "NOT_FOUND", "message": "Usuario no existe"},
-            "meta": {}
-        }), 404
+    # allow_self=False como antes: nadie se asigna su propio número de control.
+    user = User.by_uuid(user_uuid)
+    denied = guard_user_scope(resolved_id(user), allow_self=False)
+    if denied:
+        return denied
+    user_id = user.id
     
     # Solo aspirantes pueden recibir un número de control desde este endpoint.
     # (Para correcciones de estudiantes ya transicionados, usar el flujo del coordinador.)
@@ -752,21 +762,20 @@ def assign_control_number(user_id):
     }), 200
 
 
-@api_admin_users.delete("/<int:user_id>")
+@api_admin_users.delete("/<uuid:user_uuid>")
 @login_required
 @permission_required('admin_users.api.delete')
-@program_scope_required(user_id_kwarg='user_id')
-def delete_user(user_id):
+def delete_user(user_uuid):
     """Elimina un usuario (solo admin general)"""
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Usuario no encontrado."}],
-            "error": {"code": "NOT_FOUND", "message": "Usuario no existe"},
-            "meta": {}
-        }), 404
-    
+    user = User.by_uuid(user_uuid)
+    denied = guard_user_scope(resolved_id(user))
+    if denied:
+        return denied
+    user_id = user.id
+    # El identificador público se guarda antes del DELETE: la fila deja de
+    # existir y el payload de Socket.IO todavía tiene que nombrarla.
+    user_uuid_public = str(user.uuid) if user.uuid else None
+
     # No permitir eliminarse a sí mismo
     if user_id == current_user.id:
         return jsonify({
@@ -821,7 +830,7 @@ def delete_user(user_id):
         from app.sockets.emitters import emit_admin_user_change
         payload_ws = {
             'action': 'deleted',
-            'user_id': user_id,
+            'user_id': user_uuid_public,
             'role': user_role,
             'email': user_email,
             'full_name': user_name,
@@ -977,31 +986,29 @@ def create_social_service():
         }), 500
 
 
-@api_admin_users.get("/<int:user_id>/history")
+@api_admin_users.get("/<uuid:user_uuid>/history")
 @login_required
 @permission_required('admin_users.api.list')
-@program_scope_required(user_id_kwarg='user_id')
-def user_history(user_id):
+def user_history(user_uuid):
     """
     Obtiene el historial completo de un usuario.
 
     El historial es información prohibida entre programas: no existe nivel
-    reducido, el alcance lo resuelve `@program_scope_required`.
+    reducido, el alcance lo resuelve `guard_user_scope`.
     """
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Usuario no encontrado."}],
-            "error": {"code": "NOT_FOUND", "message": "Usuario no existe"},
-            "meta": {}
-        }), 404
+    user = User.by_uuid(user_uuid)
+    denied = guard_user_scope(resolved_id(user))
+    if denied:
+        return denied
+    user_id = user.id
     
     history_entries = UserHistoryService.get_user_history(user_id=user_id)
     
     return jsonify({
         "data": {
-            "user": {"id": user.id, "name": f"{user.first_name} {user.last_name}"},
+            # Public handle, never the integer primary key.
+            "user": {"id": str(user.uuid) if user.uuid else None,
+                     "name": f"{user.first_name} {user.last_name}"},
             "history": [entry.to_dict() for entry in history_entries]
         },
         "error": None,

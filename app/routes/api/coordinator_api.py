@@ -8,9 +8,10 @@ from app import db
 from app.utils.permissions import (
     permission_required,
     any_permission_required,
-    program_scope_required,
     guard_user_scope,
 )
+from app.routes._public_id import resolved_id
+from app.services import file_access_service
 from app.services import program_scope_service as scope_service
 from app.utils.files import save_user_doc  # Importar tu función de archivos
 from app.services.user_history_service import UserHistoryService
@@ -55,6 +56,25 @@ def _scoped_user_program(student_id: int):
     return None
 
 
+#: Denial text used by every "no such student here" branch of this blueprint.
+#: One string for all causes (unknown UUID, malformed UUID, not an
+#: applicant/student account) so none of them is distinguishable.
+STUDENT_NOT_FOUND_MESSAGE = 'Estudiante no encontrado'
+
+
+def _resolve_student(student_uuid):
+    """
+    Public UUID → the User row, or None.
+
+    None covers a malformed identifier, an unknown one and an account that is
+    not an applicant/student — every caller turns all three into the same 404.
+    """
+    student = User.by_uuid(student_uuid)
+    if student is None or not _is_student_account(student):
+        return None
+    return student
+
+
 def _is_student_account(user) -> bool:
     """Sólo aspirantes y estudiantes son objetivo de los paneles de coordinación."""
     return getattr(getattr(user, 'role', None), 'name', None) in ('applicant', 'student')
@@ -69,7 +89,9 @@ def _summary_of(student, program, user_program=None, admission_state=None) -> di
     después. Nunca construyas el payload restringido a mano.
     """
     flat = {
-        "id": student.id,
+        # Public handle. The key stays `id` because
+        # `CROSS_PROGRAM_SUMMARY_FIELDS` allow-lists by key name.
+        "id": str(student.uuid) if student.uuid else None,
         "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
         "email": student.email,
         "program_id": program.id if program else None,
@@ -302,7 +324,7 @@ def list_students():
 
         # Calcular métricas
         student_data = {
-            "id": user.id,
+            "id": str(user.uuid) if user.uuid else None,
             "full_name": f"{user.first_name} {user.last_name}",
             "email": user.email,
             "avatar_url": user.avatar_url,
@@ -376,7 +398,7 @@ def manageable_students():
     
     for user, program in results:
         students.append({
-            "id": user.id,
+            "id": str(user.uuid) if user.uuid else None,
             "full_name": f"{user.first_name} {user.last_name}",
             "email": user.email,
             "program_name": program.name
@@ -384,20 +406,23 @@ def manageable_students():
     
     return jsonify({"students": students}), 200
 
-@api_coordinator.route('/student/<int:student_id>/uploadable-archives', methods=['GET'])
+@api_coordinator.route('/student/<uuid:student_uuid>/uploadable-archives', methods=['GET'])
 @login_required
 @permission_required('coordinator.api.upload_for_student')
-@program_scope_required(user_id_kwarg='student_id', allow_self=False)
-def student_uploadable_archives(student_id: int):
+def student_uploadable_archives(student_uuid):
     """
     Lista archivos que el coordinador puede subir para un estudiante específico.
 
-    El alcance lo resuelve `@program_scope_required`: un aspirante de otro
-    programa (o un id inexistente) nunca llega al cuerpo de la vista.
+    El alcance es la MISMA regla que aplicaba `@program_scope_required`, ahora
+    imperativa porque el URL trae un UUID y no un id. `guard_user_scope(None)`
+    falla cerrado, así que un identificador desconocido y uno de otro programa
+    devuelven exactamente el mismo 403.
     """
-    student = db.session.get(User, student_id)
-    if not student or not _is_student_account(student):
-        return jsonify({"error": "Estudiante no encontrado"}), 404
+    student = _resolve_student(student_uuid)
+    denied = guard_user_scope(resolved_id(student), allow_self=False)
+    if denied:
+        return denied
+    student_id = student.id
 
     user_program = _scoped_user_program(student_id)
     if not user_program:
@@ -427,7 +452,8 @@ def student_uploadable_archives(student_id: int):
         ).first()
         
         archives.append({
-            "id": archive.id,
+            # Public handle — the browser posts it back as `archive_id`.
+            "id": str(archive.uuid) if archive.uuid else None,
             "name": archive.name,
             "description": archive.description,
             "step_name": step.name,
@@ -445,26 +471,39 @@ def upload_for_student():
     """
     Permite al coordinador subir un archivo por un estudiante usando el sistema de archivos
     """
-    student_id = request.form.get('student_id', type=int)
-    archive_id = request.form.get('archive_id', type=int)
+    # `student_id` y `archive_id` viajan en el FORM, no en el URL, pero son la
+    # misma clase de identificador: UUID público. `type=int` los habría leído
+    # como None en silencio y el 400 siguiente lo habría tapado como "campo
+    # faltante", así que se leen como texto y se resuelven aquí.
+    student = User.by_uuid(request.form.get('student_id'))
+    archive = Archive.by_uuid(request.form.get('archive_id'))
     notes = request.form.get('notes', '').strip()
     decision = (request.form.get('decision') or 'approve').strip().lower()
     if decision not in ('approve', 'reject'):
         decision = 'approve'
 
-    if not student_id or not archive_id:
+    # Un identificador que no resuelve NO se distingue aquí de uno fuera de
+    # alcance: los dos caen al mismo 403 de la guarda de abajo, que con None
+    # falla cerrado. Contestar 400 "campos requeridos" cuando el UUID
+    # simplemente no existe convertía el par en un oráculo — quien tuviera un
+    # UUID ajeno sabría si señala a alguien real antes de que el alcance
+    # llegara a opinar. El 400 se reserva para lo que de verdad es un campo
+    # ausente.
+    if not request.form.get('student_id') or not request.form.get('archive_id'):
         return jsonify({"error": "student_id y archive_id son requeridos"}), 400
+
+    if student is not None and not _is_student_account(student):
+        student = None
 
     # Alcance ANTES de tocar nada: subir un documento es una escritura y una
     # escritura nunca cruza programas. El id viene en el form, no en el URL,
-    # así que se usa la guarda imperativa.
-    denied = guard_user_scope(student_id, allow_self=False)
+    # así que se usa la guarda imperativa; con None falla cerrado.
+    denied = guard_user_scope(resolved_id(student), allow_self=False)
     if denied:
         return denied
 
-    student = db.session.get(User, student_id)
-    if not student or not _is_student_account(student):
-        return jsonify({"error": "Estudiante no encontrado"}), 404
+    student_id = student.id
+    archive_id = archive.id
 
     # Archivo opcional: si no se proporciona, el coordinador valida sin documento
     # (caso típico: examen presencial). Aspirantes/estudiantes siempre suben file.
@@ -557,8 +596,9 @@ def upload_for_student():
             + ('' if file else ' (sin archivo adjunto)')
         )
         return jsonify({
+            # Handle público de la entrega recién creada.
             "ok": True,
-            "submission_id": submission.id,
+            "submission_id": str(submission.uuid) if submission.uuid else None,
             "message": msg,
         }), 201
 
@@ -589,10 +629,10 @@ def list_coordinator_programs():
     
     return jsonify({"ok": True, "programs": items}), 200
 
-@api_coordinator.route('/student/<int:student_id>/permanence-details', methods=['GET'])
+@api_coordinator.route('/student/<uuid:student_uuid>/permanence-details', methods=['GET'])
 @login_required
 @permission_required('coordinator.api.list_students')
-def get_student_permanence_details(student_id: int):
+def get_student_permanence_details(student_uuid):
     """
     Detalles de permanencia de un estudiante inscrito:
     semestre actual, periodo activo, confirmación semestral,
@@ -601,9 +641,10 @@ def get_student_permanence_details(student_id: int):
     from app.models.semester_enrollment import SemesterEnrollment
     from app.models.academic_period import AcademicPeriod
 
-    student = db.session.get(User, student_id)
-    if not student or not _is_student_account(student):
-        return jsonify({"ok": False, "error": "Estudiante no encontrado"}), 404
+    student = _resolve_student(student_uuid)
+    if student is None:
+        return jsonify({"ok": False, "error": STUDENT_NOT_FOUND_MESSAGE}), 404
+    student_id = student.id
 
     # La inscripción que se muestra es la del programa que el llamador gestiona;
     # sólo si no gestiona ninguna se cae al nivel reducido.
@@ -650,7 +691,7 @@ def get_student_permanence_details(student_id: int):
     return jsonify({
         "ok": True,
         "student": {
-            "id": student.id,
+            "id": str(student.uuid) if student.uuid else None,
             "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
             "email": student.email,
             "avatar_url": student.avatar_url,
@@ -697,10 +738,10 @@ def get_student_permanence_details(student_id: int):
     }), 200
 
 
-@api_coordinator.route('/student/<int:student_id>/details', methods=['GET'])
+@api_coordinator.route('/student/<uuid:student_uuid>/details', methods=['GET'])
 @login_required
 @permission_required('coordinator.api.list_students')
-def get_student_details(student_id: int):
+def get_student_details(student_uuid):
     """
     Obtiene detalles completos de un estudiante para el modal del coordinador.
     Incluye: perfil, documentos, entrevista, métricas
@@ -709,9 +750,10 @@ def get_student_details(student_id: int):
     from app.services.interview_service import InterviewEligibilityService
     
     # 1. Obtener estudiante
-    student = db.session.get(User, student_id)
-    if not student or not _is_student_account(student):
-        return jsonify({"ok": False, "error": "Estudiante no encontrado"}), 404
+    student = _resolve_student(student_uuid)
+    if student is None:
+        return jsonify({"ok": False, "error": STUDENT_NOT_FOUND_MESSAGE}), 404
+    student_id = student.id
 
     # 2. Resolver la inscripción dentro del alcance del llamador
     user_program = _scoped_user_program(student_id)
@@ -802,7 +844,7 @@ def get_student_details(student_id: int):
     return jsonify({
         "ok": True,
         "student": {
-            "id": student.id,
+            "id": str(student.uuid) if student.uuid else None,
             "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
             "email": student.email,
             "avatar_url": student.avatar_url,
@@ -853,7 +895,8 @@ def _format_archive_status(archive, subs, all_extensions):
     ext = all_extensions.get(archive.id)
     
     return {
-        "id": archive.id,
+        # Public handle — the browser posts it back as `archive_id`.
+        "id": str(archive.uuid) if archive.uuid else None,
         "name": archive.name,
         "description": archive.description,
         "has_submission": bool(sub),
@@ -862,7 +905,10 @@ def _format_archive_status(archive, subs, all_extensions):
         "uploaded_by_role": sub.uploaded_by_role if sub else None,
         "reviewer_comment": sub.reviewer_comment if sub else None,
         "review_date": sub.review_date.isoformat() if sub and sub.review_date else None,
-        "file_url": f"/files/doc/{sub.user_id}/admission/{sub.file_path.split('/')[-1]}" if sub and sub.file_path else None,
+        # URL opaco: nombra la fila. El anterior reconstruía
+        # `<user_id>/admission/<archivo>`, o sea que publicaba el id entero del
+        # alumno en cada tarjeta del modal.
+        "file_url": file_access_service.submission_file_url(sub),
         "has_extension": bool(ext),
         "extension_status": ext.status if ext else None,
         "extension_until": ext.granted_until.isoformat() if ext and ext.granted_until else None,
@@ -1018,30 +1064,37 @@ def _determine_overall_status(admission_state):
     return "pending"
 
 
-@api_coordinator.route('/students/<int:student_id>/history', methods=['GET'])
+@api_coordinator.route('/students/<uuid:student_uuid>/history', methods=['GET'])
 @login_required
 @permission_required('coordinator.api.list_students')
-def get_student_history(student_id):
+def get_student_history(student_uuid):
     """
     Obtiene el historial formateado de un estudiante específico.
     Solo coordinadores y administradores pueden ver el historial de estudiantes.
     """
     try:
         # Verificar que el estudiante existe y el coordinador tiene acceso
-        student = User.query.filter_by(id=student_id).first()
-        if not student or student.role.name not in ('applicant', 'student'):
+        student = _resolve_student(student_uuid)
+        if student is None:
             return jsonify({
                 'success': False,
-                'message': 'Estudiante no encontrado'
+                'message': STUDENT_NOT_FOUND_MESSAGE
             }), 404
+        student_id = student.id
         
         # El historial es información prohibida entre programas: aquí no hay
         # nivel reducido, o el estudiante está en tu alcance o no lo ves.
+        #
+        # Misma respuesta que el UUID irresoluble de arriba, a propósito. Con
+        # un 404 para "no existe" y un 403 para "existe pero no es tuyo", el
+        # par contesta la pregunta que no le corresponde: quien tiene un UUID
+        # ajeno averigua si señala a alguien real. Aquí no cuesta nada
+        # colapsarlos y es la regla que ya sigue el resto del módulo.
         if not scope_service.user_in_scope(current_user, student, allow_self=False):
             return jsonify({
                 'success': False,
-                'message': 'No tienes permisos para ver el historial de este estudiante'
-            }), 403
+                'message': STUDENT_NOT_FOUND_MESSAGE
+            }), 404
 
 
         # Parámetros de consulta
@@ -1077,7 +1130,7 @@ def get_student_history(student_id):
             'success': True,
             'data': {
                 'student': {
-                    'id': student.id,
+                    'id': str(student.uuid) if student.uuid else None,
                     'name': f"{student.first_name} {student.last_name}",
                     'control_number': student.control_number,
                     'email': student.email
@@ -1087,7 +1140,7 @@ def get_student_history(student_id):
                 'format_type': format_type
             },
             'meta': {
-                'viewed_by': current_user.id,
+                'viewed_by': str(current_user.uuid) if current_user.uuid else None,
                 'ordered_by': 'timestamp_desc',
                 'limit_applied': limit
             }

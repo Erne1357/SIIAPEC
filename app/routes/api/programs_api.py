@@ -28,7 +28,12 @@ def api_get_program(slug):
               "id": ps.step.id,
               "name": ps.step.name,
               "phase": getattr(ps.step.phase, "name", None),
-              "archives": [{"id": a.id, "name": a.name} for a in ps.step.archives]
+              # `id` del Archive es su handle público; `step` y `program`
+              # siguen siendo enteros (esos modelos no tienen handle).
+              "archives": [
+                  {"id": str(a.uuid) if a.uuid else None, "name": a.name}
+                  for a in ps.step.archives
+              ]
             }
             for ps in p.program_steps
         ]

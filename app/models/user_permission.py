@@ -64,15 +64,20 @@ class UserPermission(db.Model):
         self.is_active = False
 
     def to_dict(self):
+        # Public payload: ids that name a User, a Submission or an Archive go
+        # out as their UUID handle. Key names are unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
-            'user_id': self.user_id,
+            'user_id': uuid_for(User, self.user_id),
             'permission_id': self.permission_id,
             'permission_codename': self.permission.codename if self.permission else None,
             'permission_display_name': self.permission.display_name if self.permission else None,
             'program_id': self.program_id,
             'program_name': self.program.name if self.program else None,
-            'granted_by': self.granted_by,
+            'granted_by': uuid_for(User, self.granted_by),
             'granted_by_name': (
                 f'{self.granted_by_user.first_name} {self.granted_by_user.last_name}'
                 if self.granted_by_user else None

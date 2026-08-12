@@ -115,6 +115,10 @@ class ReviewScopeTestCase(unittest.TestCase):
 
         self.sub_a_id = self.sub_a.id
         self.sub_b_id = self.sub_b.id
+        # Las URLs y los payloads hablan UUID público; las comprobaciones
+        # contra la BD siguen usando el id interno, que no cambió.
+        self.sub_a_uuid = str(self.sub_a.uuid)
+        self.sub_b_uuid = str(self.sub_b.uuid)
 
     def tearDown(self):
         db.session.remove()
@@ -135,9 +139,9 @@ class ReviewScopeTestCase(unittest.TestCase):
                 sess[CSRF_SESSION_KEY] = token
         return {CSRF_HEADER: token}
 
-    def _decide(self, sub_id, action='approve', comment=''):
+    def _decide(self, sub_uuid, action='approve', comment=''):
         return self.client.post(
-            f'/api/v1/admin/review/submissions/{sub_id}/decision',
+            f'/api/v1/admin/review/submissions/{sub_uuid}/decision',
             json={'action': action, 'comment': comment},
             headers=self._csrf_headers(),
         )
@@ -148,7 +152,7 @@ class ReviewScopeTestCase(unittest.TestCase):
         resp = self.client.get('/api/v1/admin/review/submissions')
         self.assertEqual(resp.status_code, 200)
         ids = {s['id'] for s in resp.get_json()['data']['submissions']}
-        self.assertEqual(ids, {self.sub_a_id})
+        self.assertEqual(ids, {self.sub_a_uuid})
 
     def test_undelegated_social_service_lists_nothing(self):
         """R11: antes veía TODAS las entregas de la institución."""
@@ -161,7 +165,7 @@ class ReviewScopeTestCase(unittest.TestCase):
         self._login(self.pg_admin)
         resp = self.client.get('/api/v1/admin/review/submissions')
         ids = {s['id'] for s in resp.get_json()['data']['submissions']}
-        self.assertEqual(ids, {self.sub_a_id, self.sub_b_id})
+        self.assertEqual(ids, {self.sub_a_uuid, self.sub_b_uuid})
 
     def test_program_id_filter_cannot_widen_the_scope(self):
         self._login(self.coord_a)
@@ -174,7 +178,7 @@ class ReviewScopeTestCase(unittest.TestCase):
     # ── API: detalle ────────────────────────────────────────────────────
     def test_detail_of_another_program_is_404_not_403(self):
         self._login(self.coord_a)
-        resp = self.client.get(f'/api/v1/admin/review/submissions/{self.sub_b_id}')
+        resp = self.client.get(f'/api/v1/admin/review/submissions/{self.sub_b_uuid}')
         self.assertEqual(resp.status_code, 404)
         body = resp.get_json()
         self.assertIsNone(body['data'])
@@ -182,35 +186,35 @@ class ReviewScopeTestCase(unittest.TestCase):
 
     def test_detail_of_own_program_still_works(self):
         self._login(self.coord_a)
-        resp = self.client.get(f'/api/v1/admin/review/submissions/{self.sub_a_id}')
+        resp = self.client.get(f'/api/v1/admin/review/submissions/{self.sub_a_uuid}')
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json()['data']['submission']['id'], self.sub_a_id)
+        self.assertEqual(resp.get_json()['data']['submission']['id'], self.sub_a_uuid)
 
     # ── API: decisión ───────────────────────────────────────────────────
     def test_decide_on_another_program_is_denied_and_writes_nothing(self):
         self._login(self.coord_a)
-        resp = self._decide(self.sub_b_id)
+        resp = self._decide(self.sub_b_uuid)
         self.assertEqual(resp.status_code, 404)
         db.session.expire_all()
         self.assertEqual(db.session.get(Submission, self.sub_b_id).status, 'pending')
 
     def test_undelegated_social_service_cannot_decide(self):
         self._login(self.social_none)
-        resp = self._decide(self.sub_a_id)
+        resp = self._decide(self.sub_a_uuid)
         self.assertEqual(resp.status_code, 404)
         db.session.expire_all()
         self.assertEqual(db.session.get(Submission, self.sub_a_id).status, 'pending')
 
     def test_delegated_social_service_decides_inside_its_delegation(self):
         self._login(self.social_a)
-        resp = self._decide(self.sub_a_id, comment='ok')
+        resp = self._decide(self.sub_a_uuid, comment='ok')
         self.assertEqual(resp.status_code, 200)
         db.session.expire_all()
         self.assertEqual(db.session.get(Submission, self.sub_a_id).status, 'approved')
 
     def test_delegated_social_service_cannot_decide_outside_its_delegation(self):
         self._login(self.social_a)
-        resp = self._decide(self.sub_b_id, comment='ok')
+        resp = self._decide(self.sub_b_uuid, comment='ok')
         self.assertEqual(resp.status_code, 404)
         db.session.expire_all()
         self.assertEqual(db.session.get(Submission, self.sub_b_id).status, 'pending')
@@ -222,16 +226,16 @@ class ReviewScopeTestCase(unittest.TestCase):
         resp = self.client.get('/admin/review/submissions?show_all=true&phase=admission')
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
-        self.assertIn(f'/admin/review/submission/{self.sub_a_id}"', html)
-        self.assertNotIn(f'/admin/review/submission/{self.sub_b_id}"', html)
+        self.assertIn(f'/admin/review/submission/{self.sub_a_uuid}"', html)
+        self.assertNotIn(f'/admin/review/submission/{self.sub_b_uuid}"', html)
 
     def test_submissions_page_is_empty_for_undelegated_social_service(self):
         self._login(self.social_none)
         resp = self.client.get('/admin/review/submissions?show_all=true&phase=admission')
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
-        self.assertNotIn(f'/admin/review/submission/{self.sub_a_id}"', html)
-        self.assertNotIn(f'/admin/review/submission/{self.sub_b_id}"', html)
+        self.assertNotIn(f'/admin/review/submission/{self.sub_a_uuid}"', html)
+        self.assertNotIn(f'/admin/review/submission/{self.sub_b_uuid}"', html)
 
     def test_program_id_filter_outside_scope_is_rejected(self):
         self._login(self.coord_a)
@@ -244,12 +248,12 @@ class ReviewScopeTestCase(unittest.TestCase):
     # ── Página: el detalle publica la URL del archivo ────────────────────
     def test_detail_page_of_another_program_is_404(self):
         self._login(self.coord_a)
-        resp = self.client.get(f'/admin/review/submission/{self.sub_b_id}')
+        resp = self.client.get(f'/admin/review/submission/{self.sub_b_uuid}')
         self.assertEqual(resp.status_code, 404)
 
     def test_detail_page_of_undelegated_social_service_is_404(self):
         self._login(self.social_none)
-        resp = self.client.get(f'/admin/review/submission/{self.sub_a_id}')
+        resp = self.client.get(f'/admin/review/submission/{self.sub_a_uuid}')
         self.assertEqual(resp.status_code, 404)
 
 

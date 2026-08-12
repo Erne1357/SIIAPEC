@@ -166,7 +166,7 @@ class AppointmentsScopeTestCase(unittest.TestCase):
         return self._post(
             self.client_coord_a, self.csrf_coord_a, '/api/v1/appointments',
             {'event_id': self.event_a.id, 'slot_id': slot.id,
-             'applicant_id': applicant.id, 'notes': 'Notas privadas'},
+             'applicant_id': str(applicant.uuid), 'notes': 'Notas privadas'},
         )
 
     # ── scope: another program's coordinator ─────────────────────────────
@@ -175,7 +175,7 @@ class AppointmentsScopeTestCase(unittest.TestCase):
         resp = self._post(
             self.client_coord_b, self.csrf_coord_b, '/api/v1/appointments',
             {'event_id': self.event_a.id, 'slot_id': self.slot_1.id,
-             'applicant_id': self.applicant_a.id},
+             'applicant_id': str(self.applicant_a.uuid)},
         )
         self.assertEqual(resp.status_code, 403)
         body = json.loads(resp.data)

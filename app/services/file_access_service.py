@@ -1,5 +1,6 @@
 """
-File Access Service — who may READ a file served by `app/routes/api/files_api.py`.
+File Access Service — who may READ a file served by `app/routes/api/files_api.py`,
+and which bytes an opaque public identifier points at.
 
 Serving a file is an authorisation decision about the OBJECT behind it, never
 about the URL that points at it. Both rules in this module start from the
@@ -7,12 +8,26 @@ DATABASE ROW that owns the bytes:
 
   * a personal document → the `Submission` / `AcceptanceDocument` /
     `SemesterEnrollment` row whose stored path is exactly the requested one;
-    the owner is read from that row, NOT from the `<user_id>` URL segment.
+    the owner is read from that row, NOT from any URL segment.
   * an avatar → the `User` the photo belongs to.
 
-Deriving the owner from the row (and not from the URL) is what allows a later
-batch to replace `/files/doc/<user_id>/<phase>/<filename>` with an opaque UUID
-without touching a single line of authorisation logic.
+Deriving the owner from the row (and not from the URL) is what allowed the URL
+to become an opaque UUID without touching a single line of authorisation logic.
+That cutover has now happened and the promise held: `user_doc_owner_id`,
+`may_view_user_doc` and `may_view_avatar` are byte-for-byte what they were.
+
+What this module gained instead is the two halves of the ROW ↔ URL mapping,
+kept side by side so they cannot drift apart:
+
+    user_doc_path(public_id, slot)  URL identifier → stored relative path
+    submission_file_url(row) & co.  row            → served URL
+
+DISK LAYOUT IS UNCHANGED, DELIBERATELY (owner's decision). Files keep their
+human-readable names and their `<user_id>/<phase>/` folders so that anyone
+inspecting the server — or opening a retention ZIP — still reads
+`Titulo.pdf`. Only the URL stopped mirroring the disk: it now carries an
+opaque row handle, the server looks the row up, and `Content-Disposition`
+carries the original basename back so the download is still named correctly.
 
 Scope tier (owner's decision): a profile photo and a personal document are
 NEVER part of the cross-program summary tier. A caller who is not the owner
@@ -20,10 +35,12 @@ needs BOTH the permission codename AND the target inside their program scope
 (`program_scope_service.user_in_scope`). A postgraduate_admin (global scope)
 keeps full access.
 
-Framework-agnostic by contract: no `request`, no `g`, no `current_user`.
-Callers pass the User object and the stored relative path.
+Framework-agnostic by contract: no `request`, no `g`, no `current_user`, and no
+`url_for` either — the URL builders emit plain strings so a Celery task or an
+e-mail renderer can call them outside a request context.
 """
 
+from posixpath import basename
 from typing import Optional
 
 from app import db
@@ -133,6 +150,166 @@ def user_doc_owner_id(relative_path: str) -> Optional[int]:
         return owner[0]
 
     return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROW ↔ URL — the opaque public identifier of a served file
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# `/files/doc/<uuid>` names a ROW, not a path. The row is one of:
+#
+#     Submission            one file  → `file_path`
+#     AcceptanceDocument    one file  → `file_path`
+#     SemesterEnrollment    TWO files → `payment_proof_path` + `schedule_path`
+#
+# The first two need no discriminator: a UUID is unique across tables, so
+# `/files/doc/<uuid>` is unambiguous on its own. `SemesterEnrollment` is the
+# exception — one row owns two unrelated documents, so a row handle alone
+# cannot say which bytes are wanted. It gets an explicit SLOT segment,
+# `/files/doc/<uuid>/<slot>`, and only the two slot names below are accepted.
+# Guessing the slot buys an attacker nothing: they would still need the row's
+# UUID, and the ACL runs afterwards either way.
+#
+# The slot names are URL identifiers, not UI text, so they are English like
+# every other identifier in the codebase.
+
+#: `SemesterEnrollment.payment_proof_path` — comprobante de pago, uploaded by
+#: the student.
+DOC_SLOT_PAYMENT_PROOF = 'payment-proof'
+
+#: `SemesterEnrollment.schedule_path` — horario del semestre, uploaded by the
+#: coordinator. Both belong to the STUDENT, which is what `user_doc_owner_id`
+#: resolves them to.
+DOC_SLOT_SCHEDULE = 'schedule'
+
+DOC_SLOTS = (DOC_SLOT_PAYMENT_PROOF, DOC_SLOT_SCHEDULE)
+
+#: URL prefixes. They must match the route rules in
+#: `app/routes/api/files_api.py`; that module imports these constants for its
+#: docstrings and both sides carry a pointer at the other.
+DOC_URL_PREFIX = '/files/doc'
+AVATAR_URL_PREFIX = '/files/avatar'
+
+
+def user_doc_path(public_id, slot: Optional[str] = None) -> Optional[str]:
+    """
+    Resolve the OPAQUE identifier of a document row to the relative path of the
+    bytes it owns, canonicalised (no legacy `documents/` prefix).
+
+    This is the lookup that replaced the old URL-mirrors-the-disk scheme. It
+    answers WHICH BYTES only; it deliberately says nothing about who may read
+    them — that stays with `user_doc_owner_id` + `may_view_user_doc`, which the
+    route calls next on the path returned here.
+
+    Args:
+        public_id: the row's public UUID handle (a `uuid.UUID` or its string
+                   form; anything malformed simply misses).
+        slot:      required for `SemesterEnrollment`, forbidden for the other
+                   two — see the section banner above.
+
+    Returns:
+        str  — path relative to `USER_DOCS_FOLDER`.
+        None — no such row, an unknown slot, or a row whose column is NULL
+               (`Submission.file_path` is nullable: a coordinator may resolve a
+               step without a file). All three collapse into one 404 at the
+               route, so an unknown identifier is indistinguishable from a
+               known one with nothing attached.
+    """
+    if public_id is None:
+        return None
+
+    if slot is not None:
+        if slot not in DOC_SLOTS:
+            return None
+        enrollment = SemesterEnrollment.by_uuid(public_id)
+        if enrollment is None:
+            return None
+        stored = (
+            enrollment.payment_proof_path
+            if slot == DOC_SLOT_PAYMENT_PROOF
+            else enrollment.schedule_path
+        )
+        return normalize_relative_path(stored)
+
+    submission = Submission.by_uuid(public_id)
+    if submission is not None:
+        return normalize_relative_path(submission.file_path)
+
+    acceptance_doc = AcceptanceDocument.by_uuid(public_id)
+    if acceptance_doc is not None:
+        return normalize_relative_path(acceptance_doc.file_path)
+
+    return None
+
+
+def document_download_name(relative_path: str) -> Optional[str]:
+    """
+    The human filename a download must be saved as: the basename exactly as it
+    sits on disk ('Constancia_de_estudios.pdf').
+
+    The URL no longer carries it, so the route has to put it back in
+    `Content-Disposition`. Werkzeug emits the RFC 5987 `filename*=UTF-8''…`
+    form automatically as soon as the value is not pure ASCII, which is what
+    keeps a Spanish name like 'Título.pdf' intact.
+    """
+    rel = normalize_relative_path(relative_path)
+    if rel is None:
+        return None
+    return basename(rel) or None
+
+
+def _doc_url(row, slot: Optional[str] = None) -> Optional[str]:
+    """Served URL for a row that carries a public handle, or None."""
+    handle = getattr(row, 'uuid', None) if row is not None else None
+    if handle is None:
+        return None
+    if slot is None:
+        return f'{DOC_URL_PREFIX}/{handle}'
+    return f'{DOC_URL_PREFIX}/{handle}/{slot}'
+
+
+def submission_file_url(submission) -> Optional[str]:
+    """Served URL of a `Submission`'s attachment, or None when it has none."""
+    if submission is None or not getattr(submission, 'file_path', None):
+        return None
+    return _doc_url(submission)
+
+
+def acceptance_document_url(document) -> Optional[str]:
+    """Served URL of an `AcceptanceDocument`, or None when nothing is uploaded."""
+    if document is None or not getattr(document, 'file_path', None):
+        return None
+    return _doc_url(document)
+
+
+def enrollment_payment_proof_url(enrollment) -> Optional[str]:
+    """Served URL of a semester's comprobante de pago, or None."""
+    if enrollment is None or not getattr(enrollment, 'payment_proof_path', None):
+        return None
+    return _doc_url(enrollment, DOC_SLOT_PAYMENT_PROOF)
+
+
+def enrollment_schedule_url(enrollment) -> Optional[str]:
+    """Served URL of a semester's horario, or None."""
+    if enrollment is None or not getattr(enrollment, 'schedule_path', None):
+        return None
+    return _doc_url(enrollment, DOC_SLOT_SCHEDULE)
+
+
+def avatar_url(user) -> Optional[str]:
+    """
+    Served URL of a user's profile photo, or None when they have none.
+
+    'default.jpg' is a sentinel meaning "no photo": it is a static asset, not a
+    stored file, and the route would 404 on it.
+    """
+    if user is None:
+        return None
+    stored = getattr(user, 'avatar', None)
+    handle = getattr(user, 'uuid', None)
+    if not stored or stored == 'default.jpg' or handle is None:
+        return None
+    return f'{AVATAR_URL_PREFIX}/{handle}'
 
 
 def may_view_user_doc(viewer, owner_id) -> bool:

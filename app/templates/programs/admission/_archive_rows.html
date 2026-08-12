@@ -62,7 +62,7 @@
     {# Plantilla #}
     <td class="d-none d-md-table-cell">
       {% if arch.is_downloadable and arch.file_path %}
-      <a class="btn btn-link btn-sm" href="{{ url_for('api_archives.download_template', archive_id=arch.id) }}"
+      <a class="btn btn-link btn-sm" href="{{ url_for('api_archives.download_template', archive_uuid=arch.uuid) }}"
          target="_blank" rel="noopener">
         <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar
         <span class="visually-hidden">plantilla de {{ arch.name }} (se abre en una pestaña nueva)</span>
@@ -99,16 +99,23 @@
         {% if can_upload %}
           {% if sub and sub.file_path %}
           <a class="btn btn-outline-primary btn-sm"
-             href="{{ url_for('api_files.user_doc', user_id=current_user.id, phase='admission', filename=sub.file_path.split('/')[-1]) }}"
+             {# El URL nombra la FILA. Ya no se arma con el id del usuario ni
+                con el nombre del archivo. #}
+             href="{{ url_for('api_files.user_doc', doc_uuid=sub.uuid) }}"
              target="_blank" rel="noopener">
             <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver documento
             <span class="visually-hidden">(se abre en una pestaña nueva)</span>
           </a>
           {% endif %}
 
+          {# Los `data-*` de archive y submission llevan el identificador
+             PÚBLICO (uuid): es el que el JS vuelve a poner en el cuerpo del
+             formulario (`archive_id`), en `DELETE /api/v1/submissions/<uuid>`
+             y el que compara con `data.archive_id` del socket. `step` sigue
+             siendo entero: Step no tiene handle público. #}
           <button type="button" class="btn btn-outline-success btn-sm"
                   data-bs-toggle="modal" data-bs-target="#uploadModal"
-                  data-archive="{{ arch.id }}" data-step="{{ step.id }}"
+                  data-archive="{{ arch.uuid }}" data-step="{{ step.id }}"
                   data-archive-name="{{ arch.name }}"
                   {% if sub and sub.file_path %}data-has-existing="true"
                   data-existing-filename="{{ sub.file_path.split('/')[-1] }}"
@@ -118,14 +125,14 @@
 
           {% if arch.allow_extension_request %}
           <button type="button" class="btn btn-outline-info btn-sm btn-request-extension"
-                  data-archive-id="{{ arch.id }}" data-archive-name="{{ arch.name }}">
+                  data-archive-id="{{ arch.uuid }}" data-archive-name="{{ arch.name }}">
             <i class="bi bi-clock me-1" aria-hidden="true"></i>Prórroga
           </button>
           {% endif %}
 
           {% if sub and sub.uploaded_by == current_user.id %}
           <button type="button" class="btn btn-outline-danger btn-sm"
-                  data-delete-submission="{{ sub.id }}" data-step="{{ step.id }}">
+                  data-delete-submission="{{ sub.uuid }}" data-step="{{ step.id }}">
             <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar
           </button>
           {% endif %}
@@ -148,7 +155,9 @@
           <a class="btn btn-outline-primary tap-target"
              aria-label="Ver el documento {{ arch.name }} (se abre en una pestaña nueva)"
              title="Ver documento"
-             href="{{ url_for('api_files.user_doc', user_id=current_user.id, phase='admission', filename=sub.file_path.split('/')[-1]) }}"
+             {# El URL nombra la FILA. Ya no se arma con el id del usuario ni
+                con el nombre del archivo. #}
+             href="{{ url_for('api_files.user_doc', doc_uuid=sub.uuid) }}"
              target="_blank" rel="noopener">
             <i class="bi bi-eye" aria-hidden="true"></i>
           </a>
@@ -158,7 +167,7 @@
                   aria-label="{% if sub %}Reemplazar{% else %}Subir{% endif %} el documento {{ arch.name }}"
                   title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo"
                   data-bs-toggle="modal" data-bs-target="#uploadModal"
-                  data-archive="{{ arch.id }}" data-step="{{ step.id }}"
+                  data-archive="{{ arch.uuid }}" data-step="{{ step.id }}"
                   data-archive-name="{{ arch.name }}"
                   {% if sub and sub.file_path %}data-has-existing="true"
                   data-existing-filename="{{ sub.file_path.split('/')[-1] }}"
@@ -170,7 +179,7 @@
           <button type="button" class="btn btn-outline-info btn-request-extension tap-target"
                   aria-label="Solicitar prórroga para {{ arch.name }}"
                   title="Solicitar prórroga"
-                  data-archive-id="{{ arch.id }}" data-archive-name="{{ arch.name }}">
+                  data-archive-id="{{ arch.uuid }}" data-archive-name="{{ arch.name }}">
             <i class="bi bi-clock" aria-hidden="true"></i>
           </button>
           {% endif %}
@@ -179,7 +188,7 @@
           <button type="button" class="btn btn-outline-danger tap-target"
                   aria-label="Eliminar el archivo de {{ arch.name }}"
                   title="Eliminar archivo"
-                  data-delete-submission="{{ sub.id }}" data-step="{{ step.id }}">
+                  data-delete-submission="{{ sub.uuid }}" data-step="{{ step.id }}">
             <i class="bi bi-trash" aria-hidden="true"></i>
           </button>
           {% endif %}
@@ -233,7 +242,7 @@
           {% if arch.is_downloadable and arch.file_path %}
           <div class="mb-2">
             <strong>Plantilla:</strong>
-            <a href="{{ url_for('api_archives.download_template', archive_id=arch.id) }}"
+            <a href="{{ url_for('api_archives.download_template', archive_uuid=arch.uuid) }}"
                target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
               <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar
               <span class="visually-hidden">(se abre en una pestaña nueva)</span>

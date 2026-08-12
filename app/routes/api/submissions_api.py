@@ -17,31 +17,24 @@ api_submissions = Blueprint("api_submissions", __name__, url_prefix="/api/v1/sub
 def upload_submission():
     """
     multipart/form-data:
-      - archive_id (int)          obligatorio
+      - archive_id (uuid)         obligatorio — identificador público
       - file (File)               obligatorio
       - program_id (int)          opcional (uno de program_id o program_slug)
       - program_slug (string)     opcional
     """
-    archive_id   = request.form.get("archive_id", type=int)
+    # `archive_id` viaja en el FORM y es el UUID público del Archive.
+    # `type=int` lo habría leído como None en silencio.
+    archive = Archive.by_uuid(request.form.get("archive_id"))
     program_id   = request.form.get("program_id", type=int)
     program_slug = request.form.get("program_slug", type=str)
     file         = request.files.get("file")
 
-    if not archive_id or not file or (not program_id and not program_slug):
+    if not archive or not file or (not program_id and not program_slug):
         return jsonify({
             "data": None,
             "error": {"code": "BAD_REQUEST", "message": "Faltan parámetros (archive_id, file, program_id/slug)."},
             "meta": {}
         }), 400
-
-    # 1) Archive
-    archive = Archive.query.get(archive_id)
-    if not archive:
-        return jsonify({
-            "data": None,
-            "error": {"code": "NOT_FOUND", "message": "Archivo requerido no existe."},
-            "meta": {}
-        }), 404
 
     # 2) Programa (id o slug)
     program = (Program.query.get(program_id) if program_id
@@ -147,8 +140,10 @@ def upload_submission():
         # un user_id al nombre de un documento suyo y eso no cruza de programa.
         from app.sockets.emitters import emit_to_coordinators
         emit_to_coordinators('submission:new', {
-            'user_id': current_user.id,
-            'submission_id': sub.id,
+            # Identificadores públicos: el navegador los compara con los `id`
+            # que publican los payloads REST, que también son UUID.
+            'user_id': str(current_user.uuid) if current_user.uuid else None,
+            'submission_id': str(sub.uuid) if sub.uuid else None,
             'archive_name': archive.name,
             'program_id': program.id,
         }, program.id)
@@ -158,8 +153,8 @@ def upload_submission():
     return jsonify({
         "data": {
             "submission": {
-                "id": sub.id,
-                "archive_id": sub.archive_id,
+                "id": str(sub.uuid) if sub.uuid else None,
+                "archive_id": str(archive.uuid) if archive.uuid else None,
                 "status": sub.status,
                 "file_path": sub.file_path,
                 "program_id": program.id,
@@ -171,15 +166,25 @@ def upload_submission():
         "meta": {}
     }), 201
 
-@api_submissions.delete("/<int:sub_id>")
+#: Denial text for DELETE /submissions/<uuid>. One string for every cause.
+_SUBMISSION_NOT_FOUND_MESSAGE = "Submission no encontrada"
+
+
+@api_submissions.delete("/<uuid:sub_uuid>")
 @login_required
 @permission_required('submissions.api.delete_own')
-def delete_submission(sub_id: int):
-    sub = Submission.query.get(sub_id)
-    if not sub:
-        return jsonify({"data": None, "error": {"code": "NOT_FOUND", "message": "Submission no encontrada"}, "meta": {}}), 404
-    if sub.user_id != current_user.id:
-        return jsonify({"data": None, "error": {"code": "FORBIDDEN", "message": "No puedes borrar este recurso"}, "meta": {}}), 403
+def delete_submission(sub_uuid):
+    # "No existe" y "no es tuya" responden EXACTAMENTE lo mismo. Antes eran 404
+    # y 403: recorriendo ids, el 403 marcaba las entregas reales de otras
+    # personas. Con el identificador opaco esa diferencia ya no aporta nada al
+    # dueño legítimo y sí al que sondea, así que se colapsa.
+    sub = Submission.by_uuid(sub_uuid)
+    if not sub or sub.user_id != current_user.id:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NOT_FOUND", "message": _SUBMISSION_NOT_FOUND_MESSAGE},
+            "meta": {}
+        }), 404
 
     # Obtener información antes de eliminar
     archive_name = sub.archive.name if sub.archive else "Desconocido"

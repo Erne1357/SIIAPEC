@@ -20,6 +20,7 @@ plus a notification to the student.
 from typing import Optional
 
 from app import db
+from app.services import public_id_service
 from app.models.user import User
 from app.models.user_program import UserProgram
 from app.models.acceptance_document import AcceptanceDocument
@@ -30,6 +31,7 @@ from app.models.enrollment_deferral import EnrollmentDeferral
 from app.models.user_history import UserHistory
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
+from app.services import file_access_service
 from app.services import profile_activity_service
 from app.services import program_scope_service
 from app.utils.datetime_utils import now_local
@@ -102,9 +104,12 @@ def load_record_target(user_id: int, requester: User) -> User:
     The two are for the log ONLY: the caller must answer both with the same
     404 and `RECORD_NOT_FOUND_MESSAGE`.
     """
-    user = db.session.get(User, user_id)
+    # `user_id` puede llegar como None cuando la ruta no pudo resolver el UUID
+    # público: es exactamente el mismo caso que "no existe" y sale por la misma
+    # excepción, que el llamador traduce al 404 compartido.
+    user = db.session.get(User, user_id) if user_id is not None else None
     if not user:
-        raise StudentNotFound(f"Usuario {user_id} no encontrado")
+        raise StudentNotFound("Usuario no encontrado")
 
     if not _can_view_record(requester, user):
         raise AccessDenied(
@@ -200,7 +205,8 @@ def update_personal_info(user_id: int, coordinator_id: int, data: dict) -> User:
 
 def _user_dict(user: User) -> dict:
     return {
-        'id': user.id,
+        # Public handle, never the integer primary key.
+        'id': str(user.uuid) if user.uuid else None,
         'first_name': user.first_name,
         'last_name': user.last_name,
         'mother_last_name': user.mother_last_name,
@@ -268,9 +274,11 @@ def _acceptance_docs(user_programs: list) -> list:
         .order_by(AcceptanceDocument.uploaded_at.desc())
         .all()
     )
+    # `to_dict()` ya trae `file_url` opaco; se repite la clave aquí sólo para
+    # que este proyector siga siendo explícito sobre lo que publica.
     return [
         {**d.to_dict(),
-         'file_url': f'/files/doc/{d.file_path}' if d.file_path else None}
+         'file_url': file_access_service.acceptance_document_url(d)}
         for d in docs
     ]
 
@@ -298,18 +306,16 @@ def _semester_enrollments(user_programs: list) -> list:
             'status': se.status,
             'enrollment_confirmed': se.enrollment_confirmed,
             'confirmed_at': se.confirmed_at.isoformat() if se.confirmed_at else None,
-            'confirmed_by': se.confirmed_by,
+            'confirmed_by': public_id_service.uuid_for(User, se.confirmed_by),
             'notes': se.notes,
-            'payment_proof_path': getattr(se, 'payment_proof_path', None),
-            'payment_proof_url': (
-                f'/files/doc/{se.payment_proof_path}'
-                if getattr(se, 'payment_proof_path', None) else None
-            ),
-            'schedule_path': getattr(se, 'schedule_path', None),
-            'schedule_url': (
-                f'/files/doc/{se.schedule_path}'
-                if getattr(se, 'schedule_path', None) else None
-            ),
+            # Sólo el basename humano; la ruta almacenada empieza por
+            # `<user_id>/`. Los `_url` nombran la fila + el slot.
+            'payment_proof_path': file_access_service.document_download_name(
+                getattr(se, 'payment_proof_path', None)),
+            'payment_proof_url': file_access_service.enrollment_payment_proof_url(se),
+            'schedule_path': file_access_service.document_download_name(
+                getattr(se, 'schedule_path', None)),
+            'schedule_url': file_access_service.enrollment_schedule_url(se),
         }
         out.append(item)
     return out
@@ -340,7 +346,8 @@ def _interview_info(user_id: int) -> dict | None:
         'created_at': a.created_at.isoformat() if a.created_at else None,
         'interviewer': (
             {
-                'id': interviewer.id,
+                # Public handle, never the integer primary key.
+                'id': str(interviewer.uuid) if interviewer.uuid else None,
                 'name': f"{interviewer.first_name} {interviewer.last_name}",
                 'email': interviewer.email,
             } if interviewer else None

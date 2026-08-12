@@ -7,6 +7,7 @@ from app.utils.permissions import permission_required
 from app.models.retention_policy import RetentionPolicy
 from app.models.archive import Archive
 from app.models.submission import Submission
+from app.services.public_id_service import uuid_for
 from app.services.retention_service import RetentionService
 from app.services.user_history_service import UserHistoryService
 from datetime import datetime, timezone
@@ -19,7 +20,13 @@ api_retention = Blueprint('api_retention', __name__, url_prefix='/api/v1/retenti
 def candidates():
     now = datetime.now()
     items = RetentionService.compute_candidates(now)
-    payload = [{"id": s.id, "archive_id": s.archive_id, "upload_date": s.upload_date.isoformat() if s.upload_date else None} for s in items]
+    # Identificadores públicos: la consola devuelve estos mismos valores en
+    # `submission_ids` al purgar.
+    payload = [{
+        "id": str(s.uuid) if s.uuid else None,
+        "archive_id": str(s.archive.uuid) if s.archive and s.archive.uuid else None,
+        "upload_date": s.upload_date.isoformat() if s.upload_date else None,
+    } for s in items]
     return jsonify({"ok": True, "count": len(items), "items": payload}), 200
 
 @api_retention.route('/purge', methods=['POST'])
@@ -27,7 +34,13 @@ def candidates():
 @permission_required('admin_retention.api.manage')
 def purge():
     data = request.get_json() or {}
-    submission_ids = data.get('submission_ids', [])
+    # La consola manda los UUID públicos de las entregas; el servicio de
+    # retención sigue trabajando con los ids internos.
+    submission_ids = [
+        row.id for row in (
+            Submission.by_uuid(raw) for raw in (data.get('submission_ids') or [])
+        ) if row is not None
+    ]
     
     # Obtener información de los documentos antes de eliminar para el historial
     submissions_info = []
@@ -41,7 +54,11 @@ def purge():
             submissions_info.append({
                 'user_id': submission.user_id,
                 'archive_name': archive.name,
-                'submission_id': submission.id
+                # Handle publico, no la clave primaria. Este valor acaba
+                # interpolado en `reason`, que el historial devuelve al propio
+                # estudiante, asi que republicaba el id enumerable que el
+                # cambio a UUID retira de todas las demas superficies.
+                'submission_ref': str(submission.uuid),
             })
     
     deleted = RetentionService.purge_submissions(submission_ids)
@@ -52,7 +69,7 @@ def purge():
             UserHistoryService.log_document_purged(
                 user_id=info['user_id'],
                 archive_name=info['archive_name'],
-                reason=f"Eliminación por política de retención (ID: {info['submission_id']})",
+                reason=f"Eliminación por política de retención (ref: {info['submission_ref']})",
                 admin_id=current_user.id
             )
         except Exception as e:
@@ -74,8 +91,10 @@ def purge():
 def list_policies():
     rows = db.session.execute(select(RetentionPolicy)).scalars().all()
     items = [{
+        # `id` de la política sigue siendo entero (no tiene handle público);
+        # `archive_id` nombra un Archive y sale como UUID.
         "id": r.id,
-        "archive_id": r.archive_id,
+        "archive_id": uuid_for(Archive, r.archive_id),
         "keep_years": r.keep_years,
         "keep_forever": bool(r.keep_forever),
         "apply_after": r.apply_after
@@ -88,16 +107,18 @@ def list_policies():
 @permission_required('admin_retention.api.manage')
 def create_policy():
     data = request.get_json() or {}
-    archive_id = data.get("archive_id")
+    # `archive_id` llega como UUID público en el cuerpo.
+    raw_archive = data.get("archive_id")
+    a = Archive.by_uuid(raw_archive)
     keep_forever = bool(data.get("keep_forever", False))
     keep_years = data.get("keep_years")
     apply_after = data.get("apply_after") or "graduated"
 
-    if not archive_id:
+    if not raw_archive:
         return jsonify({"ok": False, "error": "archive_id es requerido"}), 400
-    a = db.session.get(Archive, archive_id)
     if not a:
         return jsonify({"ok": False, "error": "Archivo no existe"}), 404
+    archive_id = a.id
 
     # Un archivo → 1 política. Si ya hay, actualizamos (upsert simple).
     existing = db.session.execute(

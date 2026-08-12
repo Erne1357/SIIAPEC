@@ -499,7 +499,16 @@ class UserHistoryService:
         """
         from sqlalchemy import or_, and_
         
-        # Buscar en los detalles JSON donde se mencione al usuario
+        # Buscar en los detalles JSON donde se mencione al usuario.
+        #
+        # NO TOQUES ESTOS PATRONES para "adaptarlos al UUID". `details` es un
+        # REGISTRO PERSISTIDO y sigue guardando el id INTERNO (entero), igual
+        # que los logs y los argumentos de Celery: el UUID es sólo el manejador
+        # público de las URLs y los payloads. Por eso el valor va sin comillas
+        # aquí y coincide con lo que escriben los `log_*` de esta misma clase.
+        # Si algún día un writer empezara a guardar el UUID, las filas viejas
+        # conservarían el entero y las dos grafías convivirían para siempre:
+        # el fallo se vería como HISTORIAL QUE FALTA, nunca como un error.
         query = UserHistory.query.filter(
             or_(
                 UserHistory.details.like(f'%"student_id": {target_user_id}%'),

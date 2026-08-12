@@ -209,7 +209,12 @@ def mark_attendance(event_id: int):
         return err
 
     data = request.get_json() or {}
-    user_id = data.get('user_id')
+    # `user_id` viaja en el CUERPO como UUID público; el servicio sigue
+    # recibiendo el entero. Un UUID desconocido cae en el mismo 400 de
+    # "user_id es requerido" que la ausencia del campo.
+    from app.models.user import User
+    _target = User.by_uuid(data.get('user_id'))
+    user_id = _target.id if _target else None
     attended = data.get('attended')
     notes = data.get('notes')
     reset = data.get('reset', False)  # NUEVO

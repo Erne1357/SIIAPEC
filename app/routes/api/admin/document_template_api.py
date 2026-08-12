@@ -5,9 +5,9 @@ API para gestionar plantillas de documentos y generar documentos rellenos.
 Endpoints:
   GET    /api/admin/document-templates            — listar plantillas
   POST   /api/admin/document-templates            — subir plantilla (multipart)
-  GET    /api/admin/document-templates/<id>       — detalle
-  PATCH  /api/admin/document-templates/<id>       — activar/desactivar / cambiar nombre
-  DELETE /api/admin/document-templates/<id>       — eliminar
+  GET    /api/admin/document-templates/<uuid>     — detalle
+  PATCH  /api/admin/document-templates/<uuid>     — activar/desactivar / cambiar nombre
+  DELETE /api/admin/document-templates/<uuid>     — eliminar
   POST   /api/admin/document-templates/generate   — generar documento para un estudiante
   GET    /api/admin/document-templates/variables  — lista de variables disponibles
 """
@@ -22,6 +22,7 @@ from app import db
 from app.models.document_template import (
     DocumentTemplate, DOCUMENT_TYPES, TEMPLATE_FILE_TYPES
 )
+from app.models.user import User
 
 api_document_templates = Blueprint(
     'api_document_templates',
@@ -48,7 +49,7 @@ def _allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def _load_template_in_scope(template_id):
+def _load_template_in_scope(template_uuid):
     """
     Carga una plantilla que esté dentro del ALCANCE del llamador.
 
@@ -62,7 +63,7 @@ def _load_template_in_scope(template_id):
     Returns:
         (template, None) si procede; (None, respuesta_error) si no.
     """
-    t = DocumentTemplate.query.get(template_id)
+    t = DocumentTemplate.by_uuid(template_uuid)
     if t is None or not template_access_service.document_template_in_scope(
             current_user, t.program_id):
         return None, _err("Plantilla no encontrada.", 404)
@@ -210,10 +211,10 @@ def upload_template():
 # DETALLE
 # ─────────────────────────────────────────────────────────────────────────────
 
-@api_document_templates.get('/<int:template_id>')
+@api_document_templates.get('/<uuid:template_uuid>')
 @login_required
 @permission_required('admin_templates.api.list')
-def get_template(template_id):
+def get_template(template_uuid):
     """
     Detalle de una plantilla.
 
@@ -221,7 +222,7 @@ def get_template(template_id):
     `may_download_document_template`: si no sale en tu catálogo, tampoco se
     lee por id.
     """
-    t = DocumentTemplate.query.get(template_id)
+    t = DocumentTemplate.by_uuid(template_uuid)
     if t is None or not template_access_service.may_download_document_template(
             current_user, t):
         return _err("Plantilla no encontrada.", 404)
@@ -232,17 +233,17 @@ def get_template(template_id):
 # ACTUALIZAR (nombre, descripción, activar/desactivar)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@api_document_templates.patch('/<int:template_id>')
+@api_document_templates.patch('/<uuid:template_uuid>')
 @login_required
 @permission_required('admin_templates.api.manage')
-def update_template(template_id):
+def update_template(template_uuid):
     """
     Renombra, redescribe o (des)activa una plantilla dentro del alcance.
 
     `program_id` no es editable a propósito: mover una plantilla de programa
     sería una escritura fuera del alcance disfrazada de edición.
     """
-    t, err = _load_template_in_scope(template_id)
+    t, err = _load_template_in_scope(template_uuid)
     if err:
         return err
 
@@ -263,14 +264,15 @@ def update_template(template_id):
 # ELIMINAR
 # ─────────────────────────────────────────────────────────────────────────────
 
-@api_document_templates.delete('/<int:template_id>')
+@api_document_templates.delete('/<uuid:template_uuid>')
 @login_required
 @permission_required('admin_templates.api.delete')
-def delete_template(template_id):
+def delete_template(template_uuid):
     """Elimina la fila y su archivo. Mismo alcance que leerla y editarla."""
-    t, err = _load_template_in_scope(template_id)
+    t, err = _load_template_in_scope(template_uuid)
     if err:
         return err
+    deleted_public_id = str(t.uuid) if t.uuid else None
 
     # Eliminar archivo físico
     base_dir = _templates_sys_dir()
@@ -283,7 +285,7 @@ def delete_template(template_id):
 
     db.session.delete(t)
     db.session.commit()
-    return _ok({'deleted_id': template_id})
+    return _ok({'deleted_id': deleted_public_id})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -323,7 +325,7 @@ def generate_document():
     Genera un documento relleno para un estudiante y lo retorna como descarga.
 
     Body JSON:
-      user_id       (int, required)
+      user_id       (uuid str, required) — identificador público del estudiante
       program_id    (int, required)
       document_type (str, required)
       period_id     (int, optional)
@@ -335,7 +337,11 @@ def generate_document():
     un documento relleno es dato personal completo o no es nada.
     """
     body = request.get_json(silent=True) or {}
-    user_id = body.get('user_id')
+    # `user_id` viaja en el CUERPO, no en el URL, pero es la misma clase de
+    # identificador: UUID público. Se resuelve aquí y el servicio sigue
+    # recibiendo el id interno.
+    target = User.by_uuid(body.get('user_id'))
+    user_id = target.id if target else None
     program_id = body.get('program_id')
     doc_type = body.get('document_type')
     period_id = body.get('period_id')
