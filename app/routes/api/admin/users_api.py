@@ -645,16 +645,35 @@ def assign_control_number(user_id):
             "meta": {}
         }), 400
     
-    # Verificar que no exista
+    # Unicidad institucional. La consulta sigue siendo global —así debe ser: el
+    # número de control es único en toda la institución— pero la RESPUESTA ya no
+    # dice por qué se rechazó. Antes contestaba "ya está asignado", y como el
+    # guard de alcance sólo mira al usuario destino (un aspirante propio), quien
+    # llama podía preguntar por cualquier número del padrón y leer la respuesta:
+    # un oráculo de existencia sobre el mismo dato que el buscador de alumnos ya
+    # protege (CROSS_PROGRAM_SEARCHABLE_FIELDS). El texto vive en el servicio
+    # para que los tres puntos de rechazo digan exactamente lo mismo.
+    #
+    # La colisión sí queda registrada en el log de la aplicación (ops-only, sin
+    # PII persistida y sin filas que el llamador pueda provocar en la base):
+    # el sondeo requiere una petición autenticada por intento, así que lo que
+    # protege de verdad es la detección del volumen, no un mensaje más.
     existing = User.query.filter(User.control_number == control_number).first()
     if existing:
+        from flask import current_app
+        from app.services.acceptance_service import CONTROL_NUMBER_REJECTED_MESSAGE
+        current_app.logger.warning(
+            '[control_number] Colisión al asignar número de control '
+            f'(admin_id={current_user.id}, target_user_id={user_id}, '
+            f'control_number={control_number})'
+        )
         return jsonify({
             "data": None,
-            "flash": [{"level": "danger", "message": f"El número de control {control_number} ya está asignado."}],
-            "error": {"code": "VALIDATION", "message": "Número de control duplicado"},
+            "flash": [{"level": "danger", "message": CONTROL_NUMBER_REJECTED_MESSAGE}],
+            "error": {"code": "VALIDATION", "message": CONTROL_NUMBER_REJECTED_MESSAGE},
             "meta": {}
         }), 400
-    
+
     # Verificar que tenga programa
     user_program = UserProgram.query.filter_by(user_id=user_id).first()
     if not user_program:

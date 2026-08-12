@@ -14,6 +14,10 @@
     let currentSlots = [];
     let currentChangeRequests = [];
     let currentRegistrations = [];
+    // ¿Quien mira administra este evento? Lo declara la respuesta de
+    // /attendance/event/<id>/registrations. Por defecto true: si un endpoint
+    // antiguo no lo manda, la página se comporta como antes.
+    let registrationsCanManage = true;
     let currentInvitations = [];
     let eligibleStudents = [];
     let programs = [];
@@ -888,6 +892,12 @@
         try {
             const { data } = await C.apiRequest(`${C.API}/attendance/event/${eventId}/registrations`);
             currentRegistrations = data.registrations || [];
+            // `can_manage` viene del propio endpoint (attendance_api.py) y es el
+            // MISMO booleano con el que decidió si mandar `notes`. Sin él la
+            // consola no distingue «esta persona se auto-registró» de «no
+            // tienes derecho a saber cómo llegó», ni «puedes pasar lista» de
+            // «cada clic acabará en 403».
+            registrationsCanManage = data.can_manage !== false;
             updateRegistrationStats();
             renderAttendanceTable();
             renderQuickRegistrations();
@@ -941,7 +951,16 @@
                     <td class="text-center">${attendanceBadge(reg.status)}</td>
                     <td>${attendedDate}</td>
                     <td class="text-end">
-                        ${reg.status === 'registered' ? `
+                        ${!registrationsCanManage ? `
+                            <span class="status-badge status-badge--sm"
+                                  title="No administras este evento, así que no puedes pasar lista.">
+                                <i class="bi bi-lock-fill" aria-hidden="true"></i>
+                                <span>Solo lectura</span>
+                            </span>
+                            <span class="visually-hidden">
+                                No administras este evento, así que no puedes cambiar su asistencia.
+                            </span>
+                        ` : reg.status === 'registered' ? `
                             <div class="btn-group btn-group-sm">
                                 <button type="button" class="btn btn-outline-success btn-mark-attended tap-target"
                                     data-user-id="${reg.user_id}"
@@ -985,9 +1004,18 @@
             return;
         }
         tbody.innerHTML = currentRegistrations.map(reg => {
-            const originBadge = (reg.notes && reg.notes.includes('invitación'))
-                ? '<span class="badge bg-info">Invitación</span>'
-                : '<span class="badge bg-secondary">Auto-registro</span>';
+            // El origen se deduce de la nota del organizador, y esa nota NO
+            // cruza entre programas: para quien no administra el evento llega
+            // en null. Antes eso caía en el `else` y afirmaba «Auto-registro»
+            // de todo el mundo, incluidos los invitados. Ausencia de permiso no
+            // es ausencia de invitación: se dice que no está disponible.
+            const originBadge = !registrationsCanManage
+                ? `<span class="text-muted small">
+                        <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>No disponible
+                   </span>`
+                : (reg.notes && reg.notes.includes('invitación'))
+                    ? '<span class="badge bg-info">Invitación</span>'
+                    : '<span class="badge bg-secondary">Auto-registro</span>';
             return `
                 <tr>
                     <th scope="row" class="fw-normal">${C.escapeHtml(reg.full_name)}</th>

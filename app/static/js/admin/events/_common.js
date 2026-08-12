@@ -13,6 +13,49 @@
         return meta ? meta.getAttribute('content') : '';
     }
 
+    /**
+     * Pulls a readable Spanish message out of ANY body this API may answer.
+     *
+     * The scope work moved the envelope's `error` from a bare string to an
+     * object `{code, message}` (see `_deny` in events_api.py / attendance_api.py),
+     * while older endpoints still answer with the string. Reading `data.error`
+     * straight into `new Error()` stringifies the object, so a coordinator who
+     * touched an event outside their scope got the toast
+     * «Error: [object Object]» instead of the reason.
+     *
+     * Shapes handled, in order of preference:
+     *   {error: {code, message}}       -> message   (current envelope)
+     *   {error: "texto"}               -> texto     (legacy endpoints)
+     *   {message: "texto"}             -> texto
+     *   {flash: [{level, message}]}    -> message   (flash array)
+     *   {flash: [["texto", "level"]]}  -> texto     (tuple form used by Flask)
+     *
+     * @param {*} data Parsed response body (or anything).
+     * @param {string} fallback Message to use when the body says nothing useful.
+     * @returns {string} Always a non-empty string.
+     */
+    function errorMessage(data, fallback = 'Ocurrió un error inesperado') {
+        const text = (value) => (typeof value === 'string' && value.trim()) ? value.trim() : null;
+
+        if (text(data)) return text(data);
+        if (!data || typeof data !== 'object') return fallback;
+
+        const err = data.error;
+        if (text(err)) return text(err);
+        if (err && typeof err === 'object' && text(err.message)) return text(err.message);
+
+        if (text(data.message)) return text(data.message);
+
+        const flash = Array.isArray(data.flash) ? data.flash : [];
+        for (const entry of flash) {
+            if (text(entry)) return text(entry);
+            if (Array.isArray(entry) && text(entry[0])) return text(entry[0]);
+            if (entry && typeof entry === 'object' && text(entry.message)) return text(entry.message);
+        }
+
+        return fallback;
+    }
+
     async function apiRequest(url, options = {}) {
         const defaultOptions = {
             credentials: "same-origin",
@@ -36,10 +79,10 @@
                 throw new Error('Error al procesar la respuesta del servidor');
             }
             if (!response.ok) {
-                throw new Error(data.error || data.message || `Error HTTP ${response.status}`);
+                throw new Error(errorMessage(data, `Error HTTP ${response.status}`));
             }
             if (data.ok === false) {
-                throw new Error(data.error || 'Operación fallida');
+                throw new Error(errorMessage(data, 'Operación fallida'));
             }
             return { response, data };
         } catch (error) {
@@ -138,6 +181,7 @@
         flash,
         getCsrfToken,
         apiRequest,
+        errorMessage,
         TYPE_LABEL,
         TYPE_ICON,
         TYPE_BADGE_CLASS,

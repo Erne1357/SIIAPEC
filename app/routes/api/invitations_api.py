@@ -27,28 +27,27 @@ def _deny(code: str, message: str, status: int):
     }), status
 
 
-def _event_in_scope(event) -> bool:
+def _load_managed_event(event_id: int):
     """
-    Alcance de gestión sobre un evento.
+    Carga el evento y exige autoridad de GESTIÓN sobre él.
 
-    Con programa: exige alcance sobre ese programa (aquí se corta el acceso al
-    calendario de otro coordinador). Sin programa: evento institucional,
-    compartido entre gestores — contrato vigente del sistema, igual que en
-    `events_api._event_in_scope`.
+    La regla es una sola y vive en `EventsService.user_may_manage_event`:
+    evento CON programa → alcance sobre ese programa; evento SIN programa
+    (institucional) → sólo alcance global.
+
+    La copia local que estaba aquí devolvía True para todo evento sin
+    programa. Con ella, el coordinador de cualquier programa reescribía las
+    fechas del evento institucional, invitaba a aspirantes de otros posgrados
+    (con correo real de por medio) y leía la lista completa de invitados
+    —nombre, correo, notas del organizador— de toda la institución.
+
+    Returns:
+        (event, None) si procede; (None, respuesta_error) si no.
     """
-    if event is None:
-        return False
-    if event.program_id is None:
-        return True
-    return scope_service.program_in_scope(current_user, event.program_id)
-
-
-def _load_event_in_scope(event_id: int):
-    """Carga el evento y valida alcance. Retorna (event, error_response|None)."""
     event = db.session.get(Event, event_id)
     if not event:
         return None, _deny("NOT_FOUND", "Evento no encontrado.", 404)
-    if not _event_in_scope(event):
+    if not EventsService.user_may_manage_event(current_user, event):
         return None, _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
     return event, None
 
@@ -58,7 +57,7 @@ def _load_event_in_scope(event_id: int):
 @permission_required('invitations.api.send')
 def invite_students(event_id: int):
     """Invitar estudiantes a un evento"""
-    event, err = _load_event_in_scope(event_id)
+    event, err = _load_managed_event(event_id)
     if err:
         return err
 
@@ -95,7 +94,8 @@ def invite_students(event_id: int):
     # En un evento SIN programa la bandera no concede nada (el servicio sólo
     # la consulta cuando el evento tiene programa), así que se normaliza a
     # False en vez de rechazar la petición: el front la envía siempre que el
-    # selector de alcance no es 'event_program'.
+    # selector de alcance no es 'event_program'. A esa rama sólo llega ya el
+    # alcance global, único que gestiona eventos institucionales.
     if event.program_id is None:
         allow_external = False
     elif allow_external and not scope_service.is_global_scope(current_user):
@@ -105,13 +105,16 @@ def invite_students(event_id: int):
             403,
         )
 
-    # Defensa en profundidad para eventos de programa: cada destinatario debe
-    # estar dentro del alcance de quien invita. (El servicio ya descarta a los
-    # ajenos al programa del evento como 'wrong_program'; aquí la petición se
-    # rechaza entera en vez de invitar a medias.)
-    # Los eventos institucionales —sin programa— siguen abiertos a cualquier
-    # destinatario, que es el contrato vigente.
-    if event.program_id and not scope_service.is_global_scope(current_user):
+    # Defensa en profundidad: cada destinatario debe estar dentro del alcance
+    # de quien invita. (El servicio ya descarta a los ajenos al programa del
+    # evento como 'wrong_program'; aquí la petición se rechaza entera en vez
+    # de invitar a medias.)
+    #
+    # La condición NO se ancla a que el evento tenga programa: esa forma
+    # —`if event.program_id and not is_global_scope(...)`— era el mismo hueco
+    # institucional en pequeño, porque en un evento sin programa se saltaba la
+    # comprobación entera y el destinatario podía ser de cualquier posgrado.
+    if not scope_service.is_global_scope(current_user):
         in_scope = scope_service.users_in_scope(current_user, target_ids, allow_self=False)
         if in_scope != target_ids:
             return _deny(
@@ -149,7 +152,7 @@ def invite_students(event_id: int):
 @permission_required('invitations.api.list')
 def list_event_invitations(event_id: int):
     """Listar invitaciones de un evento"""
-    event, err = _load_event_in_scope(event_id)
+    event, err = _load_managed_event(event_id)
     if err:
         return err
 
@@ -223,7 +226,7 @@ def cancel_invitation(invitation_id: int):
         return _deny("NOT_FOUND", "Invitación no encontrada.", 404)
 
     event = db.session.get(Event, invitation.event_id)
-    if not _event_in_scope(event):
+    if not EventsService.user_may_manage_event(current_user, event):
         # 404 deliberado: quien no gestiona el evento no debe poder confirmar
         # qué ids de invitación existen.
         return _deny("NOT_FOUND", "Invitación no encontrada.", 404)
@@ -250,7 +253,7 @@ def update_event_dates(event_id: int):
     """Actualizar fechas del evento"""
     from datetime import datetime
 
-    event, err = _load_event_in_scope(event_id)
+    event, err = _load_managed_event(event_id)
     if err:
         return err
 

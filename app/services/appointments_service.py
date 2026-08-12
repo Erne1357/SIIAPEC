@@ -27,6 +27,12 @@ class AppointmentsService:
     # Toda ruta que toca una cita necesita el evento (y con él el programa)
     # para poder validar el alcance. Antes cada handler repetía la cadena
     # de tres `db.session.get`; ahora vive aquí una sola vez.
+    #
+    # QUIÉN PUEDE GESTIONAR LA CITA se decide SIEMPRE con
+    # `EventsService.user_may_manage_event(user, ctx['event'])`. El
+    # `program_id` que devuelven estas funciones es informativo: un
+    # `program_id` nulo significa "evento institucional", que exige alcance
+    # GLOBAL, jamás "no hay programa que comprobar, pasa cualquiera".
 
     @staticmethod
     def get_appointment_context(appointment_id: int) -> dict | None:
@@ -192,8 +198,10 @@ class AppointmentsService:
                 `as_admin` es False: sin él NO se puede comprobar la propiedad
                 de la cita y la operación se rechaza (falla cerrado).
             as_admin: True sólo cuando la ruta ya verificó que el usuario tiene
-                'appointments.api.assign' Y que el programa del evento está
-                dentro de su alcance.
+                'appointments.api.assign' Y que puede gestionar el evento del
+                que cuelga la cita (`EventsService.user_may_manage_event`:
+                alcance sobre su programa, o alcance global si el evento es
+                institucional).
 
         Raises:
             ValueError: la cita no existe o ya estaba cancelada.

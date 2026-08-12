@@ -48,6 +48,91 @@
         !user || user.restricted === true ||
         user.role === undefined || user.username === undefined;
 
+    /**
+     * Filtros que el backend NO pudo aplicar a las filas de otros programas.
+     *
+     * `role` e `is_active` no están en la lista blanca del nivel reducido
+     * (`CROSS_PROGRAM_SUMMARY_FIELDS`), así que filtrar por ellos sobre cuentas
+     * ajenas convertiría el listado en un oráculo: la simple presencia o
+     * ausencia de una fila revelaría el valor de un campo prohibido. El API los
+     * evalúa solo dentro del alcance y lo declara en
+     * `meta.cross_program_filters_ignored` (admin/users_api.py).
+     *
+     * La consola leía únicamente `data`, así que pintaba un listado que decía
+     * «61 usuarios» con el filtro «Estudiante» puesto cuando solo 7 lo eran, y
+     * 19 de las 20 filas de la primera página eran cuentas de otros programas
+     * que habían entrado sin pasar por ese filtro.
+     */
+    let ignoredFilters = [];
+
+    const IGNORED_FILTER_LABEL = {
+        role: 'rol',
+        active: 'estado de la cuenta',
+    };
+
+    const ignoredFilterNames = () => ignoredFilters
+        .map(f => IGNORED_FILTER_LABEL[f] || f)
+        .filter((name, index, all) => all.indexOf(name) === index);
+
+    /** Frase «el filtro de rol» / «los filtros de rol y estado de la cuenta». */
+    function ignoredFiltersPhrase() {
+        const names = ignoredFilterNames();
+        if (!names.length) return '';
+        if (names.length === 1) return `el filtro de ${names[0]}`;
+        return `los filtros de ${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
+    }
+
+    /**
+     * Aviso único sobre la tabla.
+     *
+     * Se dice una vez y con números concretos, en lugar de dejar que el
+     * contador («61 usuarios») y la primera página se contradigan en silencio.
+     *
+     * Nota de diseño: NO se ocultan las filas de otros programas mientras hay
+     * un filtro puesto. La paginación la calcula el servidor, así que esconder
+     * filas aquí dejaría páginas de 1 fila sobre un total de 61 —una
+     * aritmética aún más falsa— y además escondería cuentas que el llamador SÍ
+     * tiene derecho a ver (nombre y correo son el nivel que el dueño autoriza a
+     * cruzar). Se muestran, se marcan y se explica por qué están.
+     */
+    function renderScopeNotice(pagination, restrictedCount) {
+        const container = document.getElementById('usersTableContainer');
+        if (!container || !container.parentNode) return;
+
+        let notice = document.getElementById('usersScopeNotice');
+        const phrase = ignoredFiltersPhrase();
+
+        if (!phrase) {
+            notice?.remove();
+            return;
+        }
+        if (!notice) {
+            notice = document.createElement('div');
+            notice.id = 'usersScopeNotice';
+            notice.className = 'alert alert-info d-flex align-items-start gap-2';
+            notice.setAttribute('role', 'status');
+            container.parentNode.insertBefore(notice, container);
+        }
+
+        const onPage = Number(restrictedCount) || 0;
+        const perPage = pagination ? pagination.per_page : 0;
+        const detail = onPage
+            ? `En esta página, ${onPage} de ${perPage} cuentas son de otros programas y
+               aparecen aunque no se haya podido comprobar si cumplen ${phrase}.`
+            : `Las cuentas de otros programas aparecen aunque no se haya podido comprobar
+               si cumplen ${phrase}.`;
+
+        notice.innerHTML = `
+            <i class="bi bi-funnel-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+            <div>
+                <strong>Filtro aplicado solo a tus programas.</strong>
+                No se puede evaluar ${phrase} sobre cuentas que pertenecen a programas
+                que no gestionas: ese dato no sale de su programa. ${detail}
+                El total de arriba cuenta todas las filas devueltas, no solo las que
+                cumplen el filtro.
+            </div>`;
+    }
+
     // Cargar lista de usuarios
     async function loadUsers(page = 1) {
         const loadingIndicator = document.getElementById('loadingIndicator');
@@ -70,34 +155,49 @@
             const json = await res.json();
             
             if (!res.ok) throw new Error(json.error?.message || 'Error al cargar usuarios');
-            
-            console.log("JSON DATA en load users:", json);
-
 
             const { users, pagination } = json.data;
-            
+            // `meta` no es decorativo: declara qué filtros NO se aplicaron a las
+            // filas de otros programas y cuántas de esas filas trae la página.
+            const meta = json.meta || {};
+            ignoredFilters = Array.isArray(meta.cross_program_filters_ignored)
+                ? meta.cross_program_filters_ignored
+                : [];
+            const restrictedCount = Number(meta.restricted_count) || 0;
+
             loadingIndicator.classList.add('d-none');
-            
+            currentPage = pagination.page;
+
             if (users.length === 0) {
+                // Sin ninguna fila no hay filas ajenas que avisar: el aviso de
+                // alcance sobraría junto al estado vacío.
+                ignoredFilters = [];
+                renderScopeNotice(null, 0);
                 noResults.classList.remove('d-none');
                 announce('Ningún usuario coincide con los filtros aplicados.');
                 return;
             }
-            
+
+            renderScopeNotice(pagination, restrictedCount);
             renderUsersTable(users);
             renderPagination(pagination);
             updateTotalCount(pagination.total);
-            
+
             tableContainer.classList.remove('d-none');
-            announce(
-                pagination.total === 1
-                    ? '1 usuario encontrado.'
-                    : `${pagination.total} usuarios encontrados.`
-            );
-            
+            const found = pagination.total === 1
+                ? '1 usuario encontrado.'
+                : `${pagination.total} usuarios encontrados.`;
+            const phrase = ignoredFiltersPhrase();
+            announce(phrase
+                ? `${found} No se pudo aplicar ${phrase} a las cuentas de otros programas.`
+                : found);
+
         } catch (error) {
             console.error('Error:', error);
             loadingIndicator.classList.add('d-none');
+            // El aviso describía la respuesta anterior: si esta falló, se retira.
+            ignoredFilters = [];
+            renderScopeNotice(null, 0);
             showFlash('danger', 'Error al cargar usuarios: ' + error.message);
         }
     }
@@ -131,6 +231,11 @@
                             <small class="text-muted d-block">
                                 <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Pertenece a otro programa
                             </small>
+                            ${ignoredFilterNames().length ? `
+                            <small class="text-muted d-block">
+                                <i class="bi bi-funnel me-1" aria-hidden="true"></i>Sin filtrar por ${escapeHtml(ignoredFilterNames().join(' ni '))}
+                            </small>
+                            ` : ''}
                         </div>
                     </div>
                 </th>
@@ -330,9 +435,23 @@
         loadUsers(Number(link.dataset.page));
     }
     
-    // Actualizar contador total
+    // Actualizar contador total.
+    //
+    // Con un filtro que el servidor solo pudo aplicar dentro del alcance, este
+    // número NO es «cuántos cumplen el filtro»: es cuántas filas devolvió la
+    // consulta. Decirlo evita que «61 usuarios» con el filtro «Estudiante»
+    // puesto se lea como «61 estudiantes» cuando solo 7 lo son.
     function updateTotalCount(total) {
-        document.getElementById('totalUsersCount').textContent = `${total} usuario${total !== 1 ? 's' : ''}`;
+        const badge = document.getElementById('totalUsersCount');
+        const base = `${total} usuario${total !== 1 ? 's' : ''}`;
+        const phrase = ignoredFiltersPhrase();
+
+        badge.textContent = phrase ? `${base} · filtro parcial` : base;
+        if (phrase) {
+            badge.title = `Incluye cuentas de otros programas, a las que no se pudo aplicar ${phrase}.`;
+        } else {
+            badge.removeAttribute('title');
+        }
     }
     
     /**
@@ -385,9 +504,6 @@
             const json = await res.json();
 
             if (!res.ok) throw new Error(json.error?.message);
-
-            console.log("JSON DATA en showUserDetail:", json);
-
 
             const user = json.data.user;
             const program = json.data.user.program;

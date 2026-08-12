@@ -16,9 +16,10 @@ from datetime import datetime, timedelta
 
 from app import create_app, db
 from app.models.event import Event, EventInvitation, EventAttendance
+from app.models.user_program import UserProgram
 from tests.events.conftest import (
     make_test_config, make_role, make_user, make_program,
-    grant_permission, login, inject_csrf,
+    make_academic_period, grant_permission, login, inject_csrf,
 )
 
 
@@ -37,13 +38,26 @@ class TestInvitationsApiBase(unittest.TestCase):
 
         self.admin = make_user(self.role_admin, suffix='_adm')
         self.prog = make_program(self.admin)
+        self.period = make_academic_period()
 
         self.role_student = make_role('student')
         self.student = make_user(self.role_student, suffix='_stu')
+        db.session.flush()
+
+        # El evento cuelga del programa que coordina el admin y el estudiante
+        # pertenece a ese mismo programa: es el mundo legítimo del módulo.
+        # Antes el fixture usaba un evento SIN programa, que es precisamente el
+        # hueco cerrado — un coordinador no gestiona eventos institucionales.
+        db.session.add(UserProgram(
+            user_id=self.student.id,
+            program_id=self.prog.id,
+            admission_period_id=self.period.id,
+            admission_status='in_progress',
+        ))
         db.session.commit()
 
         self.ev = Event(
-            program_id=None,
+            program_id=self.prog.id,
             type='conference',
             title='Invite Test Event',
             description='',
@@ -310,3 +324,156 @@ class TestUpdateEventDates(TestInvitationsApiBase):
             headers={'X-CSRFToken': self.admin_csrf},
         )
         self.assertEqual(resp.status_code, 404)
+
+
+class TestInstitutionalEventScope(TestInvitationsApiBase):
+    """
+    El evento SIN programa (institucional) es de la Jefatura de Posgrado, no
+    de todos los gestores.
+
+    Antes, el predicado local de este módulo devolvía "en alcance" para
+    cualquier evento con `program_id = NULL`, así que el coordinador de un
+    programa reescribía las fechas del evento institucional, invitaba —con
+    correo real— a estudiantes de otros posgrados y leía la lista completa de
+    invitados de toda la institución. La regla vive ahora en
+    `EventsService.user_may_manage_event`: sin programa, sólo alcance global.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        # Evento institucional (sin programa).
+        self.inst_ev = Event(
+            program_id=None,
+            type='conference',
+            title='EXANI institucional',
+            description='',
+            location='',
+            created_by=self.admin.id,
+            visible_to_students=True,
+            capacity_type='multiple',
+            max_capacity=50,
+            requires_registration=True,
+            allows_attendance_tracking=False,
+            reminders_enabled=True,
+            status='published',
+            visibility='public',
+        )
+        db.session.add(self.inst_ev)
+
+        # Jefe de posgrado: alcance global por permiso DE ROL.
+        self.role_head = make_role('postgraduate_admin')
+        for code in ('academic_periods.api.create', 'invitations.api.send',
+                     'invitations.api.list', 'invitations.api.manage'):
+            grant_permission(self.role_head, code)
+        self.head = make_user(self.role_head, suffix='_head')
+        db.session.commit()
+
+        self.head_client = self.app.test_client()
+        self.head_csrf = login(self.head_client, self.head)
+
+    @staticmethod
+    def _clear_login_cache():
+        from flask import g
+        if hasattr(g, '_login_user'):
+            del g._login_user
+
+    def test_coordinator_cannot_list_institutional_invitations(self):
+        inv = EventInvitation(
+            event_id=self.inst_ev.id,
+            user_id=self.student.id,
+            invited_by=self.admin.id,
+            status='pending',
+        )
+        db.session.add(inv)
+        db.session.commit()
+
+        self._clear_login_cache()
+        resp = self.admin_client.get(
+            f'/api/v1/invitations/event/{self.inst_ev.id}/list')
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(json.loads(resp.data)['error']['code'], 'FORBIDDEN')
+
+    def test_coordinator_cannot_invite_to_institutional_event(self):
+        self._clear_login_cache()
+        resp = self._admin_post(
+            f'/api/v1/invitations/event/{self.inst_ev.id}/invite',
+            {'user_ids': [self.student.id]},
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(EventInvitation.query.count(), 0)
+
+    def test_coordinator_cannot_rewrite_institutional_dates(self):
+        self._clear_login_cache()
+        resp = self.admin_client.put(
+            f'/api/v1/invitations/event/{self.inst_ev.id}/dates',
+            data=json.dumps({'event_date': (datetime.now() + timedelta(days=9)).isoformat()}),
+            content_type='application/json',
+            headers={'X-CSRFToken': self.admin_csrf},
+        )
+        self.assertEqual(resp.status_code, 403)
+        db.session.refresh(self.inst_ev)
+        self.assertIsNone(self.inst_ev.event_date)
+
+    def test_coordinator_cannot_cancel_institutional_invitation(self):
+        inv = EventInvitation(
+            event_id=self.inst_ev.id,
+            user_id=self.student.id,
+            invited_by=self.admin.id,
+            status='pending',
+        )
+        db.session.add(inv)
+        db.session.commit()
+
+        self._clear_login_cache()
+        resp = self._admin_delete(f'/api/v1/invitations/{inv.id}')
+        # 404 deliberado: no se confirma qué ids de invitación existen.
+        self.assertEqual(resp.status_code, 404)
+        db.session.refresh(inv)
+        self.assertEqual(inv.status, 'pending')
+
+    def test_head_of_postgraduate_still_manages_institutional_event(self):
+        self._clear_login_cache()
+        resp = self.head_client.put(
+            f'/api/v1/invitations/event/{self.inst_ev.id}/dates',
+            data=json.dumps({'event_date': (datetime.now() + timedelta(days=9)).isoformat()}),
+            content_type='application/json',
+            headers={'X-CSRFToken': self.head_csrf},
+        )
+        self.assertEqual(resp.status_code, 200)
+
+
+class TestInviteRecipientScope(TestInvitationsApiBase):
+    """
+    La comprobación de destinatarios ya no se ancla a que el evento tenga
+    programa: `if event.program_id and not is_global_scope(...)` era el mismo
+    hueco institucional en miniatura.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.other_admin = make_user(self.role_admin, suffix='_adm2')
+        db.session.flush()
+        self.other_prog = make_program(self.other_admin, slug='otro-prog')
+
+        self.foreign_student = make_user(self.role_student, suffix='_stu2')
+        db.session.flush()
+        db.session.add(UserProgram(
+            user_id=self.foreign_student.id,
+            program_id=self.other_prog.id,
+            admission_period_id=self.period.id,
+            admission_status='in_progress',
+        ))
+        db.session.commit()
+
+    def test_cannot_invite_student_of_another_program(self):
+        from flask import g
+        if hasattr(g, '_login_user'):
+            del g._login_user
+        resp = self._admin_post(
+            f'/api/v1/invitations/event/{self.ev.id}/invite',
+            {'user_ids': [self.foreign_student.id]},
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(EventInvitation.query.count(), 0)

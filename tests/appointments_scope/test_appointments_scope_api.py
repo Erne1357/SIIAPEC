@@ -286,5 +286,169 @@ class AppointmentsScopeTestCase(unittest.TestCase):
         self.assertNotIn('email', appointment['student'])
 
 
+class InstitutionalEventAppointmentsTestCase(unittest.TestCase):
+    """
+    Citas colgadas de un evento INSTITUCIONAL (sin programa).
+
+    El módulo tenía el mismo carve-out que se borró de events_api: cuando el
+    evento no tenía programa, la guarda de alcance devolvía "procede" y
+    cualquier coordinador alcanzaba la cita de un aspirante de otro posgrado
+    —incluidas las escrituras—. Hoy un evento sin programa exige alcance
+    global (`EventsService.user_may_manage_event`).
+
+    Mundo:
+        event_inst — evento institucional con un slot, ocupado por applicant_b
+                     (programa B). coord_a no coordina a nadie de ahí.
+        head       — jefe de posgrado (alcance global por permiso de rol).
+    """
+
+    # El mundo (dos programas, dos coordinadores, tres aspirantes) y los
+    # ayudantes se reutilizan por delegación explícita y NO por herencia:
+    # heredar de la clase anterior volvería a ejecutar todos sus tests.
+    tearDown = AppointmentsScopeTestCase.tearDown
+    _post = AppointmentsScopeTestCase._post
+    _delete = AppointmentsScopeTestCase._delete
+    _get = AppointmentsScopeTestCase._get
+    _clear_login_cache = staticmethod(AppointmentsScopeTestCase._clear_login_cache)
+
+    def setUp(self):
+        AppointmentsScopeTestCase.setUp(self)
+
+        self.event_inst = Event(
+            program_id=None,
+            type='interview',
+            title='Entrevistas institucionales',
+            description='',
+            location='Auditorio',
+            created_by=self.coord_a.id,
+            visible_to_students=True,
+            capacity_type='single',
+            requires_registration=True,
+            allows_attendance_tracking=False,
+            reminders_enabled=True,
+            status='published',
+            visibility='public',
+        )
+        db.session.add(self.event_inst)
+        db.session.flush()
+
+        window = EventWindow(
+            event_id=self.event_inst.id,
+            date=(datetime.now() + timedelta(days=4)).date(),
+            start_time=datetime.strptime('11:00', '%H:%M').time(),
+            end_time=datetime.strptime('12:00', '%H:%M').time(),
+            slot_minutes=30,
+            timezone='America/Ciudad_Juarez',
+            slots_generated=True,
+        )
+        db.session.add(window)
+        db.session.flush()
+
+        base = datetime.combine(window.date, window.start_time)
+        self.slot_inst = EventSlot(
+            event_window_id=window.id, starts_at=base,
+            ends_at=base + timedelta(minutes=30), status='booked',
+            held_by=self.applicant_b.id,
+        )
+        db.session.add(self.slot_inst)
+        db.session.flush()
+
+        # Cita del aspirante del programa B sobre el evento institucional.
+        self.appt_inst = Appointment(
+            event_id=self.event_inst.id,
+            slot_id=self.slot_inst.id,
+            applicant_id=self.applicant_b.id,
+            assigned_by=self.coord_b.id,
+            status='scheduled',
+            notes='Notas privadas del coordinador B',
+        )
+        db.session.add(self.appt_inst)
+
+        role_head = make_role('postgraduate_admin')
+        for code in ('academic_periods.api.create', 'appointments.api.assign'):
+            grant_permission(role_head, code)
+        self.head = make_user(role_head, suffix='_head')
+        db.session.commit()
+
+        self.client_head = self.app.test_client()
+        self.csrf_head = login(self.client_head, self.head)
+
+    # ── lectura ──────────────────────────────────────────────────────────
+
+    def test_foreign_coordinator_cannot_read_institutional_slot_occupant(self):
+        resp = self._get(
+            self.client_coord_a,
+            f'/api/v1/appointments/by-slot/{self.slot_inst.id}',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_foreign_coordinator_cannot_read_institutional_appointment_details(self):
+        resp = self._get(
+            self.client_coord_a,
+            f'/api/v1/appointments/{self.appt_inst.id}/details',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    # ── escritura (lo que el contrato prohíbe de plano) ──────────────────
+
+    def test_foreign_coordinator_cannot_cancel_institutional_appointment(self):
+        resp = self._post(
+            self.client_coord_a, self.csrf_coord_a,
+            f'/api/v1/appointments/{self.appt_inst.id}/cancel',
+            {'reason': 'porque sí'},
+        )
+        self.assertEqual(resp.status_code, 403)
+        db.session.refresh(self.appt_inst)
+        self.assertEqual(self.appt_inst.status, 'scheduled')
+
+    def test_foreign_coordinator_cannot_mark_institutional_appointment(self):
+        resp = self._post(
+            self.client_coord_a, self.csrf_coord_a,
+            f'/api/v1/appointments/{self.appt_inst.id}/mark-status',
+            {'status': 'no_show'},
+        )
+        self.assertEqual(resp.status_code, 403)
+        db.session.refresh(self.appt_inst)
+        self.assertEqual(self.appt_inst.status, 'scheduled')
+
+    def test_foreign_coordinator_cannot_delete_institutional_appointment(self):
+        resp = self._delete(
+            self.client_coord_a, self.csrf_coord_a,
+            f'/api/v1/appointments/{self.appt_inst.id}',
+        )
+        self.assertEqual(resp.status_code, 403)
+        db.session.refresh(self.appt_inst)
+        self.assertEqual(self.appt_inst.status, 'scheduled')
+
+    def test_foreign_coordinator_cannot_list_institutional_change_requests(self):
+        resp = self._get(
+            self.client_coord_a,
+            f'/api/v1/appointments/change-requests/by-event/{self.event_inst.id}',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    # ── el dueño del evento institucional sí manda ───────────────────────
+
+    def test_head_of_postgraduate_still_reads_institutional_slot(self):
+        resp = self._get(
+            self.client_head,
+            f'/api/v1/appointments/by-slot/{self.slot_inst.id}',
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = json.loads(resp.data)
+        self.assertEqual(body['appointment']['id'], self.appt_inst.id)
+
+    # ── el aspirante sigue siendo dueño de su propia cita ────────────────
+
+    def test_owner_still_cancels_own_institutional_appointment(self):
+        resp = self._delete(
+            self.client_applicant_b, self.csrf_applicant_b,
+            f'/api/v1/appointments/{self.appt_inst.id}',
+        )
+        self.assertEqual(resp.status_code, 200)
+        db.session.refresh(self.appt_inst)
+        self.assertEqual(self.appt_inst.status, 'cancelled')
+
+
 if __name__ == '__main__':
     unittest.main()

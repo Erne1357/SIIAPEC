@@ -13,6 +13,13 @@ Salas utilizadas:
 Los clientes NO necesitan suscribirse manualmente; al conectar el servidor
 los une automáticamente a sus salas según su sesión Flask-Login.
 
+La ÚNICA sala que el cliente pide explícitamente es `deliberation:{program_id}`
+(evento `join_deliberation`). Por eso ese handler valida permiso Y alcance antes
+de unir; el resto de las salas se resuelven en el servidor y no aceptan ningún
+id del cliente. Cualquier handler nuevo que reciba un id del cliente debe seguir
+la misma regla: `has_permission(...)` responde QUÉ, `program_in_scope(...)`
+responde A QUIÉN, y ninguna de las dos implica la otra.
+
 Nota (Phase 9): Las salas SocketIO se mantienen basadas en roles porque el
 broadcasting es notificación, no control de acceso. La sala role:coordinator
 se asigna por permiso (coordinator.page.view) en lugar de solo por role.name
@@ -29,6 +36,12 @@ from flask_login import current_user
 from flask_socketio import join_room, disconnect
 
 logger = logging.getLogger(__name__)
+
+#: Capability required to sit in `deliberation:{program_id}`. Same codename that
+#: gates the HTTP endpoint publishing the same rows
+#: (`GET /api/v1/deliberation/program/<id>/applicants`), so the socket cannot
+#: become a cheaper door to data the REST layer protects.
+DELIBERATION_ROOM_PERMISSION = 'deliberation.api.list_applicants'
 
 
 def register_core_handlers(socketio):
@@ -86,13 +99,66 @@ def register_core_handlers(socketio):
         de un programa específico para recibir actualizaciones en tiempo real.
 
         Payload esperado: { "program_id": 42 }
+
+        This is the only room the client picks: `program_id` arrives from the
+        browser, so the same two questions every HTTP route asks must be asked
+        here, in the same order and with the same helpers.
+
+          1. WHAT  — `deliberation.api.list_applicants`, the codename that gates
+                     `GET /api/v1/deliberation/program/<id>/applicants`. The room
+                     carries that endpoint's data (applicant name + decision), so
+                     it must not be reachable with a weaker capability.
+          2. TO WHOM — `program_in_scope()`, the shared predicate. Holding the
+                     permission never implies reach: a program_admin holds it for
+                     every program by virtue of their role, and the room is where
+                     `deliberation:updated` publishes named admission decisions.
+
+        Without both checks any authenticated account — an applicant included —
+        could emit `{"program_id": N}` and receive every decision taken in any
+        program, live and by name.
+
+        Fails closed: a malformed payload, a missing permission, an out-of-scope
+        program or an unexpected error all end in `return False` without a join.
+        The return value is only the ack for this event; unlike `connect`, it does
+        not drop the socket, and it must not — the caller may legitimately be a
+        coordinator asking about one program too many.
         """
         if not current_user.is_authenticated:
             return False
 
-        program_id = data.get('program_id')
-        if program_id:
-            join_room(f'deliberation:{program_id}')
-            logger.debug(
-                f'[WS] user={current_user.id} joined deliberation:{program_id}'
+        if not isinstance(data, dict):
+            return False
+
+        try:
+            program_id = int(data.get('program_id'))
+        except (TypeError, ValueError):
+            return False
+
+        try:
+            from app.services import program_scope_service as scope_service
+
+            if not current_user.has_permission(DELIBERATION_ROOM_PERMISSION):
+                logger.warning(
+                    f'[WS] join_deliberation denegado (sin permiso): '
+                    f'user={current_user.id} program_id={program_id}'
+                )
+                return False
+
+            if not scope_service.program_in_scope(current_user, program_id):
+                logger.warning(
+                    f'[WS] join_deliberation denegado (fuera de alcance): '
+                    f'user={current_user.id} program_id={program_id}'
+                )
+                return False
+        except Exception as exc:
+            logger.warning(
+                f'[WS] join_deliberation denegado (error al validar): '
+                f'user={current_user.id} program_id={program_id} ({exc})'
             )
+            return False
+
+        join_room(f'deliberation:{program_id}')
+        logger.debug(
+            f'[WS] user={current_user.id} joined deliberation:{program_id}'
+        )
+        return True

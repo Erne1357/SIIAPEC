@@ -3,11 +3,11 @@ from flask_login import login_required, current_user
 from app.utils.permissions import (
     permission_required,
     any_permission_required,
-    guard_program_scope,
     guard_user_scope,
 )
 from app.services import program_scope_service as scope_service
 from app.services.appointments_service import AppointmentsService, AppointmentAccessDenied
+from app.services.events_service import EventsService
 from app.services.user_history_service import UserHistoryService
 from app.models.appointment import Appointment
 from app import db
@@ -30,21 +30,28 @@ def _deny(code: str, message: str, status: int):
     }), status
 
 
-def _event_scope_denied(program_id):
+def _event_manage_denied(event):
     """
-    Alcance sobre el programa del evento de la cita.
+    Autoridad de gestión sobre el evento del que cuelga la cita.
 
-    Con programa: delega en la guarda compartida (`guard_program_scope`), que
-    es la única implementación de la intersección de alcances.
-    Sin programa: evento institucional, gestionado por cualquier portador del
-    permiso — mismo contrato que `events_api._event_in_scope`.
+    Regla única: `EventsService.user_may_manage_event` — evento CON programa
+    exige alcance sobre ese programa; evento SIN programa (institucional)
+    exige alcance global.
+
+    La versión anterior recibía sólo el `program_id` y contestaba "procede"
+    cuando era None, así que toda cita colgada de un evento institucional
+    quedaba al alcance de cualquier coordinador: leer al aspirante de otro
+    posgrado y también ESCRIBIR sobre él (cancelar, marcar estado, decidir
+    solicitudes de cambio), que el contrato prohíbe de plano entre programas.
+
+    Un evento inexistente (None) también se deniega: falla cerrado.
 
     Returns:
         None si procede; la respuesta 403 si no.
     """
-    if program_id is None:
-        return None
-    return guard_program_scope(program_id)
+    if not EventsService.user_may_manage_event(current_user, event):
+        return _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
+    return None
 
 
 def _appointment_not_found():
@@ -72,12 +79,12 @@ def _resolve_manage_context(appointment_id: int):
     if appt.applicant_id == current_user.id:
         return ctx, False, None
 
-    # No es su cita: sólo el personal con permiso de gestión y con el programa
-    # del evento dentro de su alcance puede tocarla.
+    # No es su cita: sólo el personal con permiso de gestión y con autoridad
+    # sobre el evento del que cuelga la cita puede tocarla.
     if not current_user.has_permission(_STAFF_PERMISSION):
         return None, False, _appointment_not_found()
 
-    denied = _event_scope_denied(ctx['program_id'])
+    denied = _event_manage_denied(ctx.get('event'))
     if denied:
         return None, False, denied
 
@@ -85,7 +92,15 @@ def _resolve_manage_context(appointment_id: int):
 
 
 def _applicant_may_book(event) -> bool:
-    """Un aspirante sólo puede agendarse en un evento publicado de su programa."""
+    """
+    Un aspirante sólo puede agendarse en un evento publicado de su programa.
+
+    OJO: aquí un evento sin programa SÍ vale, y es correcto — es el nivel de
+    PARTICIPANTE (el evento institucional se publica para toda la institución,
+    igual que en `events_api._event_is_public_for_current_user`), y el aspirante
+    sólo se agenda a sí mismo. No copies esta forma a una guarda de GESTIÓN:
+    para eso está `_event_manage_denied`.
+    """
     if not event or not event.visible_to_students or event.status != 'published':
         return False
     if event.program_id is None:
@@ -113,8 +128,8 @@ def assign():
     is_staff = current_user.has_permission(_STAFF_PERMISSION)
 
     if is_staff:
-        # El coordinador sólo agenda dentro de los programas a su alcance…
-        denied = _event_scope_denied(event.program_id)
+        # El coordinador sólo agenda en eventos que gestiona…
+        denied = _event_manage_denied(event)
         if denied:
             return denied
         try:
@@ -415,7 +430,7 @@ def get_change_requests_by_event(event_id: int):
     if not event:
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
-    denied = _event_scope_denied(event.program_id)
+    denied = _event_manage_denied(event)
     if denied:
         return denied
 
@@ -468,7 +483,7 @@ def decide_change(req_id:int):
     if not ctx or not ctx.get('appointment'):
         return _deny("NOT_FOUND", "Solicitud de cambio no encontrada.", 404)
 
-    denied = _event_scope_denied(ctx['program_id'])
+    denied = _event_manage_denied(ctx.get('event'))
     if denied:
         return denied
 
@@ -534,7 +549,7 @@ def get_appointment_by_slot(slot_id: int):
     if not slot_ctx or not slot_ctx['event']:
         return _deny("NOT_FOUND", "Horario no encontrado.", 404)
 
-    denied = _event_scope_denied(slot_ctx['program_id'])
+    denied = _event_manage_denied(slot_ctx['event'])
     if denied:
         return denied
 

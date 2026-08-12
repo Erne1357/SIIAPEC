@@ -32,6 +32,36 @@ DOC_TYPE_LABELS = {
     'acceptance_opinion': 'Dictamen de Aceptacion',
 }
 
+#: The single wording every control-number rejection uses when the number cannot
+#: be assigned because it already exists somewhere in the institution.
+#:
+#: The uniqueness check itself is global and STAYS global — a control number is
+#: institution-wide unique, and scoping the query to the caller's programs would
+#: let two coordinators mint the same number. What must not be global is the
+#: *answer*: the old message ("ya está asignado a otro usuario") confirmed the
+#: existence of a control number the caller may have no right to know about,
+#: which is the same secret `CROSS_PROGRAM_SEARCHABLE_FIELDS` keeps out of the
+#: student search. Anyone holding an applicant of their own could probe the
+#: institution's control numbers one guess per request and read the hits off the
+#: message.
+#:
+#: The wording below states only that this request cannot proceed. It carries no
+#: claim about whether the number exists, no owner, and — deliberately — not even
+#: the number itself, so that a screenshot or a shared error log leaks nothing.
+#: Every site that rejects on collision must use this exact string; a second,
+#: subtly different wording anywhere re-opens the oracle.
+#:
+#: This does not make the two branches indistinguishable — a free number is
+#: assigned and a taken one is not, and that difference is inherent to a real
+#: write against a unique column. What it removes is the explicit confirmation
+#: and the ability to harvest it passively. The remaining probing is a loud,
+#: authenticated, attributable act; see the note at the call site in
+#: `app/routes/api/admin/users_api.py`.
+CONTROL_NUMBER_REJECTED_MESSAGE = (
+    'No se pudo asignar el número de control. '
+    'Verifica el dato con la jefatura de posgrado e inténtalo de nuevo.'
+)
+
 
 class AcceptanceError(Exception):
     """Error base para operaciones de aceptacion."""
@@ -631,10 +661,13 @@ def assign_control_number(user_id: int, program_id: int,
 
     ctrl = control_number.strip()
 
-    # Verificar que el número de control no esté ya asignado a otro usuario
+    # Unicidad institucional: la consulta es global a propósito (un número de
+    # control es único en toda la institución). El mensaje NO revela el motivo
+    # —ver CONTROL_NUMBER_REJECTED_MESSAGE—, porque el número colisionado puede
+    # pertenecer a un programa fuera del alcance de quien llama.
     existing = UserModel.query.filter_by(control_number=ctrl).first()
     if existing and existing.id != user_id:
-        raise ValueError(f"El número de control '{ctrl}' ya está asignado a otro usuario")
+        raise ValueError(CONTROL_NUMBER_REJECTED_MESSAGE)
 
     up = _get_user_program(user_id, program_id)
 
@@ -764,10 +797,12 @@ def assign_control_number_admin(user_id: int, program_id: int,
 
     ctrl = control_number.strip()
 
-    # Verificar que el número de control no esté ya asignado a otro usuario
+    # Unicidad institucional: consulta global a propósito, mensaje sin motivo.
+    # Mismo texto exacto que en assign_control_number() — dos redacciones
+    # distintas volverían a distinguir la colisión del resto de los rechazos.
     existing = UserModel.query.filter_by(control_number=ctrl).first()
     if existing and existing.id != user_id:
-        raise ValueError(f"El número de control '{ctrl}' ya está asignado a otro usuario")
+        raise ValueError(CONTROL_NUMBER_REJECTED_MESSAGE)
 
     up = _get_user_program(user_id, program_id)
 

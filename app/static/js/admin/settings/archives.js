@@ -35,6 +35,37 @@
   let cached = [];
   let steps = [];
 
+  // ==========================================================================
+  // Alcance de escritura sobre el catálogo
+  // ==========================================================================
+  //
+  // Un Step es COMPARTIDO por diseño: `program_step` engancha la misma etapa a
+  // varios posgrados, y los Archive cuelgan del Step, no del Program. Por eso
+  // el backend (archives_api.py) devuelve DOS niveles distintos en cada fila y
+  // en cada step:
+  //
+  //   - se listan todos los que tocan alguno de tus programas — para que veas
+  //     el trámite completo;
+  //   - `can_manage` marca los que además puedes MODIFICAR, que son solo los
+  //     de las etapas exclusivamente tuyas.
+  //
+  // Esta consola ignoraba `can_manage` y pintaba Editar / Subir plantilla /
+  // Guardar / Eliminar en las 43 filas: cada botón acababa en 403 y la página
+  // parecía rota 43 veces seguidas. Aquí se lee el campo y se dice el motivo.
+  //
+  // Se compara con `!== false` a propósito: si el campo faltara, la fila se
+  // comporta como antes en lugar de quedarse muda.
+
+  const canManageRow = (row) => !!row && row.can_manage !== false;
+  const canManageStep = (step) => !!step && step.can_manage !== false;
+
+  /** Pasos cuyo catálogo puede editar quien mira: los únicos que caben en los selects. */
+  const manageableSteps = () => steps.filter(canManageStep);
+
+  const SHARED_STEP_REASON =
+    'Esta etapa la comparten varios programas, así que su catálogo de ' +
+    'documentos solo lo puede modificar la Jefatura de Posgrado.';
+
   // Función para disparar flash usando el sistema existente
   function flash(msg, type = "success") {
     window.dispatchEvent(new CustomEvent('flash', { 
@@ -66,6 +97,37 @@
     }
     
     return { valid: true };
+  }
+
+  /**
+   * Mensaje legible a partir de cualquier cuerpo que devuelva la API.
+   *
+   * `_deny` (archives_api.py) manda `error` como objeto `{code, message}` —ahí
+   * viaja la explicación de por qué una etapa compartida no se puede tocar—
+   * mientras que el resto de este blueprint sigue mandando `error` como cadena.
+   * Leer `data.error` a secas convertía el objeto en «[object Object]» y
+   * borraba justo el motivo que hay que enseñar.
+   */
+  function errorMessage(data, fallback = 'Ocurrió un error inesperado') {
+    const text = (value) => (typeof value === 'string' && value.trim()) ? value.trim() : null;
+
+    if (text(data)) return text(data);
+    if (!data || typeof data !== 'object') return fallback;
+
+    const err = data.error;
+    if (text(err)) return text(err);
+    if (err && typeof err === 'object' && text(err.message)) return text(err.message);
+
+    if (text(data.message)) return text(data.message);
+
+    const flash = Array.isArray(data.flash) ? data.flash : [];
+    for (const entry of flash) {
+      if (text(entry)) return text(entry);
+      if (Array.isArray(entry) && text(entry[0])) return text(entry[0]);
+      if (entry && typeof entry === 'object' && text(entry.message)) return text(entry.message);
+    }
+
+    return fallback;
   }
 
   // Función helper para hacer peticiones con manejo de errores mejorado
@@ -106,11 +168,11 @@
       }
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || `Error HTTP ${response.status}`);
+        throw new Error(errorMessage(data, `Error HTTP ${response.status}`));
       }
 
       if (data.ok === false) {
-        throw new Error(data.error || 'Operación fallida');
+        throw new Error(errorMessage(data, 'Operación fallida'));
       }
 
       return { response, data };
@@ -136,32 +198,18 @@
     // `label` goes into attributes only; `label` in text content is escaped apart.
     const label = SIIAP.escapeAttr(a.name || 'este archivo');
 
-    return `
-      <tr data-id="${SIIAP.escapeAttr(a.id)}" data-name="${SIIAP.escapeAttr((a.name||'').toLowerCase())}" data-step="${SIIAP.escapeAttr((stepLabel||'').toLowerCase())}">
-        <th scope="row" class="fw-normal">
-          <span class="fw-semibold d-block">${SIIAP.escapeHtml(a.name)}</span>
-          <span class="text-muted small">${SIIAP.escapeHtml(a.description||'')}</span>
-        </th>
-        <td>${SIIAP.escapeHtml(stepLabel)}</td>
-        <td class="toggle-cell">
-          <input class="form-check-input chk-uploadable" type="checkbox"
-                 aria-label="El alumno sube ${label}" ${a.is_uploadable ? 'checked':''}>
-        </td>
-        <td class="toggle-cell">
-          <input class="form-check-input chk-downloadable" type="checkbox"
-                 aria-label="${label} es descargable" ${a.is_downloadable ? 'checked':''}>
-        </td>
-        <td class="toggle-cell">
-          <input class="form-check-input chk-allow-coord" type="checkbox"
-                 aria-label="El coordinador puede subir ${label}" ${a.allow_coordinator_upload ? 'checked':''}>
-        </td>
-        <td class="toggle-cell">
-          <input class="form-check-input chk-allow-ext" type="checkbox"
-                 aria-label="${label} permite solicitar prórroga" ${a.allow_extension_request ? 'checked':''}>
-        </td>
-        <td>${tplUrl}</td>
-        <td class="text-end">
-          <div class="btn-group btn-group-sm" role="group" aria-label="Acciones de ${label}">
+    const manageable = canManageRow(a);
+    // Sin alcance de escritura los toggles tampoco se pueden guardar: se
+    // muestran como lectura del estado real, no como un control que engaña.
+    const lock = manageable ? '' : ' disabled';
+
+    const sharedNote = manageable ? '' : `
+          <span class="text-muted small d-block">
+            <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Etapa compartida entre programas
+          </span>`;
+
+    const actionsCell = manageable
+      ? `<div class="btn-group btn-group-sm" role="group" aria-label="Acciones de ${label}">
             <button type="button" class="btn btn-outline-secondary btn-edit tap-target"
                     aria-label="Editar ${label}" title="Editar ${label}">
               <i class="bi bi-pencil-square" aria-hidden="true"></i>
@@ -178,8 +226,38 @@
                     aria-label="Eliminar ${label}" title="Eliminar ${label}">
               <i class="bi bi-trash" aria-hidden="true"></i>
             </button>
-          </div>
+          </div>`
+      : `<span class="status-badge status-badge--sm" title="${SIIAP.escapeAttr(SHARED_STEP_REASON)}">
+            <i class="bi bi-lock-fill" aria-hidden="true"></i>
+            <span>Solo Jefatura</span>
+          </span>
+          <span class="visually-hidden">${SIIAP.escapeHtml(SHARED_STEP_REASON)}</span>`;
+
+    return `
+      <tr data-id="${SIIAP.escapeAttr(a.id)}" data-name="${SIIAP.escapeAttr((a.name||'').toLowerCase())}" data-step="${SIIAP.escapeAttr((stepLabel||'').toLowerCase())}">
+        <th scope="row" class="fw-normal">
+          <span class="fw-semibold d-block">${SIIAP.escapeHtml(a.name)}</span>
+          <span class="text-muted small">${SIIAP.escapeHtml(a.description||'')}</span>
+        </th>
+        <td>${SIIAP.escapeHtml(stepLabel)}${sharedNote}</td>
+        <td class="toggle-cell">
+          <input class="form-check-input chk-uploadable" type="checkbox"
+                 aria-label="El alumno sube ${label}" ${a.is_uploadable ? 'checked':''}${lock}>
         </td>
+        <td class="toggle-cell">
+          <input class="form-check-input chk-downloadable" type="checkbox"
+                 aria-label="${label} es descargable" ${a.is_downloadable ? 'checked':''}${lock}>
+        </td>
+        <td class="toggle-cell">
+          <input class="form-check-input chk-allow-coord" type="checkbox"
+                 aria-label="El coordinador puede subir ${label}" ${a.allow_coordinator_upload ? 'checked':''}${lock}>
+        </td>
+        <td class="toggle-cell">
+          <input class="form-check-input chk-allow-ext" type="checkbox"
+                 aria-label="${label} permite solicitar prórroga" ${a.allow_extension_request ? 'checked':''}${lock}>
+        </td>
+        <td>${tplUrl}</td>
+        <td class="text-end">${actionsCell}</td>
       </tr>
     `;
   }
@@ -188,15 +266,71 @@
     try {
       const { data } = await apiRequest(`${API}/archives/steps?scope=permitted`);
       steps = data.items || [];
-      
-      // Llenar select de steps para crear/editar
-      editStep.innerHTML = steps.map(s => 
+
+      // Solo los pasos administrables entran en el select, tal y como promete
+      // el texto de ayuda del formulario. Antes entraban los 12 y crear un
+      // archivo en cualquiera de ellos terminaba en 403.
+      const editable = manageableSteps();
+      editStep.innerHTML = editable.map(s =>
         `<option value="${SIIAP.escapeAttr(s.id)}">${SIIAP.escapeHtml(`${s.name} (${s.phase_name})`)}</option>`
       ).join('');
+
+      // Sin un solo paso propio no hay nada que dar de alta: el botón se
+      // desactiva y dice por qué, en vez de abrir un formulario condenado.
+      if (btnNew) {
+        const blocked = editable.length === 0;
+        btnNew.disabled = blocked;
+        if (blocked) {
+          btnNew.title = 'Todas las etapas a tu alcance las comparten varios programas: '
+            + 'solo la Jefatura de Posgrado puede crear archivos en ellas.';
+          btnNew.setAttribute('aria-disabled', 'true');
+        } else {
+          btnNew.removeAttribute('title');
+          btnNew.removeAttribute('aria-disabled');
+        }
+      }
     } catch (err) {
       console.error('Error loading steps:', err);
       flash(`Error cargando steps: ${err.message}`, 'danger');
     }
+  }
+
+  /**
+   * Aviso único de alcance encima de la tabla.
+   *
+   * Cuando NINGUNA fila es editable, la página lo dice una vez y con claridad
+   * en lugar de repetir el candado en las 43 filas y parecer rota otras tantas.
+   */
+  function renderScopeNotice(unmanageable, total) {
+    const wrapper = document.getElementById('tblArchives')?.closest('.siiap-table-wrapper');
+    if (!wrapper) return;
+
+    let notice = document.getElementById('archivesScopeNotice');
+    if (!unmanageable) {
+      notice?.remove();
+      return;
+    }
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.id = 'archivesScopeNotice';
+      notice.className = 'alert alert-info d-flex align-items-start gap-2';
+      notice.setAttribute('role', 'status');
+      wrapper.parentNode.insertBefore(notice, wrapper);
+    }
+
+    const all = unmanageable === total;
+    notice.innerHTML = `
+      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+      <div>
+        <strong>${all ? 'Catálogo de solo lectura.' : 'Algunos archivos son de solo lectura.'}</strong>
+        ${all
+          ? `Los ${total} archivos que ves cuelgan de etapas que comparten varios
+             programas, así que su catálogo solo lo modifica la Jefatura de Posgrado.
+             Aquí puedes consultar su configuración y descargar las plantillas.`
+          : `${unmanageable} de ${total} archivos cuelgan de etapas compartidas entre
+             programas: se muestran para que veas el trámite completo, pero solo la
+             Jefatura de Posgrado modifica su configuración.`}
+      </div>`;
   }
 
   async function loadArchives() {
@@ -207,6 +341,7 @@
       render();
     } catch (err) {
       console.error('Error loading archives:', err);
+      renderScopeNotice(0, 0);
       tblBody.innerHTML = `
         <tr>
           <td colspan="8">
@@ -230,6 +365,7 @@
     );
     
     if (!items.length) {
+      renderScopeNotice(0, 0);
       tblBody.innerHTML = `
         <tr>
           <td colspan="8">
@@ -243,10 +379,16 @@
       return;
     }
 
+    // El aviso se calcula sobre lo que realmente se ve, no sobre el catálogo
+    // entero: si la búsqueda deja solo filas editables, no sobra un candado.
+    const unmanageable = items.filter(a => !canManageRow(a)).length;
+    renderScopeNotice(unmanageable, items.length);
+
     tblBody.innerHTML = items.map(rowTemplate).join("");
     if (window.SIIAP && typeof window.SIIAP.announce === 'function') {
+      const listed = items.length === 1 ? '1 archivo listado.' : `${items.length} archivos listados.`;
       window.SIIAP.announce(
-        items.length === 1 ? '1 archivo listado.' : `${items.length} archivos listados.`
+        unmanageable ? `${listed} ${unmanageable} de solo lectura.` : listed
       );
     }
   }
@@ -260,6 +402,12 @@
   search?.addEventListener("input", render);
 
   btnNew?.addEventListener("click", () => {
+    const editable = manageableSteps();
+    if (!editable.length) {
+      flash('No administras ninguna etapa en exclusiva: solo la Jefatura de '
+        + 'Posgrado puede crear archivos en las etapas compartidas.', 'warning');
+      return;
+    }
     editTitle.textContent = "Nuevo archivo";
     editId.value = "";
     editName.value = "";
@@ -268,7 +416,7 @@
     editIsDownloadable.checked = false;
     editAllowCoord.checked = false;
     editAllowExt.checked = false;
-    if (steps.length) editStep.value = steps[0].id;
+    editStep.value = editable[0].id;
     modalEdit.show();
   });
 
@@ -277,6 +425,21 @@
     if (!tr) return;
     const id = tr.getAttribute("data-id");
     if (!id) return;
+
+    // Cinturón además de tirantes: las filas sin alcance ya no pintan botones,
+    // pero si un repintado se cruzara con una recarga, ninguna acción de
+    // ESCRITURA debe salir de aquí hacia un 403. La descarga de la plantilla no
+    // entra en la guarda: leer sí se puede.
+    const writeAction = ev.target.closest(
+      ".btn-upload-template, .btn-save, .btn-edit, .btn-delete"
+    );
+    if (writeAction) {
+      const row = cached.find(x => String(x.id) === String(id));
+      if (row && !canManageRow(row)) {
+        flash(SHARED_STEP_REASON, 'warning');
+        return;
+      }
+    }
 
     if (ev.target.closest(".btn-upload-template")) {
       tplArchiveId.value = id;
@@ -407,7 +570,14 @@
       flash("El nombre es requerido", "warning");
       return;
     }
-    
+
+    // El select solo ofrece pasos administrables; esto cubre el caso de que el
+    // alcance haya cambiado entre la carga de la página y el envío.
+    if (!manageableSteps().some(s => Number(s.id) === body.step_id)) {
+      flash(SHARED_STEP_REASON, "warning");
+      return;
+    }
+
     try {
       const isEdit = !!editId.value;
       const url = isEdit ? `${API}/archives/${editId.value}` : `${API}/archives`;
@@ -455,7 +625,7 @@
       }
       
       if (!response.ok || data.ok === false) {
-        throw new Error(data.error || "No se pudo eliminar");
+        throw new Error(errorMessage(data, "No se pudo eliminar"));
       }
       
       flash("Archivo eliminado exitosamente", "success");
