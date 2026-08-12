@@ -184,10 +184,14 @@ def assign():
             from flask import current_app
             current_app.logger.error(f"Error al registrar asignación de cita en historial: {e}")
 
-        # Broadcast a coordinadores
+        # Al aspirante (es su cita) y a los coordinadores CON alcance sobre el
+        # programa del evento. `role:coordinator` metía el applicant_id de un
+        # aspirante ajeno en la consola de cada program_admin del instituto.
+        # Evento institucional (program_id None) → sólo alcance global, que es
+        # la misma regla que `EventsService.user_may_manage_event`.
         try:
-            from app.extensions import socketio
-            socketio.emit(
+            from app.sockets.emitters import emit_user_and_coordinators
+            emit_user_and_coordinators(
                 'appointment:changed',
                 {
                     'action': 'booked',
@@ -196,7 +200,8 @@ def assign():
                     'slot_id': appt.slot_id,
                     'applicant_id': appt.applicant_id,
                 },
-                room='role:coordinator',
+                appt.applicant_id,
+                event.program_id,
             )
         except Exception:
             pass
@@ -254,10 +259,11 @@ def cancel(appointment_id:int):
             from flask import current_app
             current_app.logger.error(f"Error al registrar cancelación de cita en historial: {e}")
 
-        # Broadcast a coordinadores
+        # Mismo reparto que en assign(): dueño de la cita + coordinadores con
+        # alcance sobre el programa del evento.
         try:
-            from app.extensions import socketio
-            socketio.emit(
+            from app.sockets.emitters import emit_user_and_coordinators
+            emit_user_and_coordinators(
                 'appointment:changed',
                 {
                     'action': 'cancelled',
@@ -266,7 +272,8 @@ def cancel(appointment_id:int):
                     'slot_id': appt.slot_id,
                     'applicant_id': appt.applicant_id,
                 },
-                room='role:coordinator',
+                appt.applicant_id,
+                ctx.get('program_id'),
             )
         except Exception:
             pass
@@ -295,17 +302,19 @@ def request_change(appointment_id:int):
             suggestions=data.get('suggestions'),
             as_admin=as_admin,
         )
-        # Broadcast a coordinadores
+        # Sólo a los coordinadores que gestionan el evento. No se emite al
+        # aspirante: `requested_by` puede ser el id del coordinador y el único
+        # consumidor es la consola de admin (admin/events/detail.js).
         try:
-            from app.extensions import socketio
-            socketio.emit(
+            from app.sockets.emitters import emit_to_coordinators
+            emit_to_coordinators(
                 'appointment:change_requested',
                 {
                     'change_request_id': acr.id,
                     'appointment_id': appointment_id,
                     'requested_by': current_user.id,
                 },
-                room='role:coordinator',
+                ctx.get('program_id'),
             )
         except Exception:
             pass
@@ -677,10 +686,11 @@ def cancel_appointment_by_coordinator(appointment_id: int):
             from flask import current_app
             current_app.logger.error(f"Error al registrar cancelación: {e}")
 
-        # Broadcast a coordinadores
+        # Mismo reparto que en assign(): dueño de la cita + coordinadores con
+        # alcance sobre el programa del evento.
         try:
-            from app.extensions import socketio
-            socketio.emit(
+            from app.sockets.emitters import emit_user_and_coordinators
+            emit_user_and_coordinators(
                 'appointment:changed',
                 {
                     'action': 'cancelled',
@@ -690,7 +700,8 @@ def cancel_appointment_by_coordinator(appointment_id: int):
                     'applicant_id': appt.applicant_id,
                     'cancelled_by_coordinator': True,
                 },
-                room='role:coordinator',
+                appt.applicant_id,
+                ctx.get('program_id'),
             )
         except Exception:
             pass

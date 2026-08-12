@@ -434,12 +434,14 @@ def submit_enrollment_receipt(user_id: int, program_id: int,
 
     # WebSocket: actualizar pestaña de aceptación del coordinador
     try:
-        from app.extensions import socketio
-        socketio.emit('acceptance:updated', {
+        # Igual que los otros emits de aceptación de este servicio: la sala
+        # program-scoped, no `role:coordinator` (que es toda la institución).
+        from app.sockets.emitters import emit_to_coordinators
+        emit_to_coordinators('acceptance:updated', {
             'user_id': user_id,
             'program_id': program_id,
             'action': 'receipt_submitted',
-        }, room=f'role:coordinator')
+        }, program_id)
     except Exception:
         pass
 

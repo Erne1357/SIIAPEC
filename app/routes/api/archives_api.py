@@ -18,7 +18,7 @@ from app.models.phase import Phase
 from app.models.program import Program
 from app.models.program_step import ProgramStep
 from app.models.submission import Submission
-from app.services import program_scope_service as scope_service
+from app.services import template_access_service
 from app.services.user_history_service import UserHistoryService
 
 import shutil
@@ -137,29 +137,10 @@ def _exclusive_step_ids_for_user() -> Set[int] | None:
         if pids and pids <= accessible_pids
     }
 
-def _visible_step_ids_for_user() -> Set[int] | None:
-    """Steps que el usuario puede CONSULTAR (descargar plantillas).
-
-    Más amplio que `_permitted_step_ids_for_user`, que es para administrar:
-    aquí entran también los steps de los programas en los que el usuario está
-    inscrito, porque un aspirante debe poder bajar las plantillas de su propio
-    proceso.
-
-    Returns:
-        None si el usuario tiene acceso global; si no, el conjunto de step_ids.
-    """
-    if current_user.get_accessible_program_ids() is None:
-        return None
-
-    pids = set(current_user.get_accessible_program_ids() or set())
-    pids |= scope_service.program_ids_of_user(current_user.id)
-    if not pids:
-        return set()
-
-    step_ids = db.session.execute(
-        select(ProgramStep.step_id).where(ProgramStep.program_id.in_(pids))
-    ).scalars().all()
-    return set(step_ids)
+# Los steps que un usuario puede CONSULTAR (descargar plantillas) ya no se
+# calculan aquí: la regla es `template_access_service.visible_step_ids`, porque
+# `/files/template/<filename>` sirve las mismas plantillas por otra puerta y
+# tiene que responder exactamente lo mismo.
 
 
 def _deny(code: str, message: str, status: int):
@@ -614,10 +595,11 @@ def download_template(archive_id: int):
     # Las que NO son descargables son material interno: sólo las ve quien
     # administra ese step o quien cursa un programa que lo incluye.
     # 404 deliberado: quien no ve el step tampoco debe confirmar que existe.
-    if not a.is_downloadable:
-        visible = _visible_step_ids_for_user()
-        if visible is not None and a.step_id not in visible:
-            return jsonify({"ok": False, "error": "Plantilla no disponible"}), 404
+    #
+    # El predicado es el compartido con `/files/template/<filename>`, que sirve
+    # estas mismas plantillas por otra puerta.
+    if not template_access_service.may_download_archive_template(current_user, a):
+        return jsonify({"ok": False, "error": "Plantilla no disponible"}), 404
 
     abs_path, fname = _abs_path_from_archive(a)
     if not abs_path or not os.path.exists(abs_path):

@@ -1182,14 +1182,18 @@ def submit_permanence_document(
 
     # WebSocket: fire-and-forget DESPUÉS del commit
     try:
-        from app.extensions import socketio
-        socketio.emit('submission:new', {
+        # `role:coordinator` es todo titular de coordinator.page.view, o sea
+        # cada program_admin de la institución. Este payload ata un user_id al
+        # nombre de un documento suyo, que es metadato de documento y no cruza
+        # de programa: va sólo a quien tiene alcance sobre el programa.
+        from app.sockets.emitters import emit_to_coordinators
+        emit_to_coordinators('submission:new', {
             'user_id': student_id,
             'submission_id': sub.id,
             'archive_name': dl.archive.name,
             'program_id': up.program_id,
             'context': 'permanence',
-        }, room='role:coordinator')
+        }, up.program_id)
     except Exception:
         pass
 
@@ -1482,14 +1486,16 @@ def submit_leave_request(
 
     # WebSocket: fire-and-forget DESPUÉS del commit
     try:
-        from app.extensions import socketio
-        socketio.emit('submission:new', {
+        # Mismo motivo que en submit_permanence_document: el nombre del archivo
+        # atado a un user_id no sale del alcance del programa.
+        from app.sockets.emitters import emit_to_coordinators
+        emit_to_coordinators('submission:new', {
             'user_id': student_id,
             'submission_id': sub.id,
             'archive_name': archive.name,
             'program_id': up.program_id,
             'context': 'leave_request',
-        }, room='role:coordinator')
+        }, up.program_id)
     except Exception:
         pass
 

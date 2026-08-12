@@ -74,8 +74,11 @@
       const res = await fetch(`/api/v1/students/${USER_ID}/record`);
       const json = await res.json();
       if (!res.ok || json.error) {
-        if (res.status === 403) {
-          flashMsg('danger', 'No tienes permiso para ver este expediente.');
+        // El servidor responde 404 tanto si el expediente no existe como si
+        // queda fuera del alcance: distinguirlos publicaba qué ids existen.
+        // El front tampoco debe inventar la diferencia.
+        if (res.status === 404 || res.status === 403) {
+          flashMsg('danger', 'No se encontró este expediente o no tienes acceso a él.');
         }
         throw new Error(json.error?.message || 'Error');
       }

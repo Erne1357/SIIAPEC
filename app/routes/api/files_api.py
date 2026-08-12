@@ -4,8 +4,9 @@ from flask import Blueprint, current_app, send_file, abort
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from app.services import file_access_service
-from app.services import program_scope_service as scope_service
+from app.services import template_access_service
 from app.utils.files import abs_path_from_db
+from app.utils.permissions import permission_required
 
 api_files = Blueprint('api_files', __name__, url_prefix='/files')
 
@@ -95,9 +96,29 @@ def user_doc(user_id: int, phase: str, filename: str):
 
 @api_files.route('/template/<path:filename>', methods=['GET'])
 @login_required
+@permission_required('files.api.view_template')
 def template(filename: str):
+    # Las plantillas viven "flat" en TEMPLATE_STORE (sin user_id/phase), así
+    # que el nombre del archivo es todo lo que trae el URL. Antes eso bastaba
+    # para servirlo: cualquier cuenta autenticada se llevaba TODO el almacén.
+    #
+    # Autorización desde la FILA DE BD que referencia el archivo, igual que en
+    # `user_doc`: la fila (DocumentTemplate o Archive) dice a qué programa o a
+    # qué etapa pertenece la plantilla, y de ahí sale el alcance. La regla es la
+    # misma que aplica `archives_api.download_template` —vive una sola vez, en
+    # `template_access_service`— para que las dos rutas no diverjan.
+    #
+    # 404 —no 403— cuando no hay fila o queda fuera del alcance: quien no puede
+    # verla tampoco debe poder confirmar qué plantillas existen recorriendo
+    # nombres, y un archivo que ninguna fila referencia no existe para la
+    # aplicación (bytes huérfanos de una re-subida).
     filename = secure_filename(filename)
-    # Aquí tus plantillas viven "flat" (sin user_id/phase)
+    if not filename:
+        abort(404)
+
+    if not template_access_service.may_download_flat_template(current_user, filename):
+        abort(404)
+
     base: Path = current_app.config['TEMPLATE_STORE']
     return _send_safe(base, filename, inline=False)  # siempre como descarga
 
@@ -106,13 +127,30 @@ def template(filename: str):
 @login_required
 def event_image(event_id: int, kind: str, filename: str):
     """
-    Sirve imágenes de eventos. ACL: mismas reglas que la visibilidad del evento público
-    o admin del programa.
+    Sirve los bytes de las imágenes de un evento (portada, galería y foto de
+    ponente externo).
+
+    ACL: la MISMA regla del módulo de eventos — gestión
+    (`EventsService.user_may_manage_event`) o participación
+    (`EventsService.user_may_participate_in_event`). Esta ruta es el servidor
+    de bytes del índice que publica `events_api.list_event_images`, así que las
+    dos tienen que contestar lo mismo.
+
+    Antes bastaba con `visible_to_students and published and capacity_type !=
+    'single'`: ni `visibility` ni programa, o sea que cualquier cuenta
+    autenticada se descargaba la portada y la galería completas de un evento
+    PRIVADO de cualquier posgrado sabiendo sólo su id.
+
+    404 —no 403— cuando no procede: el nombre de la portada es predecible
+    (`/files/event/<id>/cover/cover.webp`), así que un 403 confirmaría qué
+    eventos existen y cuáles son privados recorriendo ids.
+
     kind: 'cover' (archivo directo en <event_id>/) | 'gallery' | 'hosts'
     Para cover, filename ej: cover.webp → rel = <event_id>/cover.webp
     Para gallery/hosts, rel = <event_id>/<kind>/<filename>
     """
     from app.models.event import Event
+    from app.services.events_service import EventsService
     from app import db as _db
 
     if kind not in ('cover', 'gallery', 'hosts'):
@@ -122,19 +160,11 @@ def event_image(event_id: int, kind: str, filename: str):
     if not event:
         abort(404)
 
-    # ACL — el alcance se pregunta al predicado compartido, nunca se
-    # reimplementa la intersección a mano.
-    is_admin = (
-        scope_service.is_global_scope(current_user)
-        or scope_service.program_in_scope(current_user, event.program_id)
-    )
-    is_public_accessible = (
-        event.visible_to_students
-        and event.status == 'published'
-        and event.capacity_type != 'single'
-    )
-    if not (is_admin or is_public_accessible):
-        abort(403)
+    if not (
+        EventsService.user_may_manage_event(current_user, event)
+        or EventsService.user_may_participate_in_event(current_user, event)
+    ):
+        abort(404)
 
     filename = secure_filename(filename)
     if kind == 'cover':

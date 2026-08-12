@@ -17,6 +17,7 @@ from app.models.program import Program
 from app.models.academic_period import AcademicPeriod
 from app.models.permission import Permission
 from app.models.role_permission import RolePermission
+from app.models.user_program import UserProgram
 from app.models.event import Event, EventInvitation, EventAttendance
 
 # ---------------------------------------------------------------------------
@@ -91,6 +92,25 @@ def make_program(coordinator: User, slug: str = 'test-prog') -> Program:
     db.session.add(p)
     db.session.flush()
     return p
+
+
+def enroll_in_program(user: User, program: Program,
+                      admission_status: str = 'enrolled') -> UserProgram:
+    """
+    Link a user to a program.
+
+    This is the row `program_scope_service.program_ids_of_user()` reads, i.e.
+    what makes an event of that program *participable* for the user. A student
+    without it is nobody's student: institutional events only.
+    """
+    up = UserProgram(
+        user_id=user.id,
+        program_id=program.id,
+        admission_status=admission_status,
+    )
+    db.session.add(up)
+    db.session.flush()
+    return up
 
 
 def make_academic_period(is_active: bool = True, code: str = '20251') -> AcademicPeriod:

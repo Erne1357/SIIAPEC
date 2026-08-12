@@ -462,17 +462,24 @@ def update_user(user_id):
 
     if changed_fields:
         try:
-            from app.extensions import socketio
+            from app.sockets.emitters import emit_admin_user_change
+            role_name = user.role.name if user.role else None
             payload_ws = {
                 'action': 'updated',
                 'user_id': user.id,
-                'role': user.role.name if user.role else None,
+                'role': role_name,
                 'email': user.email,
                 'full_name': f'{user.first_name} {user.last_name}',
                 'changed_fields': list(changed_fields.keys()),
             }
-            socketio.emit('admin_user:changed', payload_ws, room='role:postgraduate_admin')
-            socketio.emit('admin_user:changed', payload_ws, room='role:coordinator')
+            # Una cuenta de personal no es alumno de nadie: sus programas no
+            # forman audiencia, sólo el alcance global la ve.
+            audience_pids = (
+                scope_service.program_ids_of_user(user.id)
+                if role_name in ('applicant', 'student')
+                else None
+            )
+            emit_admin_user_change(payload_ws, audience_pids)
         except Exception:
             pass
 
@@ -787,6 +794,14 @@ def delete_user(user_id):
     user_name = f"{user.first_name} {user.last_name}"
     user_email = user.email
     user_role = user.role.name if user.role else None
+    # Audiencia del aviso en tiempo real: hay que resolverla ANTES del delete,
+    # después las filas de user_program ya no existen. Una cuenta de personal no
+    # es alumno de nadie, así que su aviso no tiene audiencia program-scoped.
+    ws_audience_pids = (
+        scope_service.program_ids_of_user(user_id)
+        if user_role in ('applicant', 'student')
+        else None
+    )
     UserHistoryService.log_user_deletion(user_id=user_id, user_name=user_name)
 
     db.session.commit()
@@ -803,7 +818,7 @@ def delete_user(user_id):
     disconnect_user_sockets(user_id)
 
     try:
-        from app.extensions import socketio
+        from app.sockets.emitters import emit_admin_user_change
         payload_ws = {
             'action': 'deleted',
             'user_id': user_id,
@@ -811,8 +826,7 @@ def delete_user(user_id):
             'email': user_email,
             'full_name': user_name,
         }
-        socketio.emit('admin_user:changed', payload_ws, room='role:postgraduate_admin')
-        socketio.emit('admin_user:changed', payload_ws, room='role:coordinator')
+        emit_admin_user_change(payload_ws, ws_audience_pids)
     except Exception:
         pass
 

@@ -49,6 +49,72 @@ class EventsService:
         )
 
     @staticmethod
+    def user_may_participate_in_event(user, event) -> bool:
+        """
+        May `user` take part in this event — see it, join it, read its hosts,
+        its images and its slots?
+
+        THE participant rule for the whole module. Managing an event is a
+        different tier and lives in `user_may_manage_event`; a call site that
+        serves both audiences asks for `manage OR participate` and never
+        invents a third variant. Four different answers to this one question
+        is what let an applicant of program A read a private event of B.
+
+            status != 'published'   -> False. A draft accepts nobody, and a
+                                       concluded/archived event is over.
+            not visible_to_students -> False. This flag is the organiser's own
+                                       switch for "this is live for the
+                                       audience", and every participant-facing
+                                       endpoint already honours it.
+            public + institutional  -> True  (program_id IS NULL).
+            public + own program    -> True.
+            invited                 -> True, whatever the visibility or the
+                                       program: an EventInvitation row can
+                                       only be written by someone who MANAGES
+                                       the event, so it is a third-party
+                                       grant. This is also what keeps
+                                       `invite_students(allow_external=True)`
+                                       working.
+            everything else         -> False.
+
+        Note what is NOT an input: an `EventAttendance` row. Registration is a
+        self-service write (`POST /api/v1/attendance/event/<id>/register`), and
+        an authorisation the caller can grant themselves is not an
+        authorisation — it was the whole exploit: register first, then read the
+        private event through every ACL that trusted that row. Registration now
+        DEPENDS on this predicate instead of feeding it (`register_to_event`).
+
+        Framework-agnostic: the caller passes the user, never `current_user`.
+        """
+        from app.models.event import EventInvitation
+        from app.services import program_scope_service as scope_service
+
+        if user is None or event is None:
+            return False
+
+        user_id = getattr(user, 'id', None)
+        if user_id is None:
+            return False
+
+        if event.status != 'published' or not event.visible_to_students:
+            return False
+
+        if event.visibility == 'public':
+            if event.program_id is None:
+                return True
+            if event.program_id in scope_service.program_ids_of_user(user):
+                return True
+
+        # Last, because it costs a query: the organiser's explicit grant.
+        # Any status counts (pending / accepted / rejected): a rejected
+        # invitation may be reconsidered, so the event must stay readable.
+        invited = db.session.query(EventInvitation.id).filter(
+            EventInvitation.event_id == event.id,
+            EventInvitation.user_id == user_id,
+        ).first()
+        return invited is not None
+
+    @staticmethod
     def create_event(
         program_id: int | None,
         type_: str,
@@ -196,9 +262,14 @@ class EventsService:
             * tiene invitación (cualquier status), OR
             * es el creador (preview), OR
             * es program_admin/postgraduate_admin con acceso al programa (preview)
+
+        An EventAttendance row is deliberately NOT one of the private-event
+        clauses: registration is a self-service write, so trusting it here let
+        a user list a private event of any program by first POSTing a
+        registration to it. See `user_may_participate_in_event`.
         """
         from app.models.user_program import UserProgram
-        from app.models.event import EventInvitation, EventAttendance
+        from app.models.event import EventInvitation
         from app.models.user import User
 
         active_period = AcademicPeriod.get_active_period()
@@ -209,12 +280,6 @@ class EventsService:
         invited_event_ids = [
             row[0] for row in db.session.query(EventInvitation.event_id).filter(
                 EventInvitation.user_id == user_id
-            ).all()
-        ]
-
-        registered_event_ids = [
-            row[0] for row in db.session.query(EventAttendance.event_id).filter(
-                EventAttendance.user_id == user_id
             ).all()
         ]
 
@@ -261,12 +326,12 @@ class EventsService:
             or_(*public_subfilters)
         )
 
-        # Privado: invitado OR creador OR admin del programa OR ya registrado
+        # Privado: invitado OR creador OR admin del programa.
+        # "Ya registrado" NO es una cláusula: el registro se lo concede el
+        # propio usuario (ver `user_may_participate_in_event`).
         private_filters = [Event.created_by == user_id]
         if invited_event_ids:
             private_filters.append(Event.id.in_(invited_event_ids))
-        if registered_event_ids:
-            private_filters.append(Event.id.in_(registered_event_ids))
         if accessible_pids is None:
             # Acceso global (postgraduate_admin sin scope)
             private_filters.append(Event.id.isnot(None))  # match all
@@ -278,8 +343,12 @@ class EventsService:
             or_(*private_filters)
         )
 
-        # Si user pasó a privado un evento donde está registrado, también verlo aún siendo público->privado:
-        # registered_event_ids ya cubre via private_clause cuando visibility='private'.
+        # Si el organizador pasa a privado un evento donde ya había gente
+        # registrada, esa gente deja de verlo en /events salvo que además
+        # tenga invitación — que es exactamente lo que significa cerrar el
+        # evento. Su propio registro sigue apareciendo en el widget del
+        # dashboard y en /api/v1/attendance/my-registrations, que leen SUS
+        # filas y no conceden acceso al evento.
 
         query = base.filter(or_(public_clause, private_clause))
 
@@ -629,14 +698,32 @@ class EventsService:
     @staticmethod
     def register_to_event(event_id: int, user_id: int, notes: str = None) -> 'EventAttendance':
         """
-        Registra un usuario a un evento de capacidad múltiple/ilimitada.
-        Si tiene una invitación pendiente para este evento, la marca automáticamente como 'accepted'.
+        Register a user for a multiple/unlimited capacity event.
+        A pending invitation of that user for this event is marked 'accepted'.
+
+        AUTHORISATION FIRST. This is a self-service write, and until this guard
+        existed it was the module's root defect: the route carried only
+        `@login_required` and this method never looked at `status`,
+        `visible_to_students`, `visibility` or the event's program. Anybody
+        could plant an `EventAttendance` row on any event id in the
+        institution — including a draft one — and two ACLs then read that row
+        back as proof of access. The row is now only ever created for someone
+        who could already participate (or who manages the event), so it can
+        never widen anybody's reach.
         """
         from app.models.event import EventAttendance, EventInvitation
+        from app.models.user import User
 
         event = db.session.get(Event, event_id)
         if not event:
             raise ValueError("Evento no encontrado")
+
+        user = db.session.get(User, user_id)
+        if not (
+            EventsService.user_may_participate_in_event(user, event)
+            or EventsService.user_may_manage_event(user, event)
+        ):
+            raise ValueError("No tienes acceso a este evento")
 
         if event.capacity_type == 'single':
             raise ValueError("Este evento requiere asignación de slot individual")

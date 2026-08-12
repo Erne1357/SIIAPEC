@@ -49,30 +49,54 @@ def _load_manageable_event(event_id: int):
 @api_attendance.route('/event/<int:event_id>/register', methods=['POST'])
 @login_required
 def register_to_event(event_id: int):
-    """Registrarse a un evento de capacidad múltiple/ilimitada"""
+    """
+    Registrarse a un evento de capacidad múltiple/ilimitada.
+
+    Esta ruta llevaba `@login_required` y NADA más, y el servicio tampoco
+    miraba el evento: era la raíz del módulo. Cualquier cuenta escribía una
+    fila `EventAttendance` contra cualquier id de evento de la institución —
+    incluso en borrador o privado de otro posgrado— y esa fila era después
+    LEÍDA COMO PERMISO por el detalle público y por la lista de /events.
+
+    La regla es la del módulo: gestión (`user_may_manage_event`) o
+    participación (`user_may_participate_in_event`). El servicio la vuelve a
+    aplicar —es él quien escribe la fila y quien lo llama desde
+    `respond_to_invitation`—; aquí se aplica también para responder con el
+    código correcto en vez de un 400 genérico.
+
+    404, no 403: el evento que no se puede ver no debe poder confirmarse
+    recorriendo ids.
+    """
+    event = db.session.get(Event, event_id)
+    if not event:
+        return _deny("NOT_FOUND", "Evento no encontrado.", 404)
+
+    if not (
+        EventsService.user_may_manage_event(current_user, event)
+        or EventsService.user_may_participate_in_event(current_user, event)
+    ):
+        return _deny("NOT_FOUND", "Evento no encontrado.", 404)
+
     data = request.get_json() or {}
-    current_app.logger.warning(f"Data recibida para registro: {data}")
     try:
         attendance = EventsService.register_to_event(
             event_id=event_id,
             user_id=current_user.id,
             notes=data.get('notes')
         )
-        current_app.logger.warning(f"Usuario {current_user.id} se registró a evento {event_id}")
-        
+        current_app.logger.info(f"Usuario {current_user.id} se registró a evento {event_id}")
+
         # Registrar en el historial
         try:
-            event = Event.query.get(event_id)
-            if event:
-                UserHistoryService.log_event_registration(
-                    user_id=current_user.id,
-                    event_title=event.title,
-                    event_type=event.type
-                )
-                db.session.commit()
+            UserHistoryService.log_event_registration(
+                user_id=current_user.id,
+                event_title=event.title,
+                event_type=event.type
+            )
+            db.session.commit()
         except Exception as e:
             current_app.logger.error(f"Error al registrar registro de evento en historial: {e}")
-        
+
         return jsonify({
             "ok": True,
             "id": attendance.id,

@@ -19,6 +19,7 @@ from app.models.event import Event, EventWindow, EventSlot, EventAttendance
 from app.services.events_service import EventsService
 from tests.events.conftest import (
     make_test_config, make_role, make_user, make_program, make_academic_period,
+    enroll_in_program,
 )
 
 
@@ -551,6 +552,10 @@ class TestRegistration(unittest.TestCase):
         role_admin = make_role('program_admin')
         self.admin = make_user(role_admin, suffix='_adm')
         self.prog = make_program(self.admin)
+        # `register_to_event` now demands that the caller may participate in
+        # the event, and the event below belongs to a program: the student has
+        # to actually be a student of it.
+        enroll_in_program(self.student, self.prog)
         self.ev = Event(
             program_id=self.prog.id,
             type='conference',
@@ -596,6 +601,8 @@ class TestRegistration(unittest.TestCase):
         u1 = make_user(role2, suffix='_a')
         u2 = make_user(role2, suffix='_b')
         u3 = make_user(role2, suffix='_c')
+        for u in (u1, u2, u3):
+            enroll_in_program(u, self.prog)
         db.session.commit()
         EventsService.register_to_event(self.ev.id, u1.id)
         EventsService.register_to_event(self.ev.id, u2.id)

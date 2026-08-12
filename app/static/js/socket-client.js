@@ -140,6 +140,10 @@
     /**
      * admin_user:changed
      * Emitido cuando se crea/modifica/elimina un usuario desde admin.
+     * Llega a role:postgraduate_admin (alcance global) y, sólo si la cuenta
+     * afectada es aspirante/estudiante, a coordinator:program:{pid} de sus
+     * programas. Una cuenta de personal no es alumno de nadie: su nombre y
+     * correo no salen del alcance global.
      * Payload: { action: 'created' | 'updated' | 'deleted', user_id, role?, email?, full_name? }
      */
     socket.on('admin_user:changed', (data) => {
@@ -158,6 +162,9 @@
     /**
      * appointment:changed
      * Emitido cuando una cita se reserva o cancela (por aspirante o coordinador).
+     * Llega al dueño de la cita (user:{applicant_id}) y a los coordinadores con
+     * alcance sobre el programa del evento; un evento institucional sólo llega
+     * al alcance global, igual que su regla de gestión.
      * Payload: { action: 'booked' | 'cancelled', appointment_id, event_id, slot_id, applicant_id, cancelled_by_coordinator? }
      */
     socket.on('appointment:changed', (data) => {
@@ -175,10 +182,23 @@
 
     /**
      * event:changed
-     * Emitido cuando un admin crea, edita o elimina un evento.
-     * Se propaga a todos los clientes conectados (broadcast global) para
-     * refrescar páginas públicas de eventos (events/list.html, events/view.html).
-     * Payload: { action: 'created' | 'updated' | 'deleted', event_id, program_id?, title? }
+     * Emitido cuando un admin crea, edita, concluye, archiva o elimina un evento.
+     *
+     * NO es un broadcast global (lo era, y filtraba el título de un evento en
+     * borrador o privado a todo el que estuviera conectado). El servidor
+     * reparte por audiencia, `app/sockets/emitters.py::emit_event_change`:
+     *   - gestores del programa del evento → payload completo, siempre;
+     *   - participantes → payload completo sólo si el evento está publicado,
+     *     es público y visible para estudiantes;
+     *   - al archivar/concluir, los participantes reciben una señal reducida
+     *     { action, event_id } SIN título, suficiente para recargar la lista;
+     *   - al eliminar, los participantes no reciben nada (la fila ya no existe
+     *     y no se puede comprobar si era pública): la página pública se entera
+     *     en el siguiente fetch.
+     * Por eso todo consumidor debe tolerar un payload sin `title` ni `program_id`.
+     *
+     * Payload: { action: 'created' | 'updated' | 'concluded' | 'archived' |
+     *            'unarchived' | 'deleted', event_id, program_id?, title? }
      */
     socket.on('event:changed', (data) => {
         window.dispatchEvent(new CustomEvent('siiap:event:changed', { detail: data }));

@@ -45,15 +45,29 @@ EDITABLE_PERSONAL_FIELDS = {
 }
 
 
+#: The ONE message every caller must answer with when a record cannot be
+#: served, whatever the reason. `StudentNotFound` and `AccessDenied` stay two
+#: distinct exceptions so the OPERATOR can tell them apart in the log, but they
+#: must never be distinguishable from outside: answering 404 for "no such user"
+#: and 403 for "exists, not yours" turns `/students/<id>/record` into a census
+#: of which user ids exist. Every other module collapses the pair the same way
+#: (acceptance_api, invitations_api, appointments_api, program_changes_api,
+#: files_api) — this one was the odd one out.
+RECORD_NOT_FOUND_MESSAGE = 'Expediente no encontrado.'
+
+
 class StudentRecordError(Exception):
+    """Base of the two outcomes that collapse into a single 404 response."""
     pass
 
 
 class StudentNotFound(StudentRecordError):
+    """No user with that id. For the LOG only — never for the response."""
     pass
 
 
 class AccessDenied(StudentRecordError):
+    """The user exists but is outside the requester's scope. LOG only."""
     pass
 
 
@@ -74,13 +88,33 @@ def _can_view_record(requester: User, target: User) -> bool:
     return program_scope_service.user_in_scope(requester, target, allow_self=False)
 
 
-def get_full_record(user_id: int, requester: User) -> dict:
-    user = User.query.get(user_id)
+def load_record_target(user_id: int, requester: User) -> User:
+    """
+    Resolve the student whose record is being opened, enforcing access.
+
+    Single gate for both the API and the page route, so neither has to reach
+    for `_can_view_record` or query `User` on its own.
+
+    Raises:
+        StudentNotFound — no user with that id.
+        AccessDenied    — the user exists but is outside the requester's scope.
+
+    The two are for the log ONLY: the caller must answer both with the same
+    404 and `RECORD_NOT_FOUND_MESSAGE`.
+    """
+    user = db.session.get(User, user_id)
     if not user:
         raise StudentNotFound(f"Usuario {user_id} no encontrado")
 
     if not _can_view_record(requester, user):
-        raise AccessDenied("No tienes permiso para ver el expediente de este estudiante.")
+        raise AccessDenied(
+            f"El usuario {user_id} está fuera del alcance del solicitante."
+        )
+    return user
+
+
+def get_full_record(user_id: int, requester: User) -> dict:
+    user = load_record_target(user_id, requester)
 
     user_programs = list(user.user_program or [])
     primary_up: Optional[UserProgram] = user_programs[0] if user_programs else None
@@ -106,15 +140,11 @@ def update_personal_info(user_id: int, coordinator_id: int, data: dict) -> User:
     Coordinator updates whitelisted personal fields of a student.
     Logs every changed field and notifies the student once.
     """
-    user = User.query.get(user_id)
-    if not user:
-        raise StudentNotFound(f"Usuario {user_id} no encontrado")
-
-    requester = User.query.get(coordinator_id)
+    requester = db.session.get(User, coordinator_id)
     if not requester:
-        raise AccessDenied("Solicitante no encontrado.")
-    if not _can_view_record(requester, user):
-        raise AccessDenied("No tienes permiso para editar el expediente de este estudiante.")
+        raise AccessDenied(f"Solicitante {coordinator_id} no encontrado.")
+
+    user = load_record_target(user_id, requester)
 
     changed = {}
     for field, new_value in (data or {}).items():

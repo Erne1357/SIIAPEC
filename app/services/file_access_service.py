@@ -202,34 +202,39 @@ def may_view_avatar(viewer, target_user_id) -> bool:
 
 def _hosts_event_visible_to(viewer, target_user_id: int) -> bool:
     """
-    True if `target_user_id` is registered as the host of an event the viewer
-    may see: either an event published to students, or an event of a program
-    inside the viewer's scope.
+    True if `target_user_id` is registered as the host (ponente) of an event
+    the viewer may MANAGE or PARTICIPATE in.
+
+    The rule is not restated here: the events module owns it
+    (`EventsService.user_may_manage_event` / `user_may_participate_in_event`),
+    and this is the door that legitimises a staff member's face photo, so it
+    must not be one millimetre wider than the page that shows the chip. The
+    hand-written predicate it replaces (`visible_to_students AND status !=
+    'draft'`, OR the program in scope) ignored `visibility` and the program of
+    a published event, so the ponente photos of a PRIVATE event of any
+    postgraduate programme were served to every authenticated account.
+
+    Candidate events are loaded and filtered in Python on purpose: a person
+    hosts a handful of events, and expressing the rule twice — once in SQL,
+    once in Python — is exactly how the four answers of this module came to
+    disagree.
     """
     from app.models.event import Event, EventHost
+    from app.services.events_service import EventsService
 
-    scope = program_scope_service.accessible_program_ids(viewer)
-    if scope is None:
+    if program_scope_service.accessible_program_ids(viewer) is None:
         # Global scope already returned True in `may_view_avatar`; kept for
         # direct callers.
         return True
 
-    conditions = [
-        db.and_(
-            Event.visible_to_students.is_(True),
-            Event.status != 'draft',
-        )
-    ]
-    if scope:
-        conditions.append(Event.program_id.in_(scope))
-
-    row = (
-        db.session.query(EventHost.id)
-        .join(Event, Event.id == EventHost.event_id)
-        .filter(
-            EventHost.user_id == target_user_id,
-            db.or_(*conditions),
-        )
-        .first()
+    events = (
+        db.session.query(Event)
+        .join(EventHost, EventHost.event_id == Event.id)
+        .filter(EventHost.user_id == target_user_id)
+        .all()
     )
-    return row is not None
+    return any(
+        EventsService.user_may_manage_event(viewer, event)
+        or EventsService.user_may_participate_in_event(viewer, event)
+        for event in events
+    )

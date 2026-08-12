@@ -2,10 +2,9 @@
 """
 Page routes for the Student Record (Expediente Completo).
 """
-from flask import Blueprint, render_template, abort
+from flask import Blueprint, abort, current_app, render_template
 from flask_login import login_required, current_user
 
-from app.models.user import User
 from app.services import student_record_service as svc
 from app.utils.permissions import permission_required
 
@@ -20,15 +19,19 @@ pages_student_record = Blueprint(
 @login_required
 @permission_required('students.page.view_record')
 def student_record(user_id):
-    user = User.query.get(user_id)
-    if not user:
-        abort(404)
-
+    # 404 para las DOS negativas —usuario inexistente y usuario fuera del
+    # alcance—: el 403 anterior confirmaba qué ids de usuario existen y dejaba
+    # censar la tabla de cuentas recorriendo /students/1..N. El operador
+    # conserva la diferencia en el log, no en la respuesta.
     try:
-        if not svc._can_view_record(current_user, user):
-            abort(403)
-    except Exception:
-        abort(403)
+        user = svc.load_record_target(user_id, current_user)
+    except svc.StudentRecordError as e:
+        reason = 'unknown_user' if isinstance(e, svc.StudentNotFound) else 'out_of_scope'
+        current_app.logger.warning(
+            "[student_record] page denied (%s): requester=%s target=%s — %s",
+            reason, current_user.id, user_id, e,
+        )
+        abort(404)
 
     return render_template(
         'coordinator/student_record/index.html',

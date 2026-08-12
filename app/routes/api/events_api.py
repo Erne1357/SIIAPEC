@@ -49,21 +49,20 @@ def _event_managed_by_current_user(event) -> bool:
     return EventsService.user_may_manage_event(current_user, event)
 
 
-def _event_is_public_for_current_user(event) -> bool:
+def _event_participable_by_current_user(event) -> bool:
     """
-    True si el evento es visible para `current_user` como participante:
-    publicado, visible para estudiantes, público y de su propio programa
-    (o institucional).
+    True si `current_user` puede PARTICIPAR en este evento: verlo, apuntarse,
+    ver sus ponentes, sus imágenes y sus horarios.
+
+    Regla única para todo el módulo; vive en
+    `EventsService.user_may_participate_in_event`. Los sitios que sirven a las
+    dos audiencias preguntan `gestión OR participación` — nunca inventan una
+    tercera variante. Tres de ellos (hosts, imágenes y el servidor de bytes)
+    usaban un predicado que ignoraba `visibility` y el programa, así que
+    cualquier cuenta autenticada leía el cartel de ponentes y las imágenes de
+    un evento PRIVADO de cualquier posgrado.
     """
-    if event is None:
-        return False
-    if not event.visible_to_students or event.status != 'published':
-        return False
-    if event.visibility != 'public':
-        return False
-    if event.program_id is None:
-        return True
-    return event.program_id in scope_service.program_ids_of_user(current_user.id)
+    return EventsService.user_may_participate_in_event(current_user, event)
 
 
 def _check_event_access(event_id: int):
@@ -128,13 +127,13 @@ def create_event():
         reminders_enabled=bool(data.get('reminders_enabled', True))
     )
 
-    from app.sockets.emitters import emit_broadcast
-    emit_broadcast('event:changed', {
+    from app.sockets.emitters import emit_event_change
+    emit_event_change({
         'action': 'created',
         'event_id': ev.id,
         'program_id': ev.program_id,
         'title': ev.title,
-    })
+    }, event=ev)
 
     return jsonify({"ok": True, "id": ev.id}), 201
 
@@ -195,9 +194,9 @@ def list_slots(event_id:int):
     if not event:
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
-    # Gestores del programa, o cualquier usuario para el que el evento sea
-    # público (mismo criterio que el detalle público).
-    if not (_event_managed_by_current_user(event) or _event_is_public_for_current_user(event)):
+    # Gestores del programa, o quien pueda participar en el evento (mismo
+    # criterio que el detalle público).
+    if not (_event_managed_by_current_user(event) or _event_participable_by_current_user(event)):
         return _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
 
     status = request.args.get('status')
@@ -320,8 +319,10 @@ def delete_event(event_id: int):
         db.session.delete(event)
         db.session.commit()
 
-        from app.sockets.emitters import emit_broadcast
-        emit_broadcast('event:changed', {
+        # Sin `event=`: la fila ya no existe y no se puede releer su status ni
+        # su visibility, así que sólo se avisa a la gestión. Es el lado seguro.
+        from app.sockets.emitters import emit_event_change
+        emit_event_change({
             'action': 'deleted',
             'event_id': event_id,
             'program_id': program_id,
@@ -544,13 +545,13 @@ def update_event(event_id: int):
         db.session.rollback()
         return jsonify({"ok": False, "error": str(e)}), 500
 
-    from app.sockets.emitters import emit_broadcast
-    emit_broadcast('event:changed', {
+    from app.sockets.emitters import emit_event_change
+    emit_event_change({
         'action': 'updated',
         'event_id': event.id,
         'program_id': event.program_id,
         'title': event.title,
-    })
+    }, event=event)
 
     return jsonify({"ok": True, "id": event.id}), 200
 
@@ -658,7 +659,6 @@ def get_public_event_detail(event_id: int):
       - ventanas con slots (para eventos 1:1)
       - conteo de registros actuales (para multiple/unlimited)
     """
-    from app.models.user_program import UserProgram
     from app.models.event import EventAttendance
     from app.models.appointment import Appointment
 
@@ -669,11 +669,20 @@ def get_public_event_detail(event_id: int):
     if not event.visible_to_students or event.status != 'published':
         return jsonify({"ok": False, "error": "Evento no disponible"}), 403
 
-    # ACL — permitir acceso si:
-    # 1. Es el creador
-    # 2. Tiene invitación (cualquier status)
-    # 3. Es admin del programa (preview)
-    # 4. (Públicos) coincide programa o es global
+    # ACL — el creador, quien gestiona el evento, o quien puede participar en
+    # él (`EventsService.user_may_participate_in_event`: público de su programa
+    # o institucional, o invitado).
+    #
+    # Ya NO cuenta estar registrado. El registro es una escritura que el propio
+    # usuario se concede (`POST /api/v1/attendance/event/<id>/register`), así
+    # que aceptarlo aquí era regalar la llave: bastaba con apuntarse a un evento
+    # privado de otro posgrado para que este endpoint devolviera su
+    # descripción, su sede, su cupo y sus horarios. Una autorización que el
+    # llamante puede firmarse a sí mismo no es una autorización.
+    #
+    # La rama de programa tampoco se resuelve ya a mano: `UserProgram...first()`
+    # leía UNA sola fila, de modo que un usuario con dos programas quedaba
+    # fuera del evento de su segundo programa.
     is_creator = event.created_by == current_user.id
     is_admin = _event_managed_by_current_user(event)
 
@@ -682,18 +691,8 @@ def get_public_event_detail(event_id: int):
         event_id=event.id, user_id=current_user.id
     ).first() is not None
 
-    has_registration = EventAttendance.query.filter_by(
-        event_id=event.id, user_id=current_user.id
-    ).first() is not None
-
-    if event.visibility == 'private':
-        if not (is_creator or is_admin or has_invitation or has_registration):
-            return jsonify({"ok": False, "error": "Sin acceso a este evento"}), 403
-    elif event.program_id is not None:
-        user_program = UserProgram.query.filter_by(user_id=current_user.id).first()
-        program_match = user_program and user_program.program_id == event.program_id
-        if not (program_match or is_admin or is_creator):
-            return jsonify({"ok": False, "error": "Sin acceso a este evento"}), 403
+    if not (is_creator or is_admin or _event_participable_by_current_user(event)):
+        return jsonify({"ok": False, "error": "Sin acceso a este evento"}), 403
 
     program = db.session.get(Program, event.program_id) if event.program_id else None
 
@@ -818,13 +817,13 @@ def conclude_event(event_id: int):
     try:
         event = EventsService.conclude_event(event_id, current_user.id)
 
-        from app.sockets.emitters import emit_broadcast
-        emit_broadcast('event:changed', {
+        from app.sockets.emitters import emit_event_change
+        emit_event_change({
             'action': 'concluded',
             'event_id': event_id,
             'program_id': event.program_id,
             'title': event.title,
-        })
+        }, event=event)
         return jsonify({"ok": True, "status": event.status}), 200
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
@@ -844,13 +843,13 @@ def archive_event(event_id: int):
     try:
         event = EventsService.archive_event(event_id, current_user.id)
 
-        from app.sockets.emitters import emit_broadcast
-        emit_broadcast('event:changed', {
+        from app.sockets.emitters import emit_event_change
+        emit_event_change({
             'action': 'archived',
             'event_id': event_id,
             'program_id': event.program_id,
             'title': event.title,
-        })
+        }, event=event)
         return jsonify({"ok": True, "status": event.status}), 200
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
@@ -872,13 +871,13 @@ def unarchive_event(event_id: int):
     try:
         event = EventsService.unarchive_event(event_id, current_user.id, new_status)
 
-        from app.sockets.emitters import emit_broadcast
-        emit_broadcast('event:changed', {
+        from app.sockets.emitters import emit_event_change
+        emit_event_change({
             'action': 'unarchived',
             'event_id': event_id,
             'program_id': event.program_id,
             'title': event.title,
-        })
+        }, event=event)
         return jsonify({"ok": True, "status": event.status}), 200
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
@@ -894,18 +893,19 @@ def unarchive_event(event_id: int):
 @api_events.route('/<int:event_id>/hosts', methods=['GET'])
 @login_required
 def list_event_hosts(event_id: int):
-    """Lista hosts de un evento. Visible si el evento es accesible para el usuario."""
+    """
+    Lista hosts de un evento. Visible para quien lo gestiona o participa en él.
+
+    El cartel de ponentes lleva nombres internos y la URL de su fotografía, y
+    la ACL anterior (`visible_to_students and published and capacity_type !=
+    'single'`) no miraba ni la `visibility` ni el programa: cualquier cuenta
+    autenticada leía los ponentes de un evento PRIVADO de cualquier posgrado.
+    """
     event = db.session.get(Event, event_id)
     if not event:
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
-    # ACL: gestores del programa + cualquiera para quien el evento sea público
-    is_public_accessible = (
-        event.visible_to_students
-        and event.status == 'published'
-        and event.capacity_type != 'single'
-    )
-    if not (_event_managed_by_current_user(event) or is_public_accessible):
+    if not (_event_managed_by_current_user(event) or _event_participable_by_current_user(event)):
         return _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
 
     hosts = EventsService.get_event_hosts(event_id)
@@ -966,17 +966,18 @@ def set_event_hosts(event_id: int):
 @api_events.route('/<int:event_id>/images', methods=['GET'])
 @login_required
 def list_event_images(event_id: int):
-    """Lista imágenes de un evento (cover + gallery)."""
+    """
+    Lista imágenes de un evento (cover + gallery).
+
+    Mismo criterio que los ponentes: gestión o participación. Estas rutas son
+    el índice de los bytes que sirve `api_files.event_image`, y las dos deben
+    contestar lo mismo o el índice delata lo que el servidor niega.
+    """
     event = db.session.get(Event, event_id)
     if not event:
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
-    is_public_accessible = (
-        event.visible_to_students
-        and event.status == 'published'
-        and event.capacity_type != 'single'
-    )
-    if not (_event_managed_by_current_user(event) or is_public_accessible):
+    if not (_event_managed_by_current_user(event) or _event_participable_by_current_user(event)):
         return _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
 
     data = EventsService.get_event_images(event_id)
