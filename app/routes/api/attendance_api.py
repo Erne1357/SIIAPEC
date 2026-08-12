@@ -5,9 +5,7 @@ from app.utils.permissions import permission_required
 from app.services.events_service import EventsService
 from app.services.user_history_service import UserHistoryService
 from app.models.event import Event
-from app.models.program import Program
 from app import db
-import logging
 
 api_attendance = Blueprint('api_attendance', __name__, url_prefix='/api/v1/attendance')
 
@@ -35,14 +33,21 @@ def _load_manageable_event(event_id: int):
     el evento (`EventsService.user_may_manage_event`): su programa, o el
     alcance global si el evento es institucional (`program_id = NULL`).
 
+    404 —y el MISMO mensaje— para «no existe» y para «no es tuyo». Estas rutas
+    se direccionan con un id crudo que el llamador puede teclear, y el listado
+    por el que llega (`GET /api/v1/events`) ya viene filtrado por alcance: un
+    evento que no administra nunca estuvo en su lista, así que su existencia no
+    es suya. Distinguir los dos casos convertiría el recorrido de ids en un
+    oráculo de enumeración, que es justo lo que hacía la rama anterior
+    (404 ausente / 403 ajeno). Es también el código que ya usaba
+    `register_to_event` y el que usa `events_api._check_event_access`.
+
     Returns:
         (event, None) si procede; (None, respuesta_error) si no.
     """
     event = db.session.get(Event, event_id)
-    if not event:
+    if not event or not EventsService.user_may_manage_event(current_user, event):
         return None, _deny("NOT_FOUND", "Evento no encontrado.", 404)
-    if not EventsService.user_may_manage_event(current_user, event):
-        return None, _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
     return event, None
 
 
@@ -141,32 +146,41 @@ def unregister_from_event(event_id: int):
 @permission_required('attendance.api.list_registrations')
 def get_event_registrations(event_id: int):
     """
-    Obtener lista de registros de un evento.
+    Obtener la lista de registros de un evento.
 
-    Lectura, no escritura, así que la regla es un punto más laxa que la de
-    marcar asistencia: quien administra el evento ve la lista completa, y quien
-    no lo administra sólo puede leer la de un evento INSTITUCIONAL (sin
-    programa) y sin las notas del organizador. Nombre, correo y estado de
-    asistencia son el nivel que el dueño autoriza a cruzar entre programas; la
-    lista de un evento de otro programa no se ve en absoluto.
+    La pasa lista quien manda en el evento: `_load_manageable_event`, igual que
+    `mark-attendance`. Aquí vivía la séptima copia de la pregunta —
+    `if not manages and event.program_id is not None` — que abría la lista de
+    CUALQUIER evento institucional, incluido uno en borrador, a cualquier
+    portador de `attendance.api.list_registrations`. Nombre y correo sí están
+    dentro del nivel que el dueño autoriza a cruzar entre programas, así que no
+    era una fuga de datos prohibidos, pero la lista de asistentes de un evento
+    que aún no existe para el público no la mira quien no lo organiza, y la
+    rama local era exactamente el defecto recurrente.
+
+    La única pantalla que consume esta ruta es la consola de administración
+    (`app/static/js/admin/events/detail.js`); ninguna vista de participante
+    pide la lista de asistentes. Por eso la regla es "gestión", no
+    "gestión o participación": no hay audiencia que se quede sin nada. Esa
+    consola tampoco ramifica por código de estado —`apiRequest` sólo compone un
+    mensaje—, así que la denegación puede ser el 404 uniforme de la familia.
     """
-    event = db.session.get(Event, event_id)
-    if not event:
-        return _deny("NOT_FOUND", "Evento no encontrado.", 404)
-
-    manages = EventsService.user_may_manage_event(current_user, event)
-    if not manages and event.program_id is not None:
-        return _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
+    event, err = _load_manageable_event(event_id)
+    if err:
+        return err
 
     try:
         registrations = EventsService.get_event_registrations(
-            event_id, include_notes=manages
+            event_id, include_notes=True
         )
 
         return jsonify({
             "ok": True,
             "event_id": event_id,
-            "can_manage": manages,
+            # Constante hoy —sin gestión no se llega hasta aquí— pero sigue en
+            # la respuesta porque la consola la lee (`data.can_manage !== false`)
+            # para decidir si habilita los botones de pasar lista.
+            "can_manage": True,
             "registrations": registrations,
             "total": len(registrations)
         }), 200

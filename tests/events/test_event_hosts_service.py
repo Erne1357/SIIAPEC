@@ -53,14 +53,14 @@ class TestSetEventHosts(unittest.TestCase):
     def test_set_internal_host(self):
         hosts = EventsService.set_event_hosts(self.ev.id, [
             {'user_id': self.admin.id, 'role_label': 'Ponente'},
-        ])
+        ], acting_user=self.admin)
         self.assertEqual(len(hosts), 1)
         self.assertEqual(hosts[0].user_id, self.admin.id)
 
     def test_set_external_host(self):
         hosts = EventsService.set_event_hosts(self.ev.id, [
             {'external_name': 'Dr. Externo', 'external_bio': 'Bio', 'role_label': 'Invitado'},
-        ])
+        ], acting_user=self.admin)
         self.assertEqual(len(hosts), 1)
         self.assertIsNone(hosts[0].user_id)
         self.assertEqual(hosts[0].external_name, 'Dr. Externo')
@@ -69,17 +69,17 @@ class TestSetEventHosts(unittest.TestCase):
         hosts = EventsService.set_event_hosts(self.ev.id, [
             {'user_id': self.admin.id, 'role_label': 'Moderador'},
             {'external_name': 'Speaker', 'role_label': 'Ponente'},
-        ])
+        ], acting_user=self.admin)
         self.assertEqual(len(hosts), 2)
 
     def test_set_hosts_replaces_existing(self):
         EventsService.set_event_hosts(self.ev.id, [
             {'user_id': self.admin.id, 'role_label': 'Ponente'},
-        ])
+        ], acting_user=self.admin)
         # Replace with a single external host
         hosts = EventsService.set_event_hosts(self.ev.id, [
             {'external_name': 'New Speaker', 'role_label': 'Nuevo'},
-        ])
+        ], acting_user=self.admin)
         self.assertEqual(len(hosts), 1)
         total = EventHost.query.filter_by(event_id=self.ev.id).count()
         self.assertEqual(total, 1)
@@ -87,8 +87,8 @@ class TestSetEventHosts(unittest.TestCase):
     def test_set_empty_hosts_clears_all(self):
         EventsService.set_event_hosts(self.ev.id, [
             {'user_id': self.admin.id, 'role_label': 'Ponente'},
-        ])
-        hosts = EventsService.set_event_hosts(self.ev.id, [])
+        ], acting_user=self.admin)
+        hosts = EventsService.set_event_hosts(self.ev.id, [], acting_user=self.admin)
         self.assertEqual(len(hosts), 0)
         self.assertEqual(EventHost.query.filter_by(event_id=self.ev.id).count(), 0)
 
@@ -96,40 +96,40 @@ class TestSetEventHosts(unittest.TestCase):
         with self.assertRaises(ValueError):
             EventsService.set_event_hosts(self.ev.id, [
                 {'role_label': 'Ponente'},  # no user_id, no external_name
-            ])
+            ], acting_user=self.admin)
 
     def test_set_host_without_role_label_raises(self):
         with self.assertRaises(ValueError):
             EventsService.set_event_hosts(self.ev.id, [
                 {'user_id': self.admin.id},  # no role_label
-            ])
+            ], acting_user=self.admin)
 
     def test_set_hosts_event_not_found_raises(self):
         with self.assertRaises(ValueError):
             EventsService.set_event_hosts(99999, [
                 {'user_id': self.admin.id, 'role_label': 'Ponente'},
-            ])
+            ], acting_user=self.admin)
 
     def test_get_event_hosts_with_external(self):
         EventsService.set_event_hosts(self.ev.id, [
             {'external_name': 'Dr. X', 'external_bio': 'Bio X', 'role_label': 'Guest'},
-        ])
+        ], acting_user=self.admin)
         with self.app.test_request_context('/'):
-            hosts = EventsService.get_event_hosts(self.ev.id)
+            hosts = EventsService.get_event_hosts(self.ev.id, viewer=self.admin)
         self.assertEqual(len(hosts), 1)
         self.assertTrue(hosts[0]['is_external'])
         self.assertEqual(hosts[0]['name'], 'Dr. X')
 
     def test_get_event_hosts_empty(self):
         with self.app.test_request_context('/'):
-            hosts = EventsService.get_event_hosts(self.ev.id)
+            hosts = EventsService.get_event_hosts(self.ev.id, viewer=self.admin)
         self.assertEqual(hosts, [])
 
     def test_get_event_hosts_with_internal(self):
         EventsService.set_event_hosts(self.ev.id, [
             {'user_id': self.admin.id, 'role_label': 'Conductor'},
-        ])
+        ], acting_user=self.admin)
         with self.app.test_request_context('/'):
-            hosts = EventsService.get_event_hosts(self.ev.id)
+            hosts = EventsService.get_event_hosts(self.ev.id, viewer=self.admin)
         self.assertEqual(len(hosts), 1)
         self.assertFalse(hosts[0]['is_external'])

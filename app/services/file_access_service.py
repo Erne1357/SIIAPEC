@@ -175,13 +175,15 @@ def may_view_avatar(viewer, target_user_id) -> bool:
         self                                        → True
         target inside the viewer's program scope    → True
         target is a host (ponente) of an event the
-        viewer may see                              → True
+        viewer ATTENDS but does not manage          → True
         everything else                             → False
 
     The event-host exception keeps the shipped public events UI working: the
     ponente chips of `/events` and the event detail page render
     `User.avatar_url` of internal hosts to every authenticated attendee, and a
     staff host has no UserProgram row, so no program scope would ever cover it.
+    What it must never do is answer to the person who WROTE the host row — see
+    `_hosts_event_visible_to`.
     """
     if viewer is None or target_user_id is None:
         return False
@@ -203,7 +205,7 @@ def may_view_avatar(viewer, target_user_id) -> bool:
 def _hosts_event_visible_to(viewer, target_user_id: int) -> bool:
     """
     True if `target_user_id` is registered as the host (ponente) of an event
-    the viewer may MANAGE or PARTICIPATE in.
+    the viewer may PARTICIPATE in and may NOT MANAGE.
 
     The rule is not restated here: the events module owns it
     (`EventsService.user_may_manage_event` / `user_may_participate_in_event`),
@@ -213,6 +215,29 @@ def _hosts_event_visible_to(viewer, target_user_id: int) -> bool:
     'draft'`, OR the program in scope) ignored `visibility` and the program of
     a published event, so the ponente photos of a PRIVATE event of any
     postgraduate programme were served to every authenticated account.
+
+    WHY MANAGING THE EVENT IS NOT ENOUGH — the third self-granted
+    authorisation of this codebase. An `EventHost` row can only be written by
+    somebody who MANAGES the event (`PUT /api/v1/events/<id>/hosts` →
+    `_check_event_access`). So for a manager the row is not evidence of
+    anything: they create an event on their own programme, name any account in
+    the institution as "ponente", and this function used to answer that they
+    manage an event naming that person — serving the face photograph of
+    students of other programmes and of staff accounts that no `user_in_scope`
+    call would ever cover. The ACL was right; its input was attacker-written.
+
+    Re-derived like the Appointment fix: the exception is honoured only through
+    an event the viewer ATTENDS but CANNOT manage. Whoever cannot manage the
+    event could not have written the row, so the row is a third-party fact
+    about the host — the organiser's public claim "this person is presenting" —
+    which is precisely what the chip renders. The `and not manage` half is not
+    redundant with the participation rule: a manager can invite themselves
+    (`EventInvitation`), and that invitation would otherwise reopen the same
+    self-grant one hop later.
+
+    `set_event_hosts` closes the same hole from the writing side
+    (`EventsService.user_may_be_named_host`). Both are needed: this one so a
+    legacy row cannot be cashed in, that one so no new row can be minted.
 
     Candidate events are loaded and filtered in Python on purpose: a person
     hosts a handful of events, and expressing the rule twice — once in SQL,
@@ -234,7 +259,7 @@ def _hosts_event_visible_to(viewer, target_user_id: int) -> bool:
         .all()
     )
     return any(
-        EventsService.user_may_manage_event(viewer, event)
-        or EventsService.user_may_participate_in_event(viewer, event)
+        EventsService.user_may_participate_in_event(viewer, event)
+        and not EventsService.user_may_manage_event(viewer, event)
         for event in events
     )

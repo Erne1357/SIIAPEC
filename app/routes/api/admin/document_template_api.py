@@ -17,6 +17,7 @@ from flask import Blueprint, jsonify, request, send_file, current_app
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
 from app.services import program_scope_service as scope_service
+from app.services import template_access_service
 from app import db
 from app.models.document_template import (
     DocumentTemplate, DOCUMENT_TYPES, TEMPLATE_FILE_TYPES
@@ -47,6 +48,27 @@ def _allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def _load_template_in_scope(template_id):
+    """
+    Carga una plantilla que esté dentro del ALCANCE del llamador.
+
+    La capacidad (`admin_templates.api.list` / `.manage` / `.delete`) la exige
+    el decorador; aquí sólo se responde "¿es tuya?" con la misma regla que
+    guarda los bytes (`template_access_service.document_template_in_scope`).
+
+    404 y no 403, igual que en el resto de la auditoría: una plantilla que no
+    aparece en tu catálogo tampoco debe poder confirmarse recorriendo ids.
+
+    Returns:
+        (template, None) si procede; (None, respuesta_error) si no.
+    """
+    t = DocumentTemplate.query.get(template_id)
+    if t is None or not template_access_service.document_template_in_scope(
+            current_user, t.program_id):
+        return None, _err("Plantilla no encontrada.", 404)
+    return t, None
+
+
 def _templates_sys_dir():
     return current_app.config.get(
         'TEMPLATES_SYS_FOLDER',
@@ -62,7 +84,20 @@ def _templates_sys_dir():
 @login_required
 @permission_required('admin_templates.api.list')
 def list_templates():
-    """Lista todas las plantillas. Filtros opcionales: document_type, program_id, is_active."""
+    """
+    Lista las plantillas que el llamador puede consultar.
+
+    Filtros opcionales: document_type, program_id, active_only.
+
+    ALCANCE: el permiso `admin_templates.api.list` lo tiene todo coordinador, y
+    esta ruta devolvía el catálogo COMPLETO de la institución —nombre,
+    descripción, programa y `file_path`— mientras `/files/template/<archivo>`
+    ya negaba los bytes de esas mismas filas. Un índice que nombra archivos que
+    no puedes abrir es la misma fuga a un salto de distancia, así que el
+    filtrado lo hace `template_access_service.visible_document_templates`, que
+    es literalmente el predicado que guarda los bytes: lo que se ve listado es
+    exactamente lo que se puede descargar.
+    """
     q = DocumentTemplate.query
 
     doc_type = request.args.get('document_type')
@@ -77,7 +112,10 @@ def list_templates():
     if active_only:
         q = q.filter_by(is_active=True)
 
-    templates = q.order_by(DocumentTemplate.document_type, DocumentTemplate.name).all()
+    templates = template_access_service.visible_document_templates(
+        current_user,
+        q.order_by(DocumentTemplate.document_type, DocumentTemplate.name).all(),
+    )
     return _ok([t.to_dict() for t in templates], total=len(templates))
 
 
@@ -98,6 +136,14 @@ def upload_template():
       document_type (required) — acceptance_letter | enrollment_confirmation | course_schedule
       program_id    (optional) — si omitido, la plantilla es global
       description   (optional)
+
+    ALCANCE: `program_id` lo elige quien sube el archivo, así que sin cerco se
+    crea una plantilla para cualquier programa —o, omitiéndolo, la GLOBAL, que
+    `DocumentTemplate.get_for_program` sirve como respaldo a todos—. Se exige
+    el mismo alcance que para leerla: el programa dentro del alcance, y alcance
+    global para una plantilla sin programa. Los roles semilla dan `create` sólo
+    a la Jefatura, pero estos permisos se delegan (`permissions.api.delegate`),
+    y un permiso delegado no amplía el alcance de quien lo recibe.
     """
     if 'file' not in request.files:
         return _err("Se requiere un archivo en el campo 'file'.")
@@ -118,6 +164,14 @@ def upload_template():
         return _err("El campo 'name' es requerido.")
     if doc_type not in DOCUMENT_TYPES:
         return _err(f"document_type inválido. Opciones: {list(DOCUMENT_TYPES.keys())}")
+
+    if not template_access_service.document_template_in_scope(current_user, program_id):
+        return _err(
+            "No tienes acceso a este programa."
+            if program_id is not None
+            else "Sólo la Jefatura de Posgrado puede crear plantillas globales.",
+            403,
+        )
 
     ext = file.filename.rsplit('.', 1)[1].lower()
 
@@ -160,7 +214,17 @@ def upload_template():
 @login_required
 @permission_required('admin_templates.api.list')
 def get_template(template_id):
-    t = DocumentTemplate.query.get_or_404(template_id)
+    """
+    Detalle de una plantilla.
+
+    Mismo alcance que el listado —y que la descarga— vía
+    `may_download_document_template`: si no sale en tu catálogo, tampoco se
+    lee por id.
+    """
+    t = DocumentTemplate.query.get(template_id)
+    if t is None or not template_access_service.may_download_document_template(
+            current_user, t):
+        return _err("Plantilla no encontrada.", 404)
     return _ok(t.to_dict())
 
 
@@ -172,7 +236,16 @@ def get_template(template_id):
 @login_required
 @permission_required('admin_templates.api.manage')
 def update_template(template_id):
-    t = DocumentTemplate.query.get_or_404(template_id)
+    """
+    Renombra, redescribe o (des)activa una plantilla dentro del alcance.
+
+    `program_id` no es editable a propósito: mover una plantilla de programa
+    sería una escritura fuera del alcance disfrazada de edición.
+    """
+    t, err = _load_template_in_scope(template_id)
+    if err:
+        return err
+
     body = request.get_json(silent=True) or {}
 
     if 'name' in body:
@@ -194,7 +267,10 @@ def update_template(template_id):
 @login_required
 @permission_required('admin_templates.api.delete')
 def delete_template(template_id):
-    t = DocumentTemplate.query.get_or_404(template_id)
+    """Elimina la fila y su archivo. Mismo alcance que leerla y editarla."""
+    t, err = _load_template_in_scope(template_id)
+    if err:
+        return err
 
     # Eliminar archivo físico
     base_dir = _templates_sys_dir()

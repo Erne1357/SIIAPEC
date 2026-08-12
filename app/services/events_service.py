@@ -1634,11 +1634,83 @@ class EventsService:
     # ============================================================
 
     @staticmethod
-    def set_event_hosts(event_id: int, hosts_data: list[dict]) -> list:
+    def user_may_be_named_host(actor, event, target_user_id) -> bool:
+        """
+        May `actor` name the INTERNAL user `target_user_id` as a host (ponente)
+        of `event`?
+
+        An `EventHost` row is not decoration: it publishes the person's name,
+        their institutional e-mail and their FACE PHOTOGRAPH to everybody who
+        may attend the event, and `file_access_service` reads the row back as
+        the reason to serve `/files/avatar/<host>/<file>`. Writing one is
+        therefore a claim about somebody else's personal data, and the writer
+        must already have a relationship with that person — otherwise the ACL's
+        own input is attacker-written and the row authorises itself.
+
+        `user_in_scope` alone is the wrong question: it answers "is this person
+        a MEMBER of one of my programmes" (a `UserProgram` row), and a staff
+        ponente — a fellow coordinator, the Jefatura — has no such row and
+        never will. So the rule has two doors, and both rest on facts the actor
+        cannot write for themselves:
+
+            the actor themselves                    → True
+            target inside the actor's program scope → True (their own students
+                                                      and applicants)
+            target has authority over THIS event    → True — i.e. the target
+                                                      would pass
+                                                      `user_may_manage_event`
+                                                      on it: the coordinator of
+                                                      the event's programme
+                                                      (`Program.coordinator_id`)
+                                                      or a global admin. This
+                                                      is the staff door.
+            everything else                         → False.
+
+        Everybody else is registered through `external_name`, which is exactly
+        what that path is for: a person who is not a SIIAP user, or a SIIAP
+        user the organiser has no business publishing. An external host carries
+        a name and a photo the organiser uploads themselves, so nothing that
+        used to be expressible stops being expressible — only the ability to
+        point at an arbitrary account's private data disappears.
+
+        Framework-agnostic: the caller passes the acting User, never
+        `current_user`.
+        """
+        from app.models.user import User
+        from app.services import program_scope_service as scope_service
+
+        if actor is None or event is None or target_user_id is None:
+            return False
+
+        try:
+            target_user_id = int(target_user_id)
+        except (TypeError, ValueError):
+            return False
+
+        if getattr(actor, 'id', None) == target_user_id:
+            return True
+
+        if scope_service.user_in_scope(actor, target_user_id, allow_self=False):
+            return True
+
+        target = db.session.get(User, target_user_id)
+        if target is None:
+            return False
+
+        return EventsService.user_may_manage_event(target, event)
+
+    @staticmethod
+    def set_event_hosts(event_id: int, hosts_data: list[dict],
+                        acting_user=None) -> list:
         """
         Reemplaza atómicamente la lista de hosts de un evento.
         hosts_data: [{user_id?, external_name?, external_bio?, external_photo_path?, role_label, display_order?}]
         Cada item debe tener `user_id` O `external_name`.
+
+        `acting_user` es OBLIGATORIO para registrar ponentes internos: cada
+        `user_id` pasa por `user_may_be_named_host`. Sin actor no se acepta
+        ningún interno (falla cerrado) — sí se aceptan externos, que no tocan
+        datos de nadie más.
         """
         from app.models.event import EventHost
 
@@ -1654,6 +1726,15 @@ class EventsService:
                 raise ValueError(f"Host #{idx}: debe tener user_id o external_name")
             if not item.get('role_label'):
                 raise ValueError(f"Host #{idx}: role_label es requerido")
+            if has_user and not EventsService.user_may_be_named_host(
+                acting_user, event, item.get('user_id')
+            ):
+                raise ValueError(
+                    f"Host #{idx}: no puedes registrar a ese usuario como "
+                    "ponente. Solo puedes elegir a personas de tus programas o "
+                    "al personal responsable de este evento; para cualquier "
+                    "otra, regístrala como ponente externo."
+                )
 
         try:
             # Reemplazo total: borrar previos
@@ -1680,14 +1761,21 @@ class EventsService:
             raise
 
     @staticmethod
-    def get_event_hosts(event_id: int) -> list[dict]:
+    def get_event_hosts(event_id: int, viewer=None) -> list[dict]:
         """
         Lista hosts con info completa para admin y público.
         Para internos resuelve foto vía `User.avatar_url`; para externos
         construye URL servida `/files/event/<id>/hosts/<filename>`.
+
+        `viewer` decide si se publica la foto de un ponente INTERNO: el índice
+        y los bytes tienen que contestar lo mismo (`may_view_avatar`), o el
+        listado delata lo que el servidor niega y la interfaz pinta una imagen
+        rota en lugar de las iniciales. Sin `viewer` no se publica ninguna foto
+        interna — falla cerrado.
         """
         from app.models.event import EventHost
         from app.models.user import User
+        from app.services import file_access_service
         from flask import url_for
 
         hosts = EventHost.query.filter_by(event_id=event_id).order_by(
@@ -1702,10 +1790,12 @@ class EventsService:
                     name  = f"{user.first_name} {user.last_name}".strip()
                     email = user.email
                     role_display = user.role.name if user.role else None
-                    try:
-                        photo_url = user.avatar_url
-                    except Exception:
-                        photo_url = None
+                    photo_url = None
+                    if file_access_service.may_view_avatar(viewer, user.id):
+                        try:
+                            photo_url = user.avatar_url
+                        except Exception:
+                            photo_url = None
                 else:
                     name = "Usuario eliminado"
                     email = None

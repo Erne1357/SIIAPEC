@@ -18,6 +18,15 @@ The rule therefore had to leave the route module. It lives here so that both
 `archives_api` and `files_api` ask the SAME question instead of growing a
 second, divergent answer.
 
+The CATALOGUE asks it too. `document_template_api` used to list every
+`DocumentTemplate` in the institution — name, description, program and
+`file_path` — to any holder of `admin_templates.api.list`, which is every
+`program_admin`, while `/files/template/<filename>` refused the bytes of those
+same rows. An index that names a file nobody may open is the same disclosure
+one indirection away, so `visible_document_templates` filters the listing with
+the very predicate that guards the bytes: one rule, two call sites, no room for
+the two to drift apart.
+
 Authorisation starts from the DATABASE ROW that owns the bytes, never from the
 URL: the row says which step (and therefore which programs) or which program
 the template belongs to. A file that no row references does not exist for the
@@ -110,22 +119,63 @@ def may_download_archive_template(viewer, archive: Archive) -> bool:
     return archive.step_id in visible
 
 
+def document_template_in_scope(viewer, program_id: Optional[int]) -> bool:
+    """Is the program that OWNS a `DocumentTemplate` inside `viewer`'s reach?
+
+    The scope half of every question about a document template — reading its
+    row, reading its bytes, editing it, deleting it. It follows the same shape
+    the events module uses for objects that may or may not belong to a program:
+
+      * template tied to a program  → that program must be in scope;
+      * GLOBAL template (`program_id IS NULL`) → GLOBAL scope only.
+
+    The global case is the one that had to be decided. A template with no
+    program is the institution-wide fallback `DocumentTemplate.get_for_program`
+    serves to EVERY program, so it is not "everybody's template", it is the
+    Jefatura's: whoever may edit or replace it edits the acceptance letter of
+    every posgrado at once. It is therefore hidden from limited scope in the
+    catalogue exactly as its bytes already are — a coordinator whose program
+    has no template of its own sees an empty catalogue, and generating a
+    document still works, because `generate_document` resolves the template
+    server-side and never needs the caller to see it.
+
+    Capability is NOT asked here: it differs per operation (`list`, `create`,
+    `manage`, `delete`) and belongs to the route decorator.
+    """
+    if viewer is None:
+        return False
+    if program_id is None:
+        return program_scope_service.accessible_program_ids(viewer) is None
+    return program_scope_service.program_in_scope(viewer, program_id)
+
+
 def may_download_document_template(viewer, template: DocumentTemplate) -> bool:
     """True if `viewer` may download an institutional `DocumentTemplate`.
 
     These are administrative artefacts, not applicant material, so the
-    capability is required first. Scope follows the same shape the events
-    module uses for objects that may or may not belong to a program: a template
-    tied to a program needs that program in scope; a GLOBAL template
-    (`program_id IS NULL`) is institutional and needs global scope.
+    capability is required first; `document_template_in_scope` then answers the
+    reach half. Same predicate the catalogue listing uses, so what a caller can
+    see named is exactly what they can open.
     """
     if viewer is None or template is None:
         return False
     if not viewer.has_permission(DOCUMENT_TEMPLATE_PERMISSION):
         return False
-    if template.program_id is None:
-        return program_scope_service.accessible_program_ids(viewer) is None
-    return program_scope_service.program_in_scope(viewer, template.program_id)
+    return document_template_in_scope(viewer, template.program_id)
+
+
+def visible_document_templates(viewer, templates) -> list:
+    """Subset of `templates` whose EXISTENCE `viewer` may know about.
+
+    Deliberately implemented as `may_download_document_template` applied row by
+    row instead of an equivalent-looking SQL filter: a second expression of the
+    same rule is a second thing to keep correct, and the previous pass already
+    proved they drift. The catalogue is a handful of institutional letter
+    templates, so the cost of filtering in Python is not a consideration.
+    """
+    if viewer is None:
+        return []
+    return [t for t in (templates or []) if may_download_document_template(viewer, t)]
 
 
 def _rows_matching_filename(model, column, filename: str) -> list:
@@ -169,6 +219,8 @@ __all__ = [
     'DOCUMENT_TEMPLATE_PERMISSION',
     'visible_step_ids',
     'may_download_archive_template',
+    'document_template_in_scope',
     'may_download_document_template',
+    'visible_document_templates',
     'may_download_flat_template',
 ]

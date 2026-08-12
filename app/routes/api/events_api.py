@@ -67,16 +67,30 @@ def _event_participable_by_current_user(event) -> bool:
 
 def _check_event_access(event_id: int):
     """
-    Carga el evento y valida el alcance por programa.
+    Carga el evento y exige autoridad de GESTIÓN sobre él.
+
+    404 EN LAS DOS RAMAS, a propósito. Estas rutas se dirigen por un id crudo
+    que el llamante puede teclear, y el listado de gestión
+    (`GET /api/v1/events`) ya está acotado a su alcance: un evento que no
+    gestiona nunca le llegó en una lista, así que su existencia no es
+    información que él tenga. Contestar 403 aquí y 404 veinte líneas más allá
+    convertía el par en un oráculo: un `program_admin` recorría los ids y sabía
+    cuáles existen —cuántos eventos hay en la institución y en qué rango de
+    ids— sin ver ninguno. `invitations_api.cancel_invitation` ya había elegido
+    404 por este motivo; ahora el módulo entero dice lo mismo.
+
+    El bucket contrario —403— es para las rutas de PARTICIPACIÓN
+    (`/slots`, `/hosts`, `/images`, `/public/<id>`): allí el evento sí llegó en
+    una lista que el llamante recibió legítimamente, su existencia ya la
+    conoce, y el 403 le dice algo útil ("existe pero no es para ti") en vez de
+    mandarlo a buscar un id que tiene delante.
 
     Returns:
         (event, None) si procede; (None, respuesta_error) si no.
     """
     event = db.session.get(Event, event_id)
-    if not event:
+    if not event or not _event_managed_by_current_user(event):
         return None, _deny("NOT_FOUND", "Evento no encontrado.", 404)
-    if not _event_managed_by_current_user(event):
-        return None, _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
     return event, None
 
 
@@ -167,12 +181,11 @@ def add_window(event_id:int):
 @permission_required('events.api.generate_slots')
 def generate_slots(window_id:int):
     window = db.session.get(EventWindow, window_id)
-    if not window:
+    # Un solo 404 para "no existe" y para "no es de un evento que gestionas":
+    # dos mensajes distintos reconstruyen el oráculo que `_check_event_access`
+    # acaba de cerrar, sólo que sobre ids de ventana.
+    if not window or _check_event_access(window.event_id)[1]:
         return _deny("NOT_FOUND", "Ventana no encontrada.", 404)
-
-    event, err = _check_event_access(window.event_id)
-    if err:
-        return err
 
     try:
         result = EventsService.generate_slots(window_id)
@@ -294,15 +307,13 @@ def list_events():
 @permission_required('events.api.manage')
 def delete_event(event_id: int):
     """Elimina un evento y todos sus slots/appointments asociados"""
-    event = db.session.get(Event, event_id)
-    if not event:
-        return _deny("NOT_FOUND", "Evento no encontrado.", 404)
-
-    # Misma regla que el resto del módulo (antes era una excepción local):
-    # borrar arrastra ventanas, horarios y citas, y un evento institucional
-    # sólo lo borra el alcance global.
-    if not _event_managed_by_current_user(event):
-        return _deny("FORBIDDEN", "No tienes permiso para eliminar este evento.", 403)
+    # Misma regla —y misma respuesta— que el resto de la gestión: borrar
+    # arrastra ventanas, horarios y citas, y un evento institucional sólo lo
+    # borra el alcance global. El 403 propio que había aquí delataba qué ids
+    # existen; ver `_check_event_access`.
+    event, err = _check_event_access(event_id)
+    if err:
+        return err
 
     # Verificar si hay appointments activas
     appointments_count = db.session.query(Appointment).join(
@@ -399,12 +410,9 @@ def delete_window(window_id: int):
     from app.services.events_service import EventsService
     
     window = db.session.get(EventWindow, window_id)
-    if not window:
+    # Un solo 404 para las dos razones — ver `generate_slots`.
+    if not window or _check_event_access(window.event_id)[1]:
         return _deny("NOT_FOUND", "Ventana no encontrada.", 404)
-
-    event, err = _check_event_access(window.event_id)
-    if err:
-        return err
 
     force = request.args.get('force') in ('true', '1', 'yes')
 
@@ -432,16 +440,10 @@ def delete_slot(slot_id: int):
     from app.services.events_service import EventsService
     
     slot = db.session.get(EventSlot, slot_id)
-    if not slot:
+    window = db.session.get(EventWindow, slot.event_window_id) if slot else None
+    # Un solo 404 para las tres razones — ver `generate_slots`.
+    if not slot or not window or _check_event_access(window.event_id)[1]:
         return _deny("NOT_FOUND", "Horario no encontrado.", 404)
-
-    window = db.session.get(EventWindow, slot.event_window_id)
-    if not window:
-        return _deny("NOT_FOUND", "Ventana no encontrada.", 404)
-
-    event, err = _check_event_access(window.event_id)
-    if err:
-        return err
 
     force = request.args.get('force') in ('true', '1', 'yes')
 
@@ -911,6 +913,10 @@ def list_event_hosts(event_id: int):
     la ACL anterior (`visible_to_students and published and capacity_type !=
     'single'`) no miraba ni la `visibility` ni el programa: cualquier cuenta
     autenticada leía los ponentes de un evento PRIVADO de cualquier posgrado.
+
+    El lector va al servicio porque la foto de un ponente interno sólo se
+    publica a quien puede pedir esos bytes (`may_view_avatar`): el índice y el
+    servidor de archivos tienen que contestar lo mismo.
     """
     event = db.session.get(Event, event_id)
     if not event:
@@ -919,7 +925,7 @@ def list_event_hosts(event_id: int):
     if not (_event_managed_by_current_user(event) or _event_participable_by_current_user(event)):
         return _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
 
-    hosts = EventsService.get_event_hosts(event_id)
+    hosts = EventsService.get_event_hosts(event_id, viewer=current_user)
     return jsonify({"ok": True, "hosts": hosts}), 200
 
 
@@ -951,7 +957,15 @@ def upload_host_photo(event_id: int):
 @login_required
 @permission_required('events.api.manage_hosts')
 def set_event_hosts(event_id: int):
-    """Reemplaza la lista completa de hosts de un evento."""
+    """
+    Reemplaza la lista completa de hosts de un evento.
+
+    Gestionar el evento autoriza a EDITAR SU CARTEL, no a nombrar ponente a
+    cualquier cuenta de la institución: cada `user_id` interno lo valida
+    `EventsService.user_may_be_named_host` contra el actor. Sin eso, la fila
+    que el propio gestor escribe era la prueba con la que
+    `file_access_service` le servía el rostro de la víctima.
+    """
     event, err = _check_event_access(event_id)
     if err:
         return err
@@ -962,7 +976,9 @@ def set_event_hosts(event_id: int):
         return jsonify({"ok": False, "error": "'hosts' debe ser una lista"}), 400
 
     try:
-        hosts = EventsService.set_event_hosts(event_id, hosts_data)
+        hosts = EventsService.set_event_hosts(
+            event_id, hosts_data, acting_user=current_user
+        )
         return jsonify({"ok": True, "count": len(hosts)}), 200
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
@@ -1047,12 +1063,9 @@ def delete_event_image(image_id: int):
     """Elimina imagen (cover o galería) + archivo físico."""
     from app.models.event import EventImage
     image = db.session.get(EventImage, image_id)
-    if not image:
+    # Un solo 404 para las dos razones — ver `generate_slots`.
+    if not image or _check_event_access(image.event_id)[1]:
         return _deny("NOT_FOUND", "Imagen no encontrada.", 404)
-
-    event, err = _check_event_access(image.event_id)
-    if err:
-        return err
 
     try:
         EventsService.delete_event_image(image_id)
