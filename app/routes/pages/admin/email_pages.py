@@ -126,7 +126,13 @@ def process_email_queue():
 @login_required
 @permission_required('admin_emails.api.manage')
 def get_email_queue():
-    """Obtiene el estado actual de la cola de correos"""
+    """
+    Obtiene el estado actual de la cola de correos.
+
+    Superficie duplicada de GET /api/v1/emails/queue/pending: devuelve los
+    mismos metadatos de entrega y nunca el cuerpo del correo. Ver la nota en
+    `app/routes/api/emails_api.py::queue_pending`.
+    """
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)

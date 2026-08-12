@@ -3,16 +3,25 @@ from app.models.email_queue import EmailQueue
 from app.models.user import User
 from app.utils.ms_graph import graph_send_mail, acquire_token_silent, is_connected
 from app.utils.datetime_utils import now_local
+from sqlalchemy.orm import defer
 from datetime import timedelta
 from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
+# Value written over `html_content` once a mail is no longer sendable. The
+# column is NOT NULL, so the body is blanked rather than nulled.
+PURGED_BODY = ''
+
+# How long a rendered body survives after the mail stopped being sendable.
+# See EmailService.purge_delivered_bodies for the reasoning behind 24 h.
+BODY_RETENTION_HOURS = 24
+
 
 class EmailService:
     """Servicio para gestión y envío de correos con cola"""
-    
+
     @staticmethod
     def queue_email(user_id: int, subject: str, html_content: str, 
                    notification_id: Optional[int] = None) -> EmailQueue:
@@ -71,12 +80,28 @@ class EmailService:
         Intenta enviar un email de la cola.
         Retorna True si se envió exitosamente.
         """
+        # A blanked body means the retention purge already reclaimed this row,
+        # which only happens once the mail is no longer sendable ('sent', or
+        # 'failed' past max_attempts). Sending it would deliver an empty
+        # message; fail it loudly instead of silently mailing nothing.
+        if not email_item.html_content:
+            logger.error(
+                f"Email {email_item.id} sin cuerpo (purgado por retención); no se envía"
+            )
+            email_item.status = 'failed'
+            email_item.error_message = (
+                'El cuerpo del correo fue purgado por la política de retención; '
+                'no se puede reenviar.'
+            )
+            db.session.flush()
+            return False
+
         try:
             token = acquire_token_silent()
             if not token:
                 logger.warning(f"No hay token para enviar email {email_item.id}")
                 return False
-            
+
             response = graph_send_mail(
                 access_token=token,
                 subject=email_item.subject,
@@ -189,25 +214,68 @@ class EmailService:
     
     @staticmethod
     def get_pending_emails(limit: int = 50, offset: int = 0):
-        """Obtiene correos pendientes con paginación"""
+        """
+        Obtiene correos pendientes con paginación (sin el cuerpo del correo).
+
+        `defer` keeps `html_content` out of the SELECT: the rendered body — which
+        for password-reset and activation mail is a live one-time token link —
+        never reaches the application layer on a listing, let alone the client.
+        """
         query = EmailQueue.query.filter_by(status='pending').order_by(
             EmailQueue.created_at.desc()
         )
         total = query.count()
-        items = query.limit(limit).offset(offset).all()
-        
+        items = (
+            query.options(defer(EmailQueue.html_content))
+            .limit(limit)
+            .offset(offset)
+            .all()
+        )
+
         return {
             'items': [item.to_dict() for item in items],
             'total': total
         }
-    
+
     @staticmethod
-    def clear_old_sent_emails(days: int = 30) -> int:
-        """Elimina correos enviados hace más de X días"""
-        cutoff = now_local() - timedelta(days=days)
-        count = EmailQueue.query.filter(
+    def purge_delivered_bodies(hours: int = BODY_RETENTION_HOURS) -> dict:
+        """
+        Blanks `html_content` on mail that can no longer be sent.
+
+        Rationale for the window (24 h by default): once a mail is 'sent' the
+        rendered body has no operational use — the sender already consumed it
+        and no code path re-reads it (`retry_failed` only picks 'pending' rows).
+        What it does keep is a copy of whatever the template rendered, including
+        password-reset and staff-activation token links, which stay valid for up
+        to 7 days (`generate_token` default `ttl_days=7`). Keeping the body for
+        24 h leaves one working day to diagnose "what did we actually send?"
+        while ensuring a live credential stops existing in a second place long
+        before it expires. 'failed' rows are purged on the same clock measured
+        from `created_at`: nothing can ever resend them.
+
+        The rows themselves are kept — subject, recipient, status, attempts and
+        timestamps are the delivery audit trail and carry no secret.
+        """
+        cutoff = now_local() - timedelta(hours=hours)
+
+        sent = EmailQueue.query.filter(
             EmailQueue.status == 'sent',
-            EmailQueue.sent_at < cutoff
-        ).delete()
+            EmailQueue.sent_at.isnot(None),
+            EmailQueue.sent_at < cutoff,
+            EmailQueue.html_content != PURGED_BODY,
+        ).update({'html_content': PURGED_BODY}, synchronize_session=False)
+
+        failed = EmailQueue.query.filter(
+            EmailQueue.status == 'failed',
+            EmailQueue.created_at < cutoff,
+            EmailQueue.html_content != PURGED_BODY,
+        ).update({'html_content': PURGED_BODY}, synchronize_session=False)
+
         db.session.commit()
-        return count
+
+        return {
+            'sent_purged': sent,
+            'failed_purged': failed,
+            'total': sent + failed,
+            'hours': hours,
+        }

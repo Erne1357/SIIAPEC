@@ -23,7 +23,7 @@ import unittest
 from datetime import timedelta
 
 from app import create_app, db
-from app.models.user import User
+from app.models.user import User, GLOBAL_SCOPE_PERMISSION
 from app.models.role import Role
 from app.models.permission import Permission
 from app.models.program import Program
@@ -143,6 +143,10 @@ class Phase12Base(unittest.TestCase):
         self.p_ap_create     = _perm('academic_periods.api.create')
         self.p_doc_others    = _perm('files.api.view_doc_others')
         self.p_list_user_p   = _perm('permissions.api.list_user_permissions')
+        # Permiso corriente que program_admin NO tiene por seed: sirve de
+        # cobaya para los tests de override sin arrastrar el marcador de alcance
+        # global, que `add_role_override` rechaza a propósito.
+        self.p_ap_update     = _perm('academic_periods.api.update')
 
         # Mapeos base por rol (mínimo reflejando el seed real del sistema)
         for p in [self.p_delegate, self.p_revoke_deleg, self.p_list_students,
@@ -152,7 +156,8 @@ class Phase12Base(unittest.TestCase):
 
         for p in [self.p_delegate, self.p_revoke_deleg, self.p_list_students,
                   self.p_list_appl, self.p_upload_doc, self.p_review_sub,
-                  self.p_doc_others, self.p_ap_create, self.p_list_user_p]:
+                  self.p_doc_others, self.p_ap_create, self.p_ap_update,
+                  self.p_list_user_p]:
             _grant_role_perm(self.r_postgrad, p)
 
         # Usuarios comunes (cada test puede crear más)
@@ -344,44 +349,44 @@ class RoleOverridePropagationTest(Phase12Base):
         with self.app.test_request_context('/'):
             perm_svc.add_role_override(
                 role_id=self.r_program.id,
-                codename='academic_periods.api.create',
+                codename='academic_periods.api.update',
                 performed_by=self.postgrad.id,
-                reason='Permitir a coordinadores crear periodos',
+                reason='Permitir a coordinadores editar periodos',
             )
 
         with self.app.test_request_context('/'):
-            self.assertTrue(self.coord.has_permission('academic_periods.api.create'))
-            self.assertTrue(self.coord2.has_permission('academic_periods.api.create'))
+            self.assertTrue(self.coord.has_permission('academic_periods.api.update'))
+            self.assertTrue(self.coord2.has_permission('academic_periods.api.update'))
 
     def test_revert_override_removes_permission_for_role(self):
         """Al revertir el override, el rol vuelve a no tenerlo."""
         with self.app.test_request_context('/'):
             perm_svc.add_role_override(
                 role_id=self.r_program.id,
-                codename='academic_periods.api.create',
+                codename='academic_periods.api.update',
                 performed_by=self.postgrad.id,
             )
             perm_svc.revert_role_override(
                 role_id=self.r_program.id,
-                codename='academic_periods.api.create',
+                codename='academic_periods.api.update',
                 performed_by=self.postgrad.id,
             )
 
         with self.app.test_request_context('/'):
-            self.assertFalse(self.coord.has_permission('academic_periods.api.create'))
+            self.assertFalse(self.coord.has_permission('academic_periods.api.update'))
 
     def test_audit_entries_for_grant_and_revert(self):
         """Cada cambio de override deja una entrada en RolePermissionAudit."""
         with self.app.test_request_context('/'):
             perm_svc.add_role_override(
                 role_id=self.r_program.id,
-                codename='academic_periods.api.create',
+                codename='academic_periods.api.update',
                 performed_by=self.postgrad.id,
                 reason='grant test',
             )
             perm_svc.revert_role_override(
                 role_id=self.r_program.id,
-                codename='academic_periods.api.create',
+                codename='academic_periods.api.update',
                 performed_by=self.postgrad.id,
             )
 
@@ -390,6 +395,38 @@ class RoleOverridePropagationTest(Phase12Base):
                    .order_by(RolePermissionAudit.id)
                    .all()]
         self.assertEqual(actions, ['grant', 'revert'])
+
+    def test_global_scope_permission_cannot_be_granted_as_override(self):
+        """
+        El marcador de alcance global no se reparte por override de rol.
+
+        Un override ES un grant de rol, y `has_global_program_scope()` lee el
+        rol: concederlo a 'program_admin' convertiría a TODOS los coordinadores
+        en administradores globales sin que aparezca ningún cambio de rol. La
+        vía legítima es asignar el rol de jefe de posgrado.
+        """
+        with self.app.test_request_context('/'):
+            with self.assertRaises(perm_svc.PermissionError):
+                perm_svc.add_role_override(
+                    role_id=self.r_program.id,
+                    codename=GLOBAL_SCOPE_PERMISSION,
+                    performed_by=self.postgrad.id,
+                )
+
+        # Nada se escribió: ni override ni entrada de auditoría.
+        self.assertIsNone(
+            RolePermissionOverride.query.filter_by(
+                role_id=self.r_program.id,
+                permission_id=self.p_ap_create.id,
+            ).first()
+        )
+        self.assertEqual(
+            RolePermissionAudit.query.filter_by(role_id=self.r_program.id).count(), 0
+        )
+
+        with self.app.test_request_context('/'):
+            self.assertFalse(self.coord.has_global_program_scope())
+            self.assertIsNotNone(self.coord.get_accessible_program_ids())
 
 
 # ---------------------------------------------------------------------------
@@ -506,8 +543,12 @@ class AccessibleProgramIdsTest(Phase12Base):
 
     def test_global_permission_short_circuits_delegation_scope(self):
         """
-        Si al usuario se le otorga academic_periods.api.create vía rol/override,
-        get_accessible_program_ids() retorna None aunque tenga delegaciones scoped.
+        Si el ROL otorga academic_periods.api.create, get_accessible_program_ids()
+        retorna None aunque el usuario tenga delegaciones scoped.
+
+        El alcance global se concede por asignación de rol —aquí, un
+        RolePermission de seed—, nunca por override: `add_role_override` rechaza
+        ese codename (ver RoleOverridePropagationTest).
         """
         with self.app.test_request_context('/'):
             # Delegación scoped
@@ -517,12 +558,10 @@ class AccessibleProgramIdsTest(Phase12Base):
                 codename='coordinator.api.list_students',
                 program_id=self.prog_b.id,
             )
-            # Override del rol para conceder acceso global
-            perm_svc.add_role_override(
-                role_id=self.r_program.id,
-                codename='academic_periods.api.create',
-                performed_by=self.postgrad.id,
-            )
+
+        # El rol del usuario pasa a conceder el marcador de alcance global.
+        _grant_role_perm(self.r_program, self.p_ap_create)
+        db.session.commit()
 
         with self.app.test_request_context('/'):
             self.assertIsNone(self.coord.get_accessible_program_ids())

@@ -9,6 +9,45 @@ from app.utils.datetime_utils import now_local
 
 class EventsService:
 
+    # ============================================================
+    # AUTORIDAD SOBRE UN EVENTO — permiso ≠ alcance
+    # ============================================================
+
+    @staticmethod
+    def user_may_manage_event(user, event) -> bool:
+        """
+        ¿Puede `user` ADMINISTRAR este evento? Incluye su lista de asistencia.
+
+        La autoridad sobre un evento es la autoridad sobre su programa:
+
+          - evento CON programa  → alcance sobre ese programa;
+          - evento SIN programa (institucional) → SÓLO alcance global.
+
+        El caso institucional es el que había que decidir. Un evento con
+        `program_id = NULL` lo ve toda la institución y en su lista de
+        registrados hay gente de cualquier posgrado, así que "tengo el permiso
+        `attendance.api.mark`" no puede bastar: el coordinador de A escribiría
+        el estado de asistencia de un alumno de B pasando por ese evento. Como
+        el objeto escrito pertenece al evento y no al alumno, la regla correcta
+        es "manda quien es dueño del evento", y un evento institucional no
+        tiene más dueño posible que la Jefatura de Posgrado. Un coordinador con
+        alcance limitado ya no puede crear eventos sin programa
+        (`events_api.create_event`), así que la regla no deja huérfano nada que
+        él pueda producir hoy.
+
+        Framework-agnostic: el llamador pasa el usuario (nunca `current_user`).
+        """
+        from app.services import program_scope_service as scope_service
+
+        if user is None or event is None:
+            return False
+        if scope_service.is_global_scope(user):
+            return True
+        return (
+            event.program_id is not None
+            and scope_service.program_in_scope(user, event.program_id)
+        )
+
     @staticmethod
     def create_event(
         program_id: int | None,
@@ -678,6 +717,13 @@ class EventsService:
         """
         Marca la asistencia de un usuario a un evento.
 
+        Sólo actualiza una fila EXISTENTE de `EventAttendance`: nunca crea una.
+        Esa es la mitad del control de alcance de esta operación — el gestor no
+        puede fabricar asistencia para alguien que jamás se registró, sólo
+        anotar lo que pasó con quien se apuntó a su evento. La otra mitad
+        (quién puede tocar la lista de este evento) la resuelve
+        `user_may_manage_event`, que la ruta consulta antes de llamar aquí.
+
         Args:
             event_id: ID del evento
             user_id: ID del usuario
@@ -714,19 +760,27 @@ class EventsService:
         return attendance
     
     @staticmethod
-    def get_event_registrations(event_id: int):
+    def get_event_registrations(event_id: int, include_notes: bool = True):
         """
-        Obtiene todos los registros de un evento
+        Obtiene todos los registros de un evento.
+
+        Args:
+            include_notes: pásalo en False cuando quien consulta NO administra
+                el evento (`user_may_manage_event`). Nombre, correo y estado de
+                asistencia son el nivel resumido que sí cruza entre programas
+                (`CROSS_PROGRAM_SUMMARY_FIELDS`); la nota que escribió el
+                organizador sobre la persona no lo es, y en un evento
+                institucional la lista mezcla alumnos de todos los posgrados.
         """
         from app.models.event import EventAttendance
         from app.models.user import User
-        
+
         registrations = db.session.query(EventAttendance, User).join(
             User, EventAttendance.user_id == User.id
         ).filter(
             EventAttendance.event_id == event_id
         ).order_by(EventAttendance.registered_at.desc()).all()
-        
+
         return [{
             'id': attendance.id,
             'user_id': user.id,
@@ -735,7 +789,7 @@ class EventsService:
             'status': attendance.status,
             'registered_at': attendance.registered_at.isoformat(),
             'attended_at': attendance.attended_at.isoformat() if attendance.attended_at else None,
-            'notes': attendance.notes
+            'notes': attendance.notes if include_notes else None
         } for attendance, user in registrations]
     
     @staticmethod

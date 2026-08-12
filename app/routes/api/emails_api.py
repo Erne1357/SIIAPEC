@@ -42,7 +42,22 @@ def queue_stats():
 @login_required
 @permission_required('admin_emails.api.manage')
 def queue_pending():
-    """Lista correos pendientes"""
+    """
+    Lista correos pendientes — sólo metadatos de entrega, nunca el cuerpo.
+
+    `admin_emails.api.manage` lo tiene también program_admin, así que cualquier
+    coordinador llega aquí. El cuerpo renderizado de un correo de
+    restablecimiento o de activación contiene el enlace de un solo uso: servirlo
+    en un listado equivale a entregar la cuenta destino, incluida la del
+    postgraduate_admin. La proyección la garantiza EmailQueue.to_dict() y el
+    `defer` de EmailService.get_pending_emails.
+
+    No existe endpoint de vista previa del cuerpo, y es deliberado: el HTML es
+    la salida determinista de una plantilla del repositorio
+    (`app/templates/emails/`), así que para saber qué se envió se lee la
+    plantilla; redactar "lo que parezca un enlace con token" sería una lista
+    negra, y una lista negra falla abierta justo con el formato que no previó.
+    """
     limit = min(int(request.args.get('limit', 50)), 100)
     offset = int(request.args.get('offset', 0))
     

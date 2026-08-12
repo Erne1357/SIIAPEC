@@ -12,6 +12,40 @@ import logging
 api_attendance = Blueprint('api_attendance', __name__, url_prefix='/api/v1/attendance')
 
 
+# ============================================================================
+# Alcance por evento — permiso ≠ alcance
+# ============================================================================
+
+def _deny(code: str, message: str, status: int):
+    """Denegación con el envelope del proyecto y mensaje en español."""
+    return jsonify({
+        "ok": False,
+        "data": None,
+        "flash": [{"level": "danger", "message": message}],
+        "error": {"code": code, "message": message},
+        "meta": {}
+    }), status
+
+
+def _load_manageable_event(event_id: int):
+    """
+    Carga el evento y exige que `current_user` pueda ADMINISTRARLO.
+
+    La lista de asistencia pertenece al evento, así que la manda quien manda en
+    el evento (`EventsService.user_may_manage_event`): su programa, o el
+    alcance global si el evento es institucional (`program_id = NULL`).
+
+    Returns:
+        (event, None) si procede; (None, respuesta_error) si no.
+    """
+    event = db.session.get(Event, event_id)
+    if not event:
+        return None, _deny("NOT_FOUND", "Evento no encontrado.", 404)
+    if not EventsService.user_may_manage_event(current_user, event):
+        return None, _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
+    return event, None
+
+
 @api_attendance.route('/event/<int:event_id>/register', methods=['POST'])
 @login_required
 def register_to_event(event_id: int):
@@ -82,25 +116,37 @@ def unregister_from_event(event_id: int):
 @login_required
 @permission_required('attendance.api.list_registrations')
 def get_event_registrations(event_id: int):
-    """Obtener lista de registros de un evento"""
+    """
+    Obtener lista de registros de un evento.
+
+    Lectura, no escritura, así que la regla es un punto más laxa que la de
+    marcar asistencia: quien administra el evento ve la lista completa, y quien
+    no lo administra sólo puede leer la de un evento INSTITUCIONAL (sin
+    programa) y sin las notas del organizador. Nombre, correo y estado de
+    asistencia son el nivel que el dueño autoriza a cruzar entre programas; la
+    lista de un evento de otro programa no se ve en absoluto.
+    """
     event = db.session.get(Event, event_id)
     if not event:
-        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
-    
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
-        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+        return _deny("NOT_FOUND", "Evento no encontrado.", 404)
+
+    manages = EventsService.user_may_manage_event(current_user, event)
+    if not manages and event.program_id is not None:
+        return _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
 
     try:
-        registrations = EventsService.get_event_registrations(event_id)
-        
+        registrations = EventsService.get_event_registrations(
+            event_id, include_notes=manages
+        )
+
         return jsonify({
             "ok": True,
             "event_id": event_id,
+            "can_manage": manages,
             "registrations": registrations,
             "total": len(registrations)
         }), 200
-        
+
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -109,24 +155,30 @@ def get_event_registrations(event_id: int):
 @login_required
 @permission_required('attendance.api.mark')
 def mark_attendance(event_id: int):
-    """Marcar asistencia de un usuario"""
-    event = db.session.get(Event, event_id)
-    if not event:
-        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
-    
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
-        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+    """
+    Marcar asistencia de un usuario.
+
+    ESCRITURA sobre la lista de un evento. El guardia es `_load_manageable_event`:
+    el evento debe ser de un programa dentro del alcance, y si es institucional
+    (sin programa) hace falta alcance global. Antes bastaba con el permiso:
+    `event.program_id and ...` dejaba pasar de largo cualquier evento sin
+    programa, y por ahí el coordinador de A escribía la asistencia de un
+    alumno de B. El servicio remata el cerco: sólo actualiza registros que ya
+    existen, así que nunca se inventa asistencia de nadie.
+    """
+    event, err = _load_manageable_event(event_id)
+    if err:
+        return err
 
     data = request.get_json() or {}
     user_id = data.get('user_id')
     attended = data.get('attended')
     notes = data.get('notes')
     reset = data.get('reset', False)  # NUEVO
-    
+
     if not user_id:
         return jsonify({"ok": False, "error": "user_id es requerido"}), 400
-    
+
     try:
         attendance = EventsService.mark_attendance(
             event_id=event_id,

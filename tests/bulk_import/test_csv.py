@@ -135,13 +135,13 @@ def test_execute_csv_isolated_failures(app, periods, program, postgrad_admin, ro
     # email duplicado creado entre preview y execute.
     rows_data = [
         {
-            'first_name': 'F1', 'last_name': 'L1', 'mother_last_name': '',
+            'first_name': 'Fernanda', 'last_name': 'Lara', 'mother_last_name': '',
             'email': 'race@test.local', 'control_number': 'M22110020',
             'program_slug': program.slug, 'current_semester': '2',
             'admission_period_code': '20223', 'has_conacyt': 'no',
         },
         {
-            'first_name': 'F2', 'last_name': 'L2', 'mother_last_name': '',
+            'first_name': 'Joaquin', 'last_name': 'Mendoza', 'mother_last_name': '',
             'email': 'ok@test.local', 'control_number': 'M22110021',
             'program_slug': program.slug, 'current_semester': '2',
             'admission_period_code': '20223', 'has_conacyt': 'no',
@@ -152,7 +152,7 @@ def test_execute_csv_isolated_failures(app, periods, program, postgrad_admin, ro
 
     # Race condition: alguien crea usuario con email 'race@test.local' antes de execute
     racing = User(
-        first_name='X', last_name='Y', mother_last_name='',
+        first_name='Fernanda', last_name='Lara', mother_last_name='',
         username='racing', password='pw',
         email='race@test.local', is_internal=False,
         role_id=roles['student'].id, must_change_password=False,

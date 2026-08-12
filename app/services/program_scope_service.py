@@ -108,6 +108,42 @@ CROSS_PROGRAM_SUMMARY_FIELDS = frozenset({
     'can_manage',
 })
 
+#: The ONLY user columns a list endpoint may put inside a SEARCH / FILTER
+#: predicate for a row that is OUTSIDE the caller's scope.
+#:
+#: A projection runs AFTER the query, so it cannot protect a field the WHERE
+#: clause already touched: if a forbidden column takes part in the filter, the
+#: mere presence or absence of the row answers "does this student's <column>
+#: contain X?" — the value leaks one guess at a time even though it never
+#: appears in the payload. A sort key leaks the same way (it publishes the
+#: column's relative order), and so does any count computed over such a filter.
+#:
+#: Therefore: a caller may only search, filter, sort or count on fields they are
+#: allowed to SEE for that row. Endpoints that want the full field set must
+#: split the predicate per row (full set AND in-scope) OR (reduced set AND
+#: out-of-scope) — see `list_users` in app/routes/api/admin/users_api.py.
+#:
+#: Deliberately absent, and why:
+#:   control_number — named forbidden by the cross-program tier.
+#:   username       — IS the control number once `User.assign_control_number()`
+#:                    runs, so searching it is searching the control number.
+#:   is_active, role, avatar, any personal column — not on the summary
+#:                    allow-list, therefore forbidden.
+#:   full_name      — not a column; first_name + last_name already cover it.
+CROSS_PROGRAM_SEARCHABLE_FIELDS = frozenset({
+    'first_name',
+    'last_name',
+    'mother_last_name',
+    'email',
+})
+
+if not CROSS_PROGRAM_SEARCHABLE_FIELDS <= CROSS_PROGRAM_SUMMARY_FIELDS:  # pragma: no cover
+    raise RuntimeError(
+        'CROSS_PROGRAM_SEARCHABLE_FIELDS must stay a subset of '
+        'CROSS_PROGRAM_SUMMARY_FIELDS: nothing may be searched cross-program '
+        'that cannot be shown cross-program.'
+    )
+
 
 class ProgramScopeDenied(PermissionError):
     """

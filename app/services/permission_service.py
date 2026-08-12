@@ -12,7 +12,7 @@ from app.models.permission import Permission
 from app.models.role_permission import RolePermission, RolePermissionOverride
 from app.models.role_permission_audit import RolePermissionAudit
 from app.models.user_permission import UserPermission
-from app.models.user import User, SELF_SERVICE_PERMISSIONS
+from app.models.user import User, GLOBAL_SCOPE_PERMISSION, SELF_SERVICE_PERMISSIONS
 from app.models.role import Role
 from app.utils.validators import (
     EMAIL_MAX_LENGTH,
@@ -73,6 +73,15 @@ def get_user_effective_permissions(user_id, program_id=None):
     """
     Retorna la lista completa de permisos efectivos de un usuario.
     No usa caché de g (es para admin/vista, no para evaluación en-request).
+
+    "Efectivo" tiene que significar lo mismo aquí que en `User.has_permission`:
+    esta lista alimenta `/api/v1/permissions/me` —con la que el front decide qué
+    botones dibuja— y `get_delegatable_permissions`, cuyo contrato es que lo
+    ofrecido sea exactamente lo que el servicio acepta. Por eso las tres fuentes
+    filtran `Permission.is_active`: un permiso retirado del catálogo ya no lo
+    concede ni el rol ni una delegación, así que anunciarlo aquí sólo produciría
+    una interfaz que ofrece acciones que el backend rechaza y un selector de
+    delegación con opciones que `delegate_permission` niega al enviarlas.
     """
     from app.utils.datetime_utils import now_local
 
@@ -84,7 +93,10 @@ def get_user_effective_permissions(user_id, program_id=None):
         base = (
             db.session.query(RolePermission)
             .join(RolePermission.permission)
-            .filter(RolePermission.role_id == user.role_id)
+            .filter(
+                RolePermission.role_id == user.role_id,
+                Permission.is_active == True
+            )
             .all()
         )
         for rp in base:
@@ -103,7 +115,8 @@ def get_user_effective_permissions(user_id, program_id=None):
             .join(RolePermissionOverride.permission)
             .filter(
                 RolePermissionOverride.role_id == user.role_id,
-                RolePermissionOverride.is_active == True
+                RolePermissionOverride.is_active == True,
+                Permission.is_active == True
             )
             .all()
         )
@@ -118,7 +131,15 @@ def get_user_effective_permissions(user_id, program_id=None):
                 }
 
     # 3. UserPermissions directos/delegados (activos y no vencidos)
-    q = UserPermission.query.filter_by(user_id=user_id, is_active=True)
+    q = (
+        UserPermission.query
+        .join(UserPermission.permission)
+        .filter(
+            UserPermission.user_id == user_id,
+            UserPermission.is_active == True,
+            Permission.is_active == True,
+        )
+    )
     if program_id is not None:
         q = q.filter(
             (UserPermission.program_id == program_id) |
@@ -341,7 +362,17 @@ def get_user_delegations_for_viewer(viewer, user_id):
     if viewer_id == user_id or scope_service.is_global_scope(viewer):
         return rows
 
-    scope = scope_service.accessible_program_ids(viewer) or set()
+    # Mismo cuidado que en `create_social_service_user`: None significa TODOS
+    # los programas, nunca "ninguno". Escrito como `or set()` esta línea
+    # convertía el alcance global en un filtro vacío, es decir en "no ve nada",
+    # justo al revés de lo que None quiere decir. Hoy la rama es inalcanzable
+    # —`is_global_scope()` se evalúa arriba y está definido como
+    # `accessible_program_ids(...) is None`—, pero se escribe explícita para que
+    # el archivo que define la regla no contenga el error que la contradice.
+    scope = scope_service.accessible_program_ids(viewer)
+    if scope is None:
+        return rows
+
     return [
         up for up in rows
         if up.granted_by == viewer_id
@@ -442,7 +473,23 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
     else:
         # Alcance real del creador, no sólo lo que coordina: una cuenta de
         # servicio social nunca puede nacer con más alcance que quien la crea.
-        creator_pids = sorted(creator.get_accessible_program_ids() or set())
+        creator_scope = creator.get_accessible_program_ids()
+        if creator_scope is None:
+            # None significa TODOS los programas, jamás "ninguno". Escrito como
+            # `or set()` esta línea convertía "todos" en "ninguno" —la confusión
+            # exacta que este módulo existe para evitar— en el archivo que define
+            # la regla. Hoy la rama es inalcanzable (sólo el alcance global
+            # devuelve None y ya se resolvió arriba con `is_postgraduate`), pero
+            # si las dos definiciones llegaran a separarse hay que fallar cerrado:
+            # tratar None como "todos" aquí crearía una cuenta de servicio social
+            # con alcance sobre el instituto entero a manos de quien no es jefe
+            # de posgrado.
+            raise PermissionError(
+                "Tu cuenta tiene alcance global sin ser jefe de posgrado. No se "
+                "creará la cuenta de servicio social: reporta esta inconsistencia "
+                "de permisos antes de continuar."
+            )
+        creator_pids = sorted(creator_scope)
         if not creator_pids:
             raise PermissionError("No coordinas programas. No puedes crear servicio social.")
         effective_pids = creator_pids
@@ -651,10 +698,33 @@ def add_role_override(role_id, codename, performed_by, reason=None):
     - Si el rol ya tiene el permiso vía seed, se permite (el override queda inactivo
       pero documentado).
     - Si ya hay un override activo para ese par, lanza error.
+    - `GLOBAL_SCOPE_PERMISSION` no puede otorgarse por esta vía (ver abajo).
     """
     role = Role.query.get(role_id)
     if not role:
         raise PermissionError("Rol no encontrado.")
+
+    # El alcance global no se reparte: se es jefe de posgrado o no se es.
+    #
+    # `has_global_program_scope()` lee el ROL, y un override de rol ES un grant
+    # de rol (`User._role_permission_codenames` lo incluye), así que este
+    # endpoint es la única puerta por la que el marcador de alcance global puede
+    # colarse en un rol que no debería tenerlo. Aplicarlo a 'program_admin'
+    # convertiría de golpe a TODOS los coordinadores —presentes y futuros— en
+    # administradores globales: expedientes, PII y escrituras de cualquier
+    # programa, sin que aparezca ni un cambio de rol en la consola de usuarios.
+    #
+    # Se rechaza en seco en vez de pedir una bandera de confirmación: la
+    # confirmación sólo protege del clic equivocado, y quien manda el JSON a
+    # mano la incluye. La vía legítima para dar alcance global existe, es
+    # explícita y es visible: asignar el rol 'postgraduate_admin' a la cuenta.
+    if codename == GLOBAL_SCOPE_PERMISSION:
+        raise PermissionError(
+            f"'{codename}' define el alcance global del sistema y no puede "
+            "otorgarse como override de rol: daría acceso a todos los programas "
+            "a cada cuenta con ese rol. Si alguien debe tener alcance global, "
+            "asígnale el rol de jefe de posgrado."
+        )
 
     perm = Permission.query.filter_by(codename=codename, is_active=True).first()
     if not perm:

@@ -228,9 +228,18 @@ def list_students():
         Program, UserProgram.program_id == Program.id
     ).filter(
         User.role.has(name='applicant') | User.role.has(name='student'),
+        # `is_active` no está en la lista blanca del nivel reducido, así que
+        # esto filtra filas ajenas por un campo que el llamador no puede ver.
+        # Se mantiene a propósito: NO es un filtro del llamador sino la
+        # definición de la población del panel (cuentas activas), idéntica en
+        # todas las peticiones y para todos los llamadores, así que no se puede
+        # usar como oráculo comparativo — sólo confirmaría, para alguien de
+        # quien ya se sabe nombre y programa, que su cuenta fue desactivada.
+        # Moverlo a la rama con alcance metería cuentas desactivadas de otros
+        # programas en un panel operativo; la decisión es del dueño.
         User.is_active == True,
     )
-    
+
     # Programas que puede gestionar el coordinador (propios + delegados).
     # None = alcance global (jefe de posgrado); set() vacío = sin alcance.
     scope = scope_service.accessible_program_ids(current_user)
@@ -245,15 +254,25 @@ def list_students():
         query = query.filter(Program.id == program_id)
     
     if search:
+        # La búsqueda corre ANTES de la proyección y sobre filas de programas
+        # ajenos (`show_other`), así que sólo puede tocar campos que el nivel
+        # reducido permitiría VER en esa fila: si el número de control entrara
+        # aquí, la sola presencia de la fila respondería «¿es éste su número?».
+        # Las columnas se derivan del catálogo del servicio para que no puedan
+        # divergir de la lista blanca de la proyección.
+        #
+        # Si algún día se quiere buscar por número de control en los programas
+        # propios, NO se añade a este OR: se parte el predicado en dos ramas
+        # (dentro de alcance ∧ conjunto completo) ∨ (fuera ∧ conjunto
+        # reducido), como en `list_users` de admin/users_api.py.
         search_term = f"%{search}%"
         query = query.filter(
-            or_(
-                User.first_name.ilike(search_term),
-                User.last_name.ilike(search_term),
-                User.email.ilike(search_term)
-            )
+            or_(*[
+                getattr(User, field).ilike(search_term)
+                for field in sorted(scope_service.CROSS_PROGRAM_SEARCHABLE_FIELDS)
+            ])
         )
-    
+
     results = query.all()
     students = []
 

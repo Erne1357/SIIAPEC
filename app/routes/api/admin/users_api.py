@@ -1,6 +1,7 @@
 # app/routes/api/admin/users_admin_api.py
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from sqlalchemy import and_, not_, or_
 from app import db
 from app.models.user import User
 from app.models.user_history import UserHistory
@@ -52,6 +53,64 @@ def _validation_error_response(message: str):
     }), 400
 
 
+# ─── Búsqueda con alcance: un filtro sobre un campo prohibido es un oráculo ───
+#
+# La proyección al nivel reducido corre DESPUÉS de la consulta, así que no
+# protege ningún campo que el WHERE ya haya tocado: si el número de control
+# entra en el predicado, el simple hecho de que la fila vuelva —o no— responde
+# «¿el número de control de esta persona contiene X?». El valor se filtra una
+# adivinanza a la vez aunque jamás aparezca en el payload. Lo mismo vale para
+# el orden (publica el valor relativo de la columna) y para cualquier conteo
+# calculado sobre ese filtro.
+#
+# Regla: sólo se puede buscar sobre campos que el llamador puede VER en ESA
+# fila. Como el alcance es por fila y el filtro es por consulta, el predicado
+# se parte en dos ramas mutuamente excluyentes (dentro / fuera de alcance).
+
+#: Columnas buscables cuando la fila es visible COMPLETA para el llamador.
+_FULL_SEARCH_COLUMNS = (
+    User.first_name,
+    User.last_name,
+    User.mother_last_name,
+    User.email,
+    User.username,       # para un estudiante ES el número de control
+    User.control_number,
+)
+
+#: Columnas buscables cuando la fila sólo puede salir al nivel reducido.
+#: Se derivan del catálogo del servicio para que no puedan divergir de la
+#: lista blanca de la proyección.
+_REDUCED_SEARCH_COLUMNS = tuple(
+    getattr(User, name)
+    for name in sorted(scope_service.CROSS_PROGRAM_SEARCHABLE_FIELDS)
+)
+
+
+def _search_clause(columns, search: str):
+    """OR de ILIKE sobre `columns` — nunca se llama con columnas prohibidas."""
+    pattern = f"%{search}%"
+    return or_(*[column.ilike(pattern) for column in columns])
+
+
+def _in_scope_clause(scope: set, caller_id: int):
+    """
+    Predicado SQL «esta fila está dentro del alcance del llamador».
+
+    Espejo exacto en SQL de `scope_service.user_in_scope(..., allow_self=True)`
+    para un alcance NO global: el propio usuario, más quien tenga un
+    `UserProgram` en alguno de los programas del llamador. Una cuenta de staff
+    (sin `UserProgram`) queda fuera, igual que en el servicio.
+
+    Va como EXISTS y no como JOIN a propósito: se evalúa fila por fila dentro
+    de la consulta —que es lo que permite aplicar un conjunto de campos
+    distinto a cada fila— y no duplica al usuario con varias inscripciones.
+    """
+    clauses = [User.id == caller_id]
+    if scope:
+        clauses.append(User.user_program.any(UserProgram.program_id.in_(scope)))
+    return or_(*clauses)
+
+
 @api_admin_users.get("")
 @login_required
 @permission_required('admin_users.api.list')
@@ -63,53 +122,98 @@ def list_users():
     programa, historial, estado) sólo sale para usuarios dentro de los
     programas del llamador. El resto se proyecta al nivel reducido
     (nombre y correo) y, si el llamador ni siquiera tiene ese nivel, se omite.
+
+    Los FILTROS respetan el mismo reparto que la proyección, porque un filtro
+    sobre un campo prohibido lo convierte en oráculo (ver la nota sobre
+    `_FULL_SEARCH_COLUMNS`):
+
+      - `search` sobre número de control / username / apellido materno …:
+        el conjunto completo sólo se evalúa contra las filas que el llamador
+        puede ver completas; contra las demás se evalúa el conjunto reducido
+        (nombre y correo, `CROSS_PROGRAM_SEARCHABLE_FIELDS`).
+      - `role` y `active`: `role` y `is_active` no están en la lista blanca del
+        nivel reducido, así que tampoco se evalúan sobre filas ajenas. Las filas
+        de otros programas no se filtran por ellos —ni entran ni salen por su
+        valor— y `meta.cross_program_filters_ignored` lo declara.
+      - `program`: `program_id` SÍ está en la lista blanca, así que aplica a
+        todas las filas.
+      - Orden (`last_name`, `first_name`): ambos están en la lista blanca; no
+        se ordena nunca por número de control, que publicaría su valor relativo.
     """
     # Parámetros de paginación
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 20, type=int), 100)
-    
+
     # Filtros
     role_filter = request.args.get('role', type=str)
     program_filter = request.args.get('program', type=int)
     active_filter = request.args.get('active', 'all', type=str)
     search = request.args.get('search', type=str)
-    
+
+    # Alcance del llamador: None = global (todo visible completo).
+    scope = scope_service.accessible_program_ids(current_user)
+    may_summarize = scope_service.may_view_cross_program_summary(current_user)
+
     # Query base
     query = User.query
-    
-    # Filtro por rol
-    if role_filter:
-        from app.models.role import Role
-        query = query.join(User.role).filter(Role.name == role_filter)
-    
-    # Filtro por programa
+
+    # Filtro por programa — permitido sobre cualquier fila.
     if program_filter:
-        query = query.join(UserProgram, User.id == UserProgram.user_id).filter(UserProgram.program_id == program_filter)
-    
-    # Filtro por estado activo
-    if active_filter == 'true':
-        query = query.filter(User.is_active == True)
-    elif active_filter == 'false':
-        query = query.filter(User.is_active == False)
-    
-    # Búsqueda por texto
-    if search:
-        search_pattern = f"%{search}%"
         query = query.filter(
-            db.or_(
-                User.first_name.ilike(search_pattern),
-                User.last_name.ilike(search_pattern),
-                User.mother_last_name.ilike(search_pattern),
-                User.email.ilike(search_pattern),
-                User.username.ilike(search_pattern),
-                User.control_number.ilike(search_pattern)
-            )
+            User.user_program.any(UserProgram.program_id == program_filter)
         )
-    
+
+    # Predicados que SÓLO pueden evaluarse sobre una fila visible completa.
+    full_only = []
+    ignored_cross_program = []
+
+    if role_filter:
+        full_only.append(User.role.has(name=role_filter))
+        ignored_cross_program.append('role')
+
+    if active_filter == 'true':
+        full_only.append(User.is_active.is_(True))
+        ignored_cross_program.append('active')
+    elif active_filter == 'false':
+        full_only.append(User.is_active.is_(False))
+        ignored_cross_program.append('active')
+
+    if search:
+        full_only.append(_search_clause(_FULL_SEARCH_COLUMNS, search))
+
+    if scope is None:
+        # Alcance global: no hay filas ajenas, un solo conjunto de campos.
+        ignored_cross_program = []
+        if full_only:
+            query = query.filter(and_(*full_only))
+    else:
+        in_scope = _in_scope_clause(scope, current_user.id)
+        full_branch = and_(in_scope, *full_only) if full_only else in_scope
+
+        if may_summarize:
+            # Dos ramas disjuntas por construcción (P / NOT P): la unión de
+            # «dentro de alcance Y conjunto completo» con «fuera de alcance Y
+            # conjunto reducido». La única rama que menciona control_number,
+            # username, role o is_active va conjugada con `in_scope`, así que
+            # ninguna fila puede entrar por un campo que el llamador no vería.
+            reduced_branch = not_(in_scope)
+            if search:
+                reduced_branch = and_(
+                    reduced_branch,
+                    _search_clause(_REDUCED_SEARCH_COLUMNS, search),
+                )
+            query = query.filter(or_(full_branch, reduced_branch))
+        else:
+            # Sin nivel reducido las filas ajenas no se devolvían igual, pero
+            # seguían contando en `pagination.total`: ese conteo también era un
+            # oráculo. Ahora ni entran en la consulta.
+            ignored_cross_program = []
+            query = query.filter(full_branch)
+
     # Ejecutar query con paginación
     pagination = query.order_by(User.last_name, User.first_name).paginate(
-        page=page, 
-        per_page=per_page, 
+        page=page,
+        per_page=per_page,
         error_out=False
     )
 
@@ -153,7 +257,14 @@ def list_users():
             }
         },
         "error": None,
-        "meta": {"restricted_count": restricted}
+        "meta": {
+            "restricted_count": restricted,
+            # Filtros que NO se aplicaron a las filas de otros programas porque
+            # recaen sobre campos prohibidos entre programas. La consola puede
+            # decirlo en voz alta en lugar de dejar creer que la lista está
+            # filtrada por igual.
+            "cross_program_filters_ignored": ignored_cross_program,
+        }
     }), 200
 
 
@@ -225,6 +336,10 @@ def get_user(user_id):
 @api_admin_users.patch("/<int:user_id>")
 @login_required
 @permission_required('admin_users.api.update')
+# allow_self=True (por omisión) a propósito, pero sólo para el NOMBRE: editarse
+# el propio nombre ya es autoservicio en `PATCH /api/v1/users/me`, así que
+# negarlo aquí sólo sería incoherente. El correo es otra cosa y lo rechaza el
+# cuerpo de la vista con un mensaje específico — ver ahí el porqué.
 @program_scope_required(user_id_kwarg='user_id')
 def update_user(user_id):
     """Actualiza información básica del usuario"""
@@ -300,6 +415,34 @@ def update_user(user_id):
     if 'email' in payload:
         new_value = email
         if new_value and new_value != user.email:
+            # Nadie cambia su propio correo desde la consola de administración.
+            #
+            # El correo es el canal de recuperación de la cuenta: es a donde
+            # viaja el enlace de un solo uso de `reset_password` y la única vía
+            # de vuelta cuando se pierde la contraseña. Quien puede reescribirlo
+            # sobre sí mismo puede apuntar su propia recuperación a un buzón
+            # ajeno a la institución y conservar la entrada después de causar
+            # baja, sin que nadie más intervenga. Por eso `PATCH /users/me`
+            # tampoco lo expone: el nombre es autoservicio, el correo no.
+            #
+            # La condición cuelga de "el valor cambia" a propósito: el modal
+            # envía siempre los cuatro campos precargados, y rechazar por la
+            # simple presencia de 'email' impediría a un administrador
+            # corregirse una tilde del nombre.
+            if user_id == current_user.id:
+                # Los campos de nombre ya se asignaron en la sesión más arriba;
+                # la petición se rechaza entera, así que se descartan.
+                db.session.rollback()
+                return jsonify({
+                    "data": None,
+                    "flash": [{"level": "danger", "message": (
+                        "No puedes cambiar tu propio correo: es el canal de "
+                        "recuperación de tu cuenta. Pídeselo al jefe de posgrado."
+                    )}],
+                    "error": {"code": "FORBIDDEN", "message": "Cambio de correo propio no permitido"},
+                    "meta": {}
+                }), 403
+
             existing = User.query.filter(User.email == new_value, User.id != user_id).first()
             if existing:
                 return jsonify({

@@ -4,7 +4,19 @@ from datetime import datetime
 
 
 class EmailQueue(db.Model):
-    """Cola de correos pendientes de enviar"""
+    """
+    Cola de correos pendientes de enviar.
+
+    `html_content` is the rendered body. For password-reset and staff-activation
+    mail that body contains the one-time token link, which is a live credential
+    for the destination account. It must never be serialized to a client: the
+    queue console is reachable by every holder of `admin_emails.api.manage`
+    (program_admin included), so a readable body means any coordinator can take
+    over any account whose mail is still in the table — the postgraduate_admin
+    included. `to_dict()` is the delivery-metadata projection and deliberately
+    omits the body; the only consumer of `html_content` is the sender
+    (`EmailService._try_send_email`), which reads the attribute directly.
+    """
     __tablename__ = 'email_queue'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -29,13 +41,21 @@ class EmailQueue(db.Model):
     notification = db.relationship('Notification', backref='email_queue_item')
     
     def to_dict(self):
+        """
+        Delivery metadata only — never the body.
+
+        Everything the queue console needs to do its job (what was sent, to
+        whom, in what state, how many attempts, when, and why it failed) is
+        here. `html_content` is intentionally absent and this method must not
+        read the attribute either: callers defer that column at query time so
+        the body does not leave PostgreSQL for a listing.
+        """
         return {
             'id': self.id,
             'user_id': self.user_id,
             'notification_id': self.notification_id,
             'recipient_email': self.recipient_email,
             'subject': self.subject,
-            'html_content': self.html_content,
             'status': self.status,
             'attempts': self.attempts,
             'max_attempts': self.max_attempts,

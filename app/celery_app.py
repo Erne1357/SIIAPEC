@@ -74,6 +74,16 @@ def init_celery(app):
                 'task': 'app.tasks.notifications.process_email_queue',
                 'schedule': crontab(minute='*/10'),
             },
+            # Purga el cuerpo de los correos ya entregados — cada hora al :20.
+            # email_queue.html_content guarda el HTML renderizado, y en los
+            # correos de restablecimiento/activación ese HTML contiene el
+            # enlace de un solo uso. Se conserva 24 h para diagnóstico y luego
+            # se blanquea; la fila (asunto, destinatario, estado, intentos)
+            # permanece como rastro de entrega.
+            'purge-email-bodies': {
+                'task': 'app.tasks.maintenance.purge_email_bodies',
+                'schedule': crontab(minute=20),
+            },
         },
     )
 

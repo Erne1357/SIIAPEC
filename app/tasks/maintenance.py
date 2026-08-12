@@ -6,6 +6,7 @@ Programadas automáticamente a través de Celery Beat (ver app/celery_app.py):
   - notify_admission_period_open       → diario a las 07:00
   - check_deferral_expirations         → diario a las 08:00
   - notify_pending_permanence_docs     → lunes a las 09:00
+  - purge_email_bodies                 → cada hora en el minuto 20
 
 Tasks DEPRECATED (no corren en cron desde 2026-04-30, flujo manual con ZIP):
   - cleanup_expired_admission_files
@@ -496,4 +497,46 @@ def notify_admission_period_open(self):
     except Exception as exc:
         db.session.rollback()
         logger.error(f"[notify_admission_period_open] Error: {exc}", exc_info=True)
+        raise self.retry(exc=exc)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. PURGA DEL CUERPO DE LOS CORREOS YA ENTREGADOS (retención)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@celery.task(
+    name='app.tasks.maintenance.purge_email_bodies',
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def purge_email_bodies(self, hours: int = None):
+    """
+    Blanks the rendered body of queued mail that can no longer be sent.
+
+    `email_queue.html_content` is the only place in the system where a
+    password-reset / staff-activation link is stored a second time, in clear,
+    with no expiry of its own. Once the mail is 'sent' (or 'failed' past
+    max_attempts) that body has no further use, so it is blanked; the row —
+    subject, recipient, status, attempts, timestamps — is kept as the delivery
+    audit trail. Default window and rationale: EmailService.purge_delivered_bodies.
+
+    Runs hourly so the effective exposure stays close to the 24 h window
+    instead of drifting to 48 h on a daily schedule. The query is two indexed
+    UPDATEs and is a no-op the vast majority of runs.
+    """
+    from app import db
+    from app.services.email_service import EmailService, BODY_RETENTION_HOURS
+
+    window = BODY_RETENTION_HOURS if hours is None else hours
+
+    try:
+        result = EmailService.purge_delivered_bodies(hours=window)
+        if result['total']:
+            logger.info(f"[purge_email_bodies] {result}")
+        return result
+
+    except Exception as exc:
+        db.session.rollback()
+        logger.error(f"[purge_email_bodies] Error: {exc}", exc_info=True)
         raise self.retry(exc=exc)

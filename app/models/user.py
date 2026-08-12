@@ -222,9 +222,19 @@ class User(db.Model, UserMixin):
 
         Institution-wide by definition — this is the set a delegation cannot
         narrow and must not be confused with. Cached per request.
+
+        `Permission.is_active` is honoured here, not only on delegations.
+        Deactivating a row in the catalogue is the ONLY kill switch this system
+        has for a permission that turned out to be wrong, and role grants are
+        the majority of all grants: if the flag stopped at `UserPermission`,
+        deactivating a permission revoked it from the handful of delegates and
+        from nobody else, which made the flag a lie precisely where it mattered.
+        Both sources are filtered, so an inactive permission grants nothing
+        through any path.
         """
         cache_key = f'_role_perm_cache_{self.id}'
         if not hasattr(g, cache_key):
+            from app.models.permission import Permission
             from app.models.role_permission import RolePermission, RolePermissionOverride
 
             codenames = set()
@@ -232,7 +242,10 @@ class User(db.Model, UserMixin):
                 base = (
                     db.session.query(RolePermission)
                     .join(RolePermission.permission)
-                    .filter(RolePermission.role_id == self.role_id)
+                    .filter(
+                        RolePermission.role_id == self.role_id,
+                        Permission.is_active == True
+                    )
                     .all()
                 )
                 codenames.update(rp.permission.codename for rp in base)
@@ -242,7 +255,8 @@ class User(db.Model, UserMixin):
                     .join(RolePermissionOverride.permission)
                     .filter(
                         RolePermissionOverride.role_id == self.role_id,
-                        RolePermissionOverride.is_active == True
+                        RolePermissionOverride.is_active == True,
+                        Permission.is_active == True
                     )
                     .all()
                 )
@@ -281,18 +295,31 @@ class User(db.Model, UserMixin):
         """
         cache_key = f'_perm_cache_{self.id}'
         if not hasattr(g, cache_key):
+            from app.models.permission import Permission
             from app.models.user_permission import UserPermission
             from app.utils.datetime_utils import now_local
 
             codenames = set(self._role_permission_codenames())
 
             now = now_local()
+            # `Permission.is_active` filters here too, and it is NOT the same
+            # column as `UserPermission.is_active`: that one says "this
+            # delegation was revoked", the catalogue flag says "this permission
+            # is withdrawn from the whole system". Only the grant path checked
+            # the catalogue flag (`delegate_permission` refuses to create a row
+            # for an inactive codename), so delegations signed BEFORE the
+            # withdrawal kept working forever. With role grants now filtered,
+            # leaving this branch unfiltered would be the worse failure of the
+            # two: deactivating a permission would visibly strip it from every
+            # role holder — proof to the admin that the switch worked — while
+            # every existing delegate silently kept it.
             direct_q = (
                 db.session.query(UserPermission)
                 .join(UserPermission.permission)
                 .filter(
                     UserPermission.user_id == self.id,
                     UserPermission.is_active == True,
+                    Permission.is_active == True,
                     db.or_(
                         UserPermission.expires_at == None,
                         UserPermission.expires_at > now
@@ -353,6 +380,14 @@ class User(db.Model, UserMixin):
             .filter(
                 UserPermission.user_id == self.id,
                 UserPermission.is_active == True,
+                # Un permiso retirado del catálogo tampoco otorga ALCANCE. Sin
+                # este filtro la delegación seguía metiendo su programa en el
+                # conjunto aunque ya no confiera capacidad ninguna, y eso no es
+                # peso muerto: el alcance no es por permiso, es del usuario, así
+                # que ese programa habilitaba TODOS los demás permisos que la
+                # cuenta tiene por rol. Retirar un permiso dejaba intacta la
+                # puerta que ese permiso había abierto.
+                Permission.is_active == True,
                 UserPermission.program_id.isnot(None),
                 db.or_(
                     UserPermission.expires_at == None,

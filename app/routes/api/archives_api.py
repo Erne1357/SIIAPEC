@@ -72,10 +72,16 @@ def _abs_path_from_archive(a: Archive) -> tuple[str|None, str|None]:
     return abs_path, os.path.basename(abs_path)
 
 def _permitted_step_ids_for_user() -> Set[int]:
-    """Devuelve los step_ids que el usuario actual puede administrar.
+    """Step_ids que el usuario actual puede VER en el catálogo.
 
-    - Si el usuario tiene acceso global (p. ej. postgraduate_admin): todos los steps.
-    - Si es scoped (program_admin o delegado): steps de sus programas accesibles.
+    - Acceso global (jefe de posgrado): todos los steps.
+    - Scoped (program_admin o delegado): steps que tocan alguno de sus
+      programas accesibles.
+
+    OJO — esto NO es un permiso de escritura. Un Step puede estar enganchado a
+    varios programas a la vez, así que "toca uno de mis programas" no reparte
+    el catálogo entre coordinadores. Para escribir usa
+    `_exclusive_step_ids_for_user` / `_archive_write_denied`.
     """
     accessible_pids = current_user.get_accessible_program_ids()
     if accessible_pids is None:
@@ -87,6 +93,49 @@ def _permitted_step_ids_for_user() -> Set[int]:
         select(ProgramStep.step_id).where(ProgramStep.program_id.in_(accessible_pids))
     ).scalars().all()
     return set(step_ids)
+
+
+def _exclusive_step_ids_for_user() -> Set[int] | None:
+    """Step_ids cuyo CATÁLOGO de documentos puede modificar el usuario actual.
+
+    Returns:
+        None si el usuario tiene alcance global (puede modificar cualquiera);
+        si no, el conjunto de steps que le pertenecen en exclusiva.
+
+    Un Step es COMPARTIDO por diseño: `program_step` engancha el mismo
+    `step_id` a varios programas (en el catálogo de fábrica, 'Documentos
+    Generales' y toda la fase de permanencia cuelgan de los cuatro posgrados).
+    Los Archive cuelgan del Step, no del Program, así que filtrar por "el step
+    de este archivo toca uno de mis programas" NO es una partición: el
+    coordinador de MII pasa ese filtro sobre el step 1 y, al renombrar un
+    archivo o sustituir su plantilla, reescribe el trámite de MANI, MIA y DCI.
+
+    Modificar un archivo de un step compartido es, por tanto, un acto
+    institucional, y sólo el alcance global lo autoriza. Un step queda dentro
+    del alcance de escritura de un coordinador únicamente cuando TODOS sus
+    `ProgramStep` apuntan a programas suyos (p. ej. 'Documentos Específicos
+    DCI', que sólo usa el doctorado). Un step sin ningún ProgramStep no es de
+    nadie: falla cerrado y queda para la Jefatura de Posgrado.
+    """
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is None:
+        return None
+    accessible_pids = set(accessible_pids)
+    if not accessible_pids:
+        return set()
+
+    rows = db.session.execute(
+        select(ProgramStep.step_id, ProgramStep.program_id)
+    ).all()
+
+    programs_by_step: dict[int, Set[int]] = {}
+    for step_id, program_id in rows:
+        programs_by_step.setdefault(step_id, set()).add(program_id)
+
+    return {
+        step_id for step_id, pids in programs_by_step.items()
+        if pids and pids <= accessible_pids
+    }
 
 def _visible_step_ids_for_user() -> Set[int] | None:
     """Steps que el usuario puede CONSULTAR (descargar plantillas).
@@ -124,18 +173,27 @@ def _deny(code: str, message: str, status: int):
     }), status
 
 
-def _archive_step_denied(archive: Archive):
+def _archive_write_denied(step_id):
     """
-    Verifica que el step del archivo esté dentro del alcance ADMINISTRATIVO
-    del usuario. Devuelve la respuesta 403 o None.
+    Guarda de ESCRITURA sobre el catálogo: alta, edición, borrado y plantilla.
+
+    Exige que el step sea exclusivo del alcance del usuario
+    (`_exclusive_step_ids_for_user`). Devuelve la respuesta 403 o None.
     """
-    if current_user.get_accessible_program_ids() is None:
+    exclusive = _exclusive_step_ids_for_user()
+    if exclusive is None:          # alcance global
         return None
-    if archive.step_id in _permitted_step_ids_for_user():
+    try:
+        step_id = int(step_id)
+    except (TypeError, ValueError):
+        step_id = None
+    if step_id is not None and step_id in exclusive:
         return None
     return _deny(
         "FORBIDDEN",
-        "Este archivo pertenece a una etapa fuera de tus programas.",
+        "Esta etapa la comparten varios programas o pertenece a otro, así que "
+        "su catálogo de documentos sólo lo puede modificar la Jefatura de "
+        "Posgrado.",
         403,
     )
 
@@ -176,11 +234,14 @@ def list_archives():
     Estructura:
       id, name, description, is_uploadable, is_downloadable,
       allow_coordinator_upload, allow_extension_request,
-      step_id, step_name, template_url, template_name
+      step_id, step_name, template_url, template_name, can_manage
     Filtrado por alcance de coordinador (solo archivos en steps permitidos).
+    `can_manage` distingue lo que además puede EDITAR: los steps compartidos
+    entre programas se listan pero sólo los modifica la Jefatura de Posgrado.
     """
     include_step = request.args.get("include") == "step"
     is_scoped = current_user.get_accessible_program_ids() is not None
+    exclusive = _exclusive_step_ids_for_user()
 
     if include_step:
         j = join(Archive, Step, Archive.step_id == Step.id)
@@ -212,6 +273,7 @@ def list_archives():
                 "allow_extension_request": bool(allow_ext) if allow_ext is not None else False,
                 "step_id": step_id,
                 "step_name": step_name,
+                "can_manage": exclusive is None or step_id in exclusive,
                 "template_url": f"/api/v1/archives/{aid}/template" if fpath else None,
                 "template_name": os.path.basename(fpath) if fpath else None
             })
@@ -237,6 +299,7 @@ def list_archives():
             "allow_coordinator_upload": a.allow_coordinator_upload,
             "allow_extension_request": bool(allow_ext),
             "step_id": a.step_id,
+            "can_manage": exclusive is None or a.step_id in exclusive,
             "template_url": f"/api/v1/archives/{a.id}/template" if a.file_path else None,
             "template_name": os.path.basename(a.file_path) if a.file_path else None
         })
@@ -251,10 +314,15 @@ def list_steps():
     """
     Lista de steps. Por defecto devuelve SOLO los permitidos al usuario (scope=permitted).
     Admins pueden pedir scope=all.
-    Devuelve: id, name, phase_id, phase_name
+    Devuelve: id, name, phase_id, phase_name, can_manage
+
+    `can_manage=False` marca los steps compartidos por varios programas: se
+    listan (el coordinador ve el trámite) pero su catálogo no se puede editar
+    desde ahí. El front debe deshabilitarlos en los selects de alta/edición.
     """
     scope = request.args.get("scope", "permitted")
     is_scoped = current_user.get_accessible_program_ids() is not None
+    exclusive = _exclusive_step_ids_for_user()
 
     j = join(Step, Phase, Step.phase_id == Phase.id)
     sel = select(
@@ -269,7 +337,13 @@ def list_steps():
         sel = sel.where(Step.id.in_(permitted))
 
     rows = db.session.execute(sel.order_by(Phase.id, Step.id)).all()
-    items = [{"id": i, "name": n, "phase_id": pid, "phase_name": pn} for (i, n, pid, pn) in rows]
+    items = [{
+        "id": i,
+        "name": n,
+        "phase_id": pid,
+        "phase_name": pn,
+        "can_manage": exclusive is None or i in exclusive,
+    } for (i, n, pid, pn) in rows]
     return jsonify({"ok": True, "items": items}), 200
 
 # =========================
@@ -290,11 +364,11 @@ def create_archive():
     except (TypeError, ValueError):
         return _deny("VALIDATION_ERROR", "step_id inválido.", 400)
 
-    # permiso por step: usuarios scoped sólo pueden crear en sus steps permitidos
-    if current_user.get_accessible_program_ids() is not None:
-        permitted = _permitted_step_ids_for_user()
-        if step_id not in permitted:
-            return jsonify({"ok": False, "error": "No tienes permiso para crear en ese step"}), 403
+    # Alcance de escritura: sólo steps exclusivos de sus programas. Un step
+    # compartido pertenece a toda la institución (ver `_archive_write_denied`).
+    denied = _archive_write_denied(step_id)
+    if denied:
+        return denied
 
     a = Archive(
         name=name,
@@ -340,18 +414,18 @@ def update_archive(archive_id: int):
     if not a:
         return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
 
-    # permiso por step (actual y destino si cambia): usuarios scoped sólo tocan sus steps
-    if current_user.get_accessible_program_ids() is not None:
-        permitted = _permitted_step_ids_for_user()
-        if a.step_id not in permitted:
-            return jsonify({"ok": False, "error": "No puedes modificar este archivo"}), 403
-        if "step_id" in data and data["step_id"]:
-            try:
-                target_step_id = int(data["step_id"])
-            except (TypeError, ValueError):
-                return _deny("VALIDATION_ERROR", "step_id inválido.", 400)
-            if target_step_id not in permitted:
-                return jsonify({"ok": False, "error": "No puedes mover a ese step"}), 403
+    # Alcance de escritura sobre el step actual Y sobre el destino si cambia.
+    denied = _archive_write_denied(a.step_id)
+    if denied:
+        return denied
+    if "step_id" in data and data["step_id"]:
+        try:
+            target_step_id = int(data["step_id"])
+        except (TypeError, ValueError):
+            return _deny("VALIDATION_ERROR", "step_id inválido.", 400)
+        denied = _archive_write_denied(target_step_id)
+        if denied:
+            return denied
 
     try:
         # Capturar cambios para el historial
@@ -438,9 +512,9 @@ def delete_archive(archive_id: int):
     if not a:
         return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
 
-    # Alcance por step (faltaba por completo: el borrado se aplicaba a
-    # cualquier archivo del catálogo, incluidas sus entregas).
-    denied = _archive_step_denied(a)
+    # Alcance de escritura por step. El borrado arrastra las entregas de todos
+    # los programas que usan esa etapa, así que exige step exclusivo.
+    denied = _archive_write_denied(a.step_id)
     if denied:
         return denied
 
@@ -493,9 +567,10 @@ def upload_template(archive_id: int):
     if not a:
         return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
 
-    # Alcance por step: sin esto un coordinador sobrescribía la plantilla
-    # oficial que descargan los aspirantes de otro programa.
-    denied = _archive_step_denied(a)
+    # Alcance de escritura por step: sin esto un coordinador sobrescribía la
+    # plantilla oficial que descargan los aspirantes de otro programa. Como el
+    # step es compartido, "toca mi programa" no basta: tiene que ser mío entero.
+    denied = _archive_write_denied(a.step_id)
     if denied:
         return denied
 

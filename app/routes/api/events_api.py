@@ -29,44 +29,24 @@ def _deny(code: str, message: str, status: int):
     }), status
 
 
-def _event_in_scope(event) -> bool:
-    """
-    True si `current_user` puede GESTIONAR este evento.
-
-    Un evento CON programa exige alcance sobre ese programa — aquí es donde se
-    cierra el paso de un coordinador al calendario de otro.
-
-    Un evento SIN programa es institucional y se mantiene compartido entre los
-    gestores que tengan el permiso: es el contrato vigente del sistema (lo
-    fijan las pruebas de `tests/events/`). El hueco real se cierra en la
-    creación: un usuario con alcance limitado ya no puede fabricar eventos sin
-    programa (ver `create_event`), y `delete_event` conserva su regla más
-    estricta.
-    """
-    if event is None:
-        return False
-    if event.program_id is None:
-        return True
-    return scope_service.program_in_scope(current_user, event.program_id)
-
-
 def _event_managed_by_current_user(event) -> bool:
     """
-    Alcance administrativo ESTRICTO, sin la excepción institucional.
+    True si `current_user` puede GESTIONAR este evento. Regla única para todo
+    el módulo; vive en `EventsService.user_may_manage_event`.
 
-    `_event_in_scope` se usa detrás de un decorador de permiso, donde "evento
-    sin programa" significa "de todos los gestores". En las rutas SIN
-    decorador (listados públicos) no puede significar "de cualquiera", así que
-    aquí un evento sin programa sólo lo administra el alcance global.
+    - Evento CON programa: exige alcance sobre ese programa. Aquí se cierra el
+      paso de un coordinador al calendario de otro.
+    - Evento SIN programa (institucional): sólo alcance global.
+
+    La excepción institucional que había antes ("sin programa = de todos los
+    gestores") era la puerta de atrás del módulo: convertía cada evento con
+    `program_id = NULL` en un objeto que cualquier coordinador podía editar,
+    concluir, archivar, rellenar de ventanas y — por `update_event` — reclamar
+    como suyo poniéndole su propio program_id. Con `create_event` ya cerrado,
+    ningún usuario con alcance limitado puede fabricar uno de esos eventos, así
+    que la regla estricta no le quita nada que él pueda producir hoy.
     """
-    if event is None:
-        return False
-    if scope_service.is_global_scope(current_user):
-        return True
-    return (
-        event.program_id is not None
-        and scope_service.program_in_scope(current_user, event.program_id)
-    )
+    return EventsService.user_may_manage_event(current_user, event)
 
 
 def _event_is_public_for_current_user(event) -> bool:
@@ -96,7 +76,7 @@ def _check_event_access(event_id: int):
     event = db.session.get(Event, event_id)
     if not event:
         return None, _deny("NOT_FOUND", "Evento no encontrado.", 404)
-    if not _event_in_scope(event):
+    if not _event_managed_by_current_user(event):
         return None, _deny("FORBIDDEN", "No tienes acceso a este evento.", 403)
     return event, None
 
@@ -229,7 +209,14 @@ def list_slots(event_id:int):
 @login_required
 @permission_required('events.api.list')
 def list_events():
-    """Lista eventos que el coordinador puede gestionar"""
+    """
+    Lista eventos visibles para el panel de administración.
+
+    Incluye los institucionales (sin programa) para que un coordinador siga
+    viendo el calendario general, pero cada fila trae `can_manage`: sólo el
+    alcance global puede actuar sobre un evento institucional. El front debe
+    ocultar/deshabilitar las acciones cuando venga en False.
+    """
     from app.models.academic_period import AcademicPeriod
 
     filters = {
@@ -286,6 +273,7 @@ def list_events():
             "slots_booked": slots_booked,
             "registrations_count": registrations_count,
             "invitations_pending": invitations_pending,
+            "can_manage": _event_managed_by_current_user(event),
             "created_at": event.created_at.isoformat()
         })
 
@@ -300,12 +288,11 @@ def delete_event(event_id: int):
     if not event:
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
-    # Regla propia, más estricta que `_event_in_scope`: borrar arrastra
-    # ventanas, horarios y citas, así que un usuario con alcance limitado no
-    # puede eliminar eventos institucionales (sin programa).
-    if not scope_service.is_global_scope(current_user):
-        if not event.program_id or not scope_service.program_in_scope(current_user, event.program_id):
-            return _deny("FORBIDDEN", "No tienes permiso para eliminar este evento.", 403)
+    # Misma regla que el resto del módulo (antes era una excepción local):
+    # borrar arrastra ventanas, horarios y citas, y un evento institucional
+    # sólo lo borra el alcance global.
+    if not _event_managed_by_current_user(event):
+        return _deny("FORBIDDEN", "No tienes permiso para eliminar este evento.", 403)
 
     # Verificar si hay appointments activas
     appointments_count = db.session.query(Appointment).join(
@@ -504,27 +491,50 @@ def list_event_windows(event_id: int):
 @login_required
 @permission_required('events.api.manage')
 def update_event(event_id: int):
-    """Actualizar información de un evento"""
+    """
+    Actualizar información de un evento.
+
+    `program_id` es INMUTABLE para quien no tiene alcance global. El programa
+    no es un campo más: decide quién manda sobre el evento, y dejarlo editable
+    convertía la ruta en una herramienta de apropiación — el coordinador de A
+    reclamaba un evento institucional poniéndole su program_id, o soltaba el
+    suyo a NULL para volverlo institución-wide y sacarlo del alcance de
+    cualquiera menos el global. Mover un evento además arrastra sus ventanas,
+    horarios, citas, invitaciones y registros, que son de alumnos del programa
+    de origen. Reasignar es un acto de la Jefatura de Posgrado; para el resto,
+    el camino es borrar y volver a crear.
+
+    Reenviar el mismo program_id que ya tiene el evento es un no-op aceptado:
+    el formulario manda el objeto completo.
+    """
     event, err = _check_event_access(event_id)
     if err:
         return err
 
     data = request.get_json() or {}
 
-    # Mover el evento a otro programa exige alcance sobre el destino, y un
-    # usuario con alcance limitado no puede convertirlo en institucional.
     if 'program_id' in data:
         new_pid = data.get('program_id')
-        if not scope_service.is_global_scope(current_user):
-            if not new_pid:
-                return _deny(
-                    "VALIDATION_ERROR",
-                    "Debes indicar el programa al que pertenece el evento.",
-                    400,
-                )
-            denied = guard_program_scope(new_pid)
-            if denied:
-                return denied
+        if new_pid in (None, ''):
+            new_pid = None
+        else:
+            try:
+                new_pid = int(new_pid)
+            except (TypeError, ValueError):
+                return _deny("VALIDATION_ERROR", "program_id inválido.", 400)
+
+        if new_pid == event.program_id:
+            data.pop('program_id')          # no-op: no lo toques
+        elif not scope_service.is_global_scope(current_user):
+            return _deny(
+                "FORBIDDEN",
+                "No puedes cambiar el programa de un evento. Pide a la "
+                "Jefatura de Posgrado que lo reasigne.",
+                403,
+            )
+        else:
+            # Alcance global: puede reasignar, incluso a institucional.
+            data['program_id'] = new_pid
 
     try:
         event = EventsService.update_event(event_id, data)
