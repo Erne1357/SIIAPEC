@@ -117,3 +117,8 @@ MIGRACION_REACT.md
 docker/scripts/init-dev-real.sh
 docker/docker-compose.dev-real.yml
 docker/Dockerfile.db.dev-real
+
+# Runbook de despliegue: instrucciones operativas del servidor (rutas, hosts,
+# comandos con credenciales del entorno). Se queda SIEMPRE en local, como
+# database/ y como los planes de trabajo.
+DESPLIEGUE.md
